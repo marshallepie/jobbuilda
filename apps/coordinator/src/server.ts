@@ -3,6 +3,7 @@ import cors from '@fastify/cors';
 import { MCPClient } from '@jobbuilda/mcp-sdk';
 import { healthRoutes } from './routes/health.js';
 import { identityRoutes } from './routes/identity.js';
+import { clientsRoutes } from './routes/clients.js';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
@@ -14,6 +15,7 @@ declare module 'fastify' {
   interface FastifyInstance {
     mcp: {
       identity: MCPClient;
+      clients: MCPClient;
     };
   }
 }
@@ -53,20 +55,42 @@ export async function createServer() {
   await identityClient.connect();
   fastify.log.info('Connected to identity-mcp');
 
+  // Initialize clients-mcp client
+  const clientsMcpPath = path.resolve(__dirname, '../../../services/clients-mcp');
+
+  const clientsClient = new MCPClient('clients-mcp', {
+    command: 'node',
+    args: [path.join(clientsMcpPath, 'dist/index.js')],
+    env: {
+      DATABASE_URL: process.env.CLIENTS_DATABASE_URL || 'postgresql://jobbuilda:jobbuilda@127.0.0.1:5432/clients_mcp',
+      NATS_URL: process.env.NATS_URL || 'nats://localhost:4222',
+      OTEL_EXPORTER_OTLP_ENDPOINT: process.env.OTEL_EXPORTER_OTLP_ENDPOINT || 'http://localhost:4318',
+      OTEL_SERVICE_NAME: 'clients-mcp',
+      NODE_ENV: process.env.NODE_ENV || 'development'
+    }
+  });
+
+  // Connect to clients-mcp on startup
+  await clientsClient.connect();
+  fastify.log.info('Connected to clients-mcp');
+
   // Attach MCP clients to Fastify instance
   fastify.decorate('mcp', {
-    identity: identityClient
+    identity: identityClient,
+    clients: clientsClient
   });
 
   // Graceful shutdown
   fastify.addHook('onClose', async () => {
     await identityClient.disconnect();
-    fastify.log.info('Disconnected from identity-mcp');
+    await clientsClient.disconnect();
+    fastify.log.info('Disconnected from all MCP servers');
   });
 
   // Register routes
   await fastify.register(healthRoutes);
   await fastify.register(identityRoutes);
+  await fastify.register(clientsRoutes);
 
   return fastify;
 }

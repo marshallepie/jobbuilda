@@ -1,0 +1,34 @@
+{
+  "name": "@jobbuilda/clients-mcp",
+  "version": "2.0.0",
+  "description": "Clients MCP Server - Client/site management with GDPR compliance",
+  "main": "./dist/index.js",
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx watch src/index.ts",
+    "start": "node dist/index.js",
+    "clean": "rm -rf dist",
+    "db:migrate": "node-pg-migrate up --database-url-var DATABASE_URL --migrations-dir migrations",
+    "db:rollback": "node-pg-migrate down --database-url-var DATABASE_URL --migrations-dir migrations",
+    "db:create": "node-pg-migrate create --migrations-dir migrations"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.4",
+    "@jobbuilda/contracts": "workspace:*",
+    "@opentelemetry/api": "^1.9.0",
+    "@opentelemetry/sdk-node": "^0.55.0",
+    "@opentelemetry/auto-instrumentations-node": "^0.52.1",
+    "@opentelemetry/exporter-trace-otlp-http": "^0.55.0",
+    "nats": "^2.28.2",
+    "pg": "^8.13.1",
+    "dotenv": "^16.4.7"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "@types/pg": "^8.11.10",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2",
+    "node-pg-migrate": "^7.8.2"
+  }
+}

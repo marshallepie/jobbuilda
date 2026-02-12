@@ -93,6 +93,52 @@ importers:
         specifier: ^5.7.2
         version: 5.9.3
 
+  services/clients-mcp:
+    dependencies:
+      '@jobbuilda/contracts':
+        specifier: workspace:*
+        version: link:../../packages/contracts
+      '@modelcontextprotocol/sdk':
+        specifier: ^1.0.4
+        version: 1.26.0(zod@4.3.6)
+      '@opentelemetry/api':
+        specifier: ^1.9.0
+        version: 1.9.0
+      '@opentelemetry/auto-instrumentations-node':
+        specifier: ^0.52.1
+        version: 0.52.1(@opentelemetry/api@1.9.0)
+      '@opentelemetry/exporter-trace-otlp-http':
+        specifier: ^0.55.0
+        version: 0.55.0(@opentelemetry/api@1.9.0)
+      '@opentelemetry/sdk-node':
+        specifier: ^0.55.0
+        version: 0.55.0(@opentelemetry/api@1.9.0)
+      dotenv:
+        specifier: ^16.4.7
+        version: 16.6.1
+      nats:
+        specifier: ^2.28.2
+        version: 2.29.3
+      pg:
+        specifier: ^8.13.1
+        version: 8.18.0
+    devDependencies:
+      '@types/node':
+        specifier: ^20.11.0
+        version: 20.19.33
+      '@types/pg':
+        specifier: ^8.11.10
+        version: 8.16.0
+      node-pg-migrate:
+        specifier: ^7.8.2
+        version: 7.9.1(@types/pg@8.16.0)(pg@8.18.0)
+      tsx:
+        specifier: ^4.19.2
+        version: 4.21.0
+      typescript:
+        specifier: ^5.7.2
+        version: 5.9.3
+
   services/identity-mcp:
     dependencies:
       '@jobbuilda/contracts':
