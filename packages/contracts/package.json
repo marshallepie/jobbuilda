@@ -1,0 +1,20 @@
+{
+  "name": "@jobbuilda/contracts",
+  "version": "2.0.0",
+  "description": "Shared JSON schemas, DTOs, and validation for JobBuilda",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "clean": "rm -rf dist",
+    "test": "echo \"No tests yet\""
+  },
+  "dependencies": {
+    "ajv": "^8.12.0",
+    "ajv-formats": "^3.0.1"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.2"
+  }
+}

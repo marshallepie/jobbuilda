@@ -1,0 +1,16 @@
+{
+  "name": "@jobbuilda/pricing-utils",
+  "version": "2.0.0",
+  "description": "HMRC-compliant VAT and pricing calculations",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "clean": "rm -rf dist",
+    "test": "node --test dist/**/*.test.js"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.2"
+  }
+}

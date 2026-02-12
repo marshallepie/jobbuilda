@@ -1,0 +1,21 @@
+{
+  "name": "@jobbuilda/mcp-sdk",
+  "version": "2.0.0",
+  "description": "Typed SDK for MCP client connections with AuthContext propagation",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "clean": "rm -rf dist",
+    "test": "echo \"No tests yet\""
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.4",
+    "@jobbuilda/contracts": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "typescript": "^5.7.2"
+  }
+}
