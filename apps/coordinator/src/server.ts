@@ -4,6 +4,7 @@ import { MCPClient } from '@jobbuilda/mcp-sdk';
 import { healthRoutes } from './routes/health.js';
 import { identityRoutes } from './routes/identity.js';
 import { clientsRoutes } from './routes/clients.js';
+import { suppliersRoutes } from './routes/suppliers.js';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
@@ -16,6 +17,7 @@ declare module 'fastify' {
     mcp: {
       identity: MCPClient;
       clients: MCPClient;
+      suppliers: MCPClient;
     };
   }
 }
@@ -74,16 +76,37 @@ export async function createServer() {
   await clientsClient.connect();
   fastify.log.info('Connected to clients-mcp');
 
+  // Initialize suppliers-mcp client
+  const suppliersMcpPath = path.resolve(__dirname, '../../../services/suppliers-mcp');
+
+  const suppliersClient = new MCPClient('suppliers-mcp', {
+    command: 'node',
+    args: [path.join(suppliersMcpPath, 'dist/index.js')],
+    env: {
+      DATABASE_URL: process.env.SUPPLIERS_DATABASE_URL || 'postgresql://jobbuilda:jobbuilda@127.0.0.1:5432/suppliers_mcp',
+      NATS_URL: process.env.NATS_URL || 'nats://localhost:4222',
+      OTEL_EXPORTER_OTLP_ENDPOINT: process.env.OTEL_EXPORTER_OTLP_ENDPOINT || 'http://localhost:4318',
+      OTEL_SERVICE_NAME: 'suppliers-mcp',
+      NODE_ENV: process.env.NODE_ENV || 'development'
+    }
+  });
+
+  // Connect to suppliers-mcp on startup
+  await suppliersClient.connect();
+  fastify.log.info('Connected to suppliers-mcp');
+
   // Attach MCP clients to Fastify instance
   fastify.decorate('mcp', {
     identity: identityClient,
-    clients: clientsClient
+    clients: clientsClient,
+    suppliers: suppliersClient
   });
 
   // Graceful shutdown
   fastify.addHook('onClose', async () => {
     await identityClient.disconnect();
     await clientsClient.disconnect();
+    await suppliersClient.disconnect();
     fastify.log.info('Disconnected from all MCP servers');
   });
 
@@ -91,6 +114,7 @@ export async function createServer() {
   await fastify.register(healthRoutes);
   await fastify.register(identityRoutes);
   await fastify.register(clientsRoutes);
+  await fastify.register(suppliersRoutes);
 
   return fastify;
 }
