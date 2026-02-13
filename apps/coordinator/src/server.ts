@@ -5,6 +5,7 @@ import { healthRoutes } from './routes/health.js';
 import { identityRoutes } from './routes/identity.js';
 import { clientsRoutes } from './routes/clients.js';
 import { suppliersRoutes } from './routes/suppliers.js';
+import { quotingRoutes } from './routes/quoting.js';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
@@ -18,6 +19,7 @@ declare module 'fastify' {
       identity: MCPClient;
       clients: MCPClient;
       suppliers: MCPClient;
+      quoting: MCPClient;
     };
   }
 }
@@ -95,11 +97,31 @@ export async function createServer() {
   await suppliersClient.connect();
   fastify.log.info('Connected to suppliers-mcp');
 
+  // Initialize quoting-mcp client
+  const quotingMcpPath = path.resolve(__dirname, '../../../services/quoting-mcp');
+
+  const quotingClient = new MCPClient('quoting-mcp', {
+    command: 'node',
+    args: [path.join(quotingMcpPath, 'dist/index.js')],
+    env: {
+      DATABASE_URL: process.env.QUOTING_DATABASE_URL || 'postgresql://jobbuilda:jobbuilda@127.0.0.1:5432/quoting_mcp',
+      NATS_URL: process.env.NATS_URL || 'nats://localhost:4222',
+      OTEL_EXPORTER_OTLP_ENDPOINT: process.env.OTEL_EXPORTER_OTLP_ENDPOINT || 'http://localhost:4318',
+      OTEL_SERVICE_NAME: 'quoting-mcp',
+      NODE_ENV: process.env.NODE_ENV || 'development'
+    }
+  });
+
+  // Connect to quoting-mcp on startup
+  await quotingClient.connect();
+  fastify.log.info('Connected to quoting-mcp');
+
   // Attach MCP clients to Fastify instance
   fastify.decorate('mcp', {
     identity: identityClient,
     clients: clientsClient,
-    suppliers: suppliersClient
+    suppliers: suppliersClient,
+    quoting: quotingClient
   });
 
   // Graceful shutdown
@@ -107,6 +129,7 @@ export async function createServer() {
     await identityClient.disconnect();
     await clientsClient.disconnect();
     await suppliersClient.disconnect();
+    await quotingClient.disconnect();
     fastify.log.info('Disconnected from all MCP servers');
   });
 
@@ -115,6 +138,7 @@ export async function createServer() {
   await fastify.register(identityRoutes);
   await fastify.register(clientsRoutes);
   await fastify.register(suppliersRoutes);
+  await fastify.register(quotingRoutes);
 
   return fastify;
 }

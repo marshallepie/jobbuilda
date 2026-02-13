@@ -1,0 +1,31 @@
+{
+  "name": "@jobbuilda/quoting-mcp",
+  "version": "2.0.0",
+  "type": "module",
+  "description": "JobBuilda Quoting MCP Server - Leads and quote management",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx watch src/index.ts",
+    "start": "node dist/index.js",
+    "db:migrate": "node-pg-migrate up -m migrations"
+  },
+  "dependencies": {
+    "@jobbuilda/contracts": "workspace:*",
+    "@modelcontextprotocol/sdk": "^1.0.4",
+    "@opentelemetry/api": "^1.9.0",
+    "@opentelemetry/auto-instrumentations-node": "^0.52.1",
+    "@opentelemetry/exporter-trace-otlp-http": "^0.55.0",
+    "@opentelemetry/sdk-node": "^0.55.0",
+    "dotenv": "^16.4.5",
+    "nats": "^2.28.2",
+    "pg": "^8.13.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20.17.9",
+    "@types/pg": "^8.11.10",
+    "node-pg-migrate": "^7.7.1",
+    "tsx": "^4.19.2",
+    "typescript": "^5.6.3"
+  }
+}
