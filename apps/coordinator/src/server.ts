@@ -8,6 +8,7 @@ import { suppliersRoutes } from './routes/suppliers.js';
 import { quotingRoutes } from './routes/quoting.js';
 import { jobsRoutes } from './routes/jobs.js';
 import { materialsRoutes } from './routes/materials.js';
+import { variationsRoutes } from './routes/variations.js';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
@@ -24,6 +25,7 @@ declare module 'fastify' {
       quoting: MCPClient;
       jobs: MCPClient;
       materials: MCPClient;
+      variations: MCPClient;
     };
   }
 }
@@ -158,6 +160,25 @@ export async function createServer() {
   await materialsClient.connect();
   fastify.log.info('Connected to materials-mcp');
 
+  // Initialize variations-mcp client
+  const variationsMcpPath = path.resolve(__dirname, '../../../services/variations-mcp');
+
+  const variationsClient = new MCPClient('variations-mcp', {
+    command: 'node',
+    args: [path.join(variationsMcpPath, 'dist/index.js')],
+    env: {
+      DATABASE_URL: process.env.VARIATIONS_DATABASE_URL || 'postgresql://jobbuilda:jobbuilda@127.0.0.1:5432/variations_mcp',
+      NATS_URL: process.env.NATS_URL || 'nats://localhost:4222',
+      OTEL_EXPORTER_OTLP_ENDPOINT: process.env.OTEL_EXPORTER_OTLP_ENDPOINT || 'http://localhost:4318',
+      OTEL_SERVICE_NAME: 'variations-mcp',
+      NODE_ENV: process.env.NODE_ENV || 'development'
+    }
+  });
+
+  // Connect to variations-mcp on startup
+  await variationsClient.connect();
+  fastify.log.info('Connected to variations-mcp');
+
   // Attach MCP clients to Fastify instance
   fastify.decorate('mcp', {
     identity: identityClient,
@@ -165,7 +186,8 @@ export async function createServer() {
     suppliers: suppliersClient,
     quoting: quotingClient,
     jobs: jobsClient,
-    materials: materialsClient
+    materials: materialsClient,
+    variations: variationsClient
   });
 
   // Graceful shutdown
@@ -176,6 +198,7 @@ export async function createServer() {
     await quotingClient.disconnect();
     await jobsClient.disconnect();
     await materialsClient.disconnect();
+    await variationsClient.disconnect();
     fastify.log.info('Disconnected from all MCP servers');
   });
 
@@ -187,6 +210,7 @@ export async function createServer() {
   await fastify.register(quotingRoutes);
   await fastify.register(jobsRoutes);
   await fastify.register(materialsRoutes);
+  await fastify.register(variationsRoutes);
 
   return fastify;
 }
