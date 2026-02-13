@@ -7,6 +7,7 @@ import { clientsRoutes } from './routes/clients.js';
 import { suppliersRoutes } from './routes/suppliers.js';
 import { quotingRoutes } from './routes/quoting.js';
 import { jobsRoutes } from './routes/jobs.js';
+import { materialsRoutes } from './routes/materials.js';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
@@ -22,6 +23,7 @@ declare module 'fastify' {
       suppliers: MCPClient;
       quoting: MCPClient;
       jobs: MCPClient;
+      materials: MCPClient;
     };
   }
 }
@@ -137,13 +139,33 @@ export async function createServer() {
   await jobsClient.connect();
   fastify.log.info('Connected to jobs-mcp');
 
+  // Initialize materials-mcp client
+  const materialsMcpPath = path.resolve(__dirname, '../../../services/materials-mcp');
+
+  const materialsClient = new MCPClient('materials-mcp', {
+    command: 'node',
+    args: [path.join(materialsMcpPath, 'dist/index.js')],
+    env: {
+      DATABASE_URL: process.env.MATERIALS_DATABASE_URL || 'postgresql://jobbuilda:jobbuilda@127.0.0.1:5432/materials_mcp',
+      NATS_URL: process.env.NATS_URL || 'nats://localhost:4222',
+      OTEL_EXPORTER_OTLP_ENDPOINT: process.env.OTEL_EXPORTER_OTLP_ENDPOINT || 'http://localhost:4318',
+      OTEL_SERVICE_NAME: 'materials-mcp',
+      NODE_ENV: process.env.NODE_ENV || 'development'
+    }
+  });
+
+  // Connect to materials-mcp on startup
+  await materialsClient.connect();
+  fastify.log.info('Connected to materials-mcp');
+
   // Attach MCP clients to Fastify instance
   fastify.decorate('mcp', {
     identity: identityClient,
     clients: clientsClient,
     suppliers: suppliersClient,
     quoting: quotingClient,
-    jobs: jobsClient
+    jobs: jobsClient,
+    materials: materialsClient
   });
 
   // Graceful shutdown
@@ -153,6 +175,7 @@ export async function createServer() {
     await suppliersClient.disconnect();
     await quotingClient.disconnect();
     await jobsClient.disconnect();
+    await materialsClient.disconnect();
     fastify.log.info('Disconnected from all MCP servers');
   });
 
@@ -163,6 +186,7 @@ export async function createServer() {
   await fastify.register(suppliersRoutes);
   await fastify.register(quotingRoutes);
   await fastify.register(jobsRoutes);
+  await fastify.register(materialsRoutes);
 
   return fastify;
 }
