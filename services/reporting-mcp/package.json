@@ -1,0 +1,29 @@
+{
+  "name": "@jobbuilda/reporting-mcp",
+  "version": "1.0.0",
+  "type": "module",
+  "main": "dist/index.js",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc",
+    "db:migrate": "node-pg-migrate up -m migrations",
+    "db:rollback": "node-pg-migrate down -m migrations"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.4",
+    "@opentelemetry/api": "^1.9.0",
+    "@opentelemetry/sdk-node": "^0.53.0",
+    "@opentelemetry/auto-instrumentations-node": "^0.50.0",
+    "@opentelemetry/exporter-trace-otlp-http": "^0.53.0",
+    "pg": "^8.13.1",
+    "nats": "^2.29.3",
+    "dotenv": "^16.4.7"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "@types/pg": "^8.11.10",
+    "node-pg-migrate": "^7.8.2",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2"
+  }
+}
