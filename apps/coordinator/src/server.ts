@@ -6,6 +6,7 @@ import { identityRoutes } from './routes/identity.js';
 import { clientsRoutes } from './routes/clients.js';
 import { suppliersRoutes } from './routes/suppliers.js';
 import { quotingRoutes } from './routes/quoting.js';
+import { jobsRoutes } from './routes/jobs.js';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
@@ -20,6 +21,7 @@ declare module 'fastify' {
       clients: MCPClient;
       suppliers: MCPClient;
       quoting: MCPClient;
+      jobs: MCPClient;
     };
   }
 }
@@ -116,12 +118,32 @@ export async function createServer() {
   await quotingClient.connect();
   fastify.log.info('Connected to quoting-mcp');
 
+  // Initialize jobs-mcp client
+  const jobsMcpPath = path.resolve(__dirname, '../../../services/jobs-mcp');
+
+  const jobsClient = new MCPClient('jobs-mcp', {
+    command: 'node',
+    args: [path.join(jobsMcpPath, 'dist/index.js')],
+    env: {
+      DATABASE_URL: process.env.JOBS_DATABASE_URL || 'postgresql://jobbuilda:jobbuilda@127.0.0.1:5432/jobs_mcp',
+      NATS_URL: process.env.NATS_URL || 'nats://localhost:4222',
+      OTEL_EXPORTER_OTLP_ENDPOINT: process.env.OTEL_EXPORTER_OTLP_ENDPOINT || 'http://localhost:4318',
+      OTEL_SERVICE_NAME: 'jobs-mcp',
+      NODE_ENV: process.env.NODE_ENV || 'development'
+    }
+  });
+
+  // Connect to jobs-mcp on startup
+  await jobsClient.connect();
+  fastify.log.info('Connected to jobs-mcp');
+
   // Attach MCP clients to Fastify instance
   fastify.decorate('mcp', {
     identity: identityClient,
     clients: clientsClient,
     suppliers: suppliersClient,
-    quoting: quotingClient
+    quoting: quotingClient,
+    jobs: jobsClient
   });
 
   // Graceful shutdown
@@ -130,6 +152,7 @@ export async function createServer() {
     await clientsClient.disconnect();
     await suppliersClient.disconnect();
     await quotingClient.disconnect();
+    await jobsClient.disconnect();
     fastify.log.info('Disconnected from all MCP servers');
   });
 
@@ -139,6 +162,7 @@ export async function createServer() {
   await fastify.register(clientsRoutes);
   await fastify.register(suppliersRoutes);
   await fastify.register(quotingRoutes);
+  await fastify.register(jobsRoutes);
 
   return fastify;
 }
