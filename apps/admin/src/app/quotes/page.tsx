@@ -86,32 +86,32 @@ export default function QuotesPage() {
     <AppLayout>
       <div className="space-y-6">
         {/* Header */}
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-4 sm:space-y-0">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900">Quotes</h1>
-            <p className="mt-2 text-gray-600">Create and manage quotes</p>
+            <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Quotes</h1>
+            <p className="mt-1 sm:mt-2 text-sm sm:text-base text-gray-600">Create and manage quotes</p>
           </div>
           <Link
             href="/quotes/new"
-            className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors font-medium"
+            className="inline-flex items-center justify-center px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors font-medium text-sm sm:text-base"
           >
             + New Quote
           </Link>
         </div>
 
         {/* Filters */}
-        <div className="flex space-x-2">
+        <div className="flex flex-wrap gap-2">
           {['all', 'draft', 'sent', 'approved', 'rejected'].map((status) => (
             <button
               key={status}
               onClick={() => setFilter(status)}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+              className={`px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-medium transition-colors ${
                 filter === status
                   ? 'bg-primary-600 text-white'
                   : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-200'
               }`}
             >
-              {status === 'all' ? 'All Quotes' : status}
+              {status === 'all' ? 'All' : status}
             </button>
           ))}
         </div>
@@ -136,7 +136,9 @@ export default function QuotesPage() {
             </Link>
           </div>
         ) : (
-          <div className="bg-white shadow rounded-lg overflow-hidden">
+          <>
+          {/* Desktop table view */}
+          <div className="hidden md:block bg-white shadow rounded-lg overflow-hidden">
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
                 <tr>
@@ -205,6 +207,59 @@ export default function QuotesPage() {
               </tbody>
             </table>
           </div>
+
+          {/* Mobile card view */}
+          <div className="md:hidden space-y-4">
+            {filteredQuotes.map((quote) => (
+              <div key={quote.id} className="bg-white rounded-lg shadow p-4">
+                <div className="flex items-start justify-between mb-3">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs text-gray-500">{quote.quote_number}</p>
+                    <p className="text-sm font-medium text-gray-900 mt-1 truncate">{quote.title}</p>
+                  </div>
+                  <span className={`ml-2 px-2 py-1 text-xs font-medium rounded-full whitespace-nowrap ${getStatusColor(quote.status)}`}>
+                    {quote.status}
+                  </span>
+                </div>
+
+                <div className="space-y-2 text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-gray-500">Client:</span>
+                    <span className="font-medium text-gray-900">{quote.client_name || 'N/A'}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-500">Amount:</span>
+                    <span className="font-semibold text-gray-900">{formatCurrency(quote.total_inc_vat)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-500">Valid Until:</span>
+                    <span className="text-gray-900">{formatDate(quote.valid_until)}</span>
+                  </div>
+                </div>
+
+                <div className="mt-4 flex items-center justify-end space-x-3 pt-3 border-t border-gray-200">
+                  <Link
+                    href={`/quotes/${quote.id}`}
+                    className="text-sm font-medium text-primary-600 hover:text-primary-700"
+                  >
+                    View
+                  </Link>
+                  {quote.status !== 'approved' && (
+                    <button
+                      onClick={(e) => {
+                        e.preventDefault();
+                        deleteQuote(quote.id, quote.quote_number);
+                      }}
+                      className="text-sm font-medium text-red-600 hover:text-red-800"
+                    >
+                      Delete
+                    </button>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+          </>
         )}
       </div>
     </AppLayout>

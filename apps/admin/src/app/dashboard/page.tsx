@@ -109,8 +109,8 @@ export default function DashboardPage() {
       <div className="space-y-8">
         {/* Header */}
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
-          <p className="mt-2 text-gray-600">
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Dashboard</h1>
+          <p className="mt-2 text-sm sm:text-base text-gray-600">
             Welcome back! Here&apos;s what&apos;s happening with your business.
           </p>
         </div>
@@ -167,22 +167,22 @@ export default function DashboardPage() {
                       href={`/jobs/${job.id}`}
                       className="block hover:bg-gray-50 transition-colors"
                     >
-                      <div className="px-6 py-4">
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <p className="text-sm text-gray-500">{job.job_number}</p>
-                            <p className="text-base font-medium text-gray-900 mt-1">
+                      <div className="px-4 py-3 sm:px-6 sm:py-4">
+                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-2 sm:space-y-0">
+                          <div className="min-w-0 flex-1">
+                            <p className="text-xs sm:text-sm text-gray-500">{job.job_number}</p>
+                            <p className="text-sm sm:text-base font-medium text-gray-900 mt-1 truncate">
                               {job.title}
                             </p>
                             {job.client_name && (
-                              <p className="text-sm text-gray-500 mt-1">{job.client_name}</p>
+                              <p className="text-xs sm:text-sm text-gray-500 mt-1">{job.client_name}</p>
                             )}
                           </div>
-                          <div className="text-right">
-                            <span className={`px-2 py-1 text-xs font-medium rounded-full ${getStatusColor(job.status)}`}>
+                          <div className="flex items-center justify-between sm:justify-end sm:flex-col sm:items-end space-x-2 sm:space-x-0">
+                            <span className={`px-2 py-1 text-xs font-medium rounded-full whitespace-nowrap ${getStatusColor(job.status)}`}>
                               {job.status.replace('_', ' ')}
                             </span>
-                            <p className="text-sm text-gray-500 mt-1">
+                            <p className="text-xs sm:text-sm text-gray-500 sm:mt-1">
                               {formatDate(job.start_date)}
                             </p>
                           </div>
@@ -220,22 +220,22 @@ export default function DashboardPage() {
                       href={`/quotes/${quote.id}`}
                       className="block hover:bg-gray-50 transition-colors"
                     >
-                      <div className="px-6 py-4">
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <p className="text-sm text-gray-500">{quote.quote_number}</p>
-                            <p className="text-base font-medium text-gray-900 mt-1">
+                      <div className="px-4 py-3 sm:px-6 sm:py-4">
+                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-2 sm:space-y-0">
+                          <div className="min-w-0 flex-1">
+                            <p className="text-xs sm:text-sm text-gray-500">{quote.quote_number}</p>
+                            <p className="text-sm sm:text-base font-medium text-gray-900 mt-1 truncate">
                               {quote.title}
                             </p>
                             {quote.client_name && (
-                              <p className="text-sm text-gray-500 mt-1">{quote.client_name}</p>
+                              <p className="text-xs sm:text-sm text-gray-500 mt-1">{quote.client_name}</p>
                             )}
                           </div>
-                          <div className="text-right">
-                            <p className="text-base font-semibold text-gray-900">
+                          <div className="flex items-center justify-between sm:justify-end sm:flex-col sm:items-end space-x-2 sm:space-x-0">
+                            <p className="text-sm sm:text-base font-semibold text-gray-900">
                               {formatCurrency(quote.total_inc_vat)}
                             </p>
-                            <span className={`inline-block mt-1 px-2 py-1 text-xs font-medium rounded-full ${getStatusColor(quote.status)}`}>
+                            <span className={`inline-block sm:mt-1 px-2 py-1 text-xs font-medium rounded-full whitespace-nowrap ${getStatusColor(quote.status)}`}>
                               {quote.status}
                             </span>
                           </div>
