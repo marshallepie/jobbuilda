@@ -52,8 +52,8 @@ export default function DashboardPage() {
       // Load auth context (in production, this would come from Supabase)
       const mockAuth = {
         token: 'mock-jwt-token',
-        tenant_id: 'tenant-123',
-        user_id: 'user-456',
+        tenant_id: '550e8400-e29b-41d4-a716-446655440000',
+        user_id: '550e8400-e29b-41d4-a716-446655440001',
       };
       api.setAuth(mockAuth);
 

@@ -2,7 +2,10 @@
  * API Client for JobBuilda Coordinator (Admin)
  */
 
+import { mockApi } from './mockData';
+
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
+const USE_MOCK_DATA = process.env.NEXT_PUBLIC_USE_MOCK_DATA === 'true';
 
 export class ApiError extends Error {
   constructor(
@@ -88,10 +91,12 @@ class ApiClient {
 
   // ===== LEADS =====
   async getLeads() {
+    if (USE_MOCK_DATA) return mockApi.getLeads();
     return this.request('/api/leads');
   }
 
   async getLead(id: string) {
+    if (USE_MOCK_DATA) return mockApi.getLead(id);
     return this.request(`/api/leads/${id}`);
   }
 
@@ -117,10 +122,12 @@ class ApiClient {
 
   // ===== QUOTES =====
   async getQuotes() {
+    if (USE_MOCK_DATA) return mockApi.getQuotes();
     return this.request('/api/quotes');
   }
 
   async getQuote(id: string) {
+    if (USE_MOCK_DATA) return mockApi.getQuote(id);
     return this.request(`/api/quotes/${id}`);
   }
 
@@ -152,10 +159,12 @@ class ApiClient {
 
   // ===== JOBS =====
   async getJobs() {
+    if (USE_MOCK_DATA) return mockApi.getJobs();
     return this.request('/api/jobs');
   }
 
   async getJob(id: string) {
+    if (USE_MOCK_DATA) return mockApi.getJob(id);
     return this.request(`/api/jobs/${id}`);
   }
 
@@ -233,10 +242,12 @@ class ApiClient {
 
   // ===== INVOICES =====
   async getInvoices() {
+    if (USE_MOCK_DATA) return mockApi.getInvoices();
     return this.request('/api/invoices');
   }
 
   async getInvoice(id: string) {
+    if (USE_MOCK_DATA) return mockApi.getInvoice(id);
     return this.request(`/api/invoices/${id}`);
   }
 
@@ -263,10 +274,12 @@ class ApiClient {
 
   // ===== CLIENTS =====
   async getClients() {
+    if (USE_MOCK_DATA) return mockApi.getClients();
     return this.request('/api/clients');
   }
 
   async getClient(id: string) {
+    if (USE_MOCK_DATA) return mockApi.getClient(id);
     return this.request(`/api/clients/${id}`);
   }
 

@@ -21,6 +21,7 @@ interface CreateInvoiceInput {
   job_id: string;
   client_id: string;
   site_id: string;
+  invoice_type?: 'deposit' | 'progress' | 'final' | 'credit_note';
   invoice_date?: string;
   payment_terms_days?: number;
   items: InvoiceItem[];
@@ -55,9 +56,9 @@ export async function createInvoice(
       // Insert invoice
       const invoiceResult = await query(
         `INSERT INTO invoices (
-          id, tenant_id, invoice_number, job_id, client_id, site_id,
+          id, tenant_id, invoice_number, job_id, client_id, site_id, invoice_type,
           invoice_date, due_date, payment_terms_days, notes, status, created_by
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
         RETURNING *`,
         [
           invoiceId,
@@ -66,6 +67,7 @@ export async function createInvoice(
           input.job_id,
           input.client_id,
           input.site_id,
+          input.invoice_type || 'final',
           invoiceDate,
           dueDate.toISOString().split('T')[0],
           paymentTermsDays,

@@ -30,8 +30,8 @@ export default function QuotesPage() {
     try {
       const mockAuth = {
         token: 'mock-jwt-token',
-        tenant_id: 'tenant-123',
-        user_id: 'user-456',
+        tenant_id: '550e8400-e29b-41d4-a716-446655440000',
+        user_id: '550e8400-e29b-41d4-a716-446655440001',
       };
       api.setAuth(mockAuth);
 
@@ -41,6 +41,29 @@ export default function QuotesPage() {
       console.error('Failed to load quotes:', err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const deleteQuote = async (quoteId: string, quoteNumber: string) => {
+    if (confirm(`Are you sure you want to delete quote ${quoteNumber}? This action cannot be undone.`)) {
+      try {
+        const mockAuth = {
+          token: 'mock-jwt-token',
+          tenant_id: '550e8400-e29b-41d4-a716-446655440000',
+          user_id: '550e8400-e29b-41d4-a716-446655440001',
+        };
+        api.setAuth(mockAuth);
+
+        await api.request(`/api/quotes/${quoteId}`, {
+          method: 'DELETE',
+        });
+
+        // Reload quotes list
+        await loadQuotes();
+      } catch (err: any) {
+        console.error('Failed to delete quote:', err);
+        alert(err.message || 'Failed to delete quote. Please try again.');
+      }
     }
   };
 
@@ -161,10 +184,21 @@ export default function QuotesPage() {
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                       <Link
                         href={`/quotes/${quote.id}`}
-                        className="text-primary-600 hover:text-primary-700"
+                        className="text-primary-600 hover:text-primary-700 mr-4"
                       >
                         View
                       </Link>
+                      {quote.status !== 'approved' && (
+                        <button
+                          onClick={(e) => {
+                            e.preventDefault();
+                            deleteQuote(quote.id, quote.quote_number);
+                          }}
+                          className="text-red-600 hover:text-red-800"
+                        >
+                          Delete
+                        </button>
+                      )}
                     </td>
                   </tr>
                 ))}

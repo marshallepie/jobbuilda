@@ -176,4 +176,24 @@ export async function quotingRoutes(fastify: FastifyInstance) {
       }
     }
   );
+
+  // DELETE /api/quotes/:id - Delete quote
+  fastify.delete<{ Params: { id: string } }>(
+    '/api/quotes/:id',
+    async (request, reply) => {
+      const context = extractAuthContext(request);
+      const { id } = request.params;
+      try {
+        const result = await fastify.mcp.quoting.callTool(
+          'delete_quote',
+          { quote_id: id },
+          context
+        );
+        const data = JSON.parse(result.content[0]?.text || '{}');
+        return data;
+      } catch (error: any) {
+        reply.status(500).send({ error: 'Failed to delete quote', message: error.message });
+      }
+    }
+  );
 }
