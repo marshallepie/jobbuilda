@@ -48,6 +48,7 @@ export function getStatusColor(status: string): string {
     partial: 'bg-orange-100 text-orange-800',
   };
 
+  if (!status) return 'bg-gray-100 text-gray-800';
   return colors[status.toLowerCase()] || 'bg-gray-100 text-gray-800';
 }
 

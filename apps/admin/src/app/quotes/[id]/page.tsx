@@ -70,7 +70,35 @@ export default function QuoteDetailPage() {
       };
       api.setAuth(mockAuth);
 
-      const data = await api.request(`/api/quotes/${quoteId}`) as Quote;
+      const data = await api.request(`/api/quotes/${quoteId}`) as any;
+
+      // Fetch client details if client_id exists
+      if (data.client_id) {
+        try {
+          const clientData = await api.request(`/api/clients/clients/${data.client_id}`) as any;
+          data.client_name = clientData.name;
+        } catch (err) {
+          console.error('Failed to load client:', err);
+        }
+      }
+
+      // Fetch site details if site_id exists
+      if (data.site_id) {
+        try {
+          const siteData = await api.request(`/api/clients/sites/${data.site_id}`) as any;
+          data.site_name = siteData.name;
+          data.site_address = [
+            siteData.address_line1,
+            siteData.address_line2,
+            siteData.city,
+            siteData.county,
+            siteData.postcode
+          ].filter(Boolean).join(', ');
+        } catch (err) {
+          console.error('Failed to load site:', err);
+        }
+      }
+
       setQuote(data);
     } catch (err) {
       console.error('Failed to load quote:', err);
@@ -85,9 +113,7 @@ export default function QuoteDetailPage() {
     if (confirm(`Send quote ${quote.quote_number} to client?`)) {
       setActionLoading(true);
       try {
-        await api.request(`/api/quotes/${quoteId}/send`, {
-          method: 'POST',
-        });
+        await api.sendQuote(quoteId);
         await loadQuote();
         alert('Quote sent successfully!');
       } catch (err) {
@@ -107,6 +133,7 @@ export default function QuoteDetailPage() {
       try {
         await api.request(`/api/quotes/${quoteId}/approve`, {
           method: 'POST',
+          body: JSON.stringify({}),
         });
         await loadQuote();
         alert('Quote approved! You can now generate a deposit invoice.');
@@ -310,7 +337,7 @@ export default function QuoteDetailPage() {
                         </div>
                       ) : (
                         <div>
-                          {item.quantity} {item.unit} × £{item.unit_price_ex_vat.toFixed(2)}
+                          {item.quantity} {item.unit} × {formatCurrency(item.unit_price_ex_vat)}
                           {item.markup_percent > 0 && ` (+${item.markup_percent}%)`}
                         </div>
                       )}

@@ -215,8 +215,8 @@ BEGIN
 
   SELECT COUNT(*) + 1 INTO count
   FROM invoices
-  WHERE tenant_id = p_tenant_id
-  AND invoice_number LIKE 'INV-' || date_str || '-%';
+  WHERE invoices.tenant_id = p_tenant_id
+  AND invoices.invoice_number LIKE 'INV-' || date_str || '-%';
 
   invoice_number := 'INV-' || date_str || '-' || LPAD(count::TEXT, 3, '0');
 

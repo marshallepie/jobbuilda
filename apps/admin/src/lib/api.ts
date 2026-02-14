@@ -56,7 +56,7 @@ class ApiClient {
     return this.authContext;
   }
 
-  private async request<T>(
+  async request<T>(
     path: string,
     options: RequestInit = {}
   ): Promise<T> {
@@ -117,6 +117,7 @@ class ApiClient {
   async convertLeadToQuote(leadId: string) {
     return this.request(`/api/leads/${leadId}/convert`, {
       method: 'POST',
+      body: JSON.stringify({}),
     });
   }
 
@@ -148,12 +149,14 @@ class ApiClient {
   async sendQuote(id: string) {
     return this.request(`/api/quotes/${id}/send`, {
       method: 'POST',
+      body: JSON.stringify({}),
     });
   }
 
   async convertQuoteToJob(quoteId: string) {
     return this.request(`/api/quotes/${quoteId}/convert`, {
       method: 'POST',
+      body: JSON.stringify({}),
     });
   }
 
@@ -185,12 +188,14 @@ class ApiClient {
   async startJob(jobId: string) {
     return this.request(`/api/jobs/${jobId}/start`, {
       method: 'POST',
+      body: JSON.stringify({}),
     });
   }
 
   async completeJob(jobId: string) {
     return this.request(`/api/jobs/${jobId}/complete`, {
       method: 'POST',
+      body: JSON.stringify({}),
     });
   }
 
@@ -237,6 +242,7 @@ class ApiClient {
   async submitVariation(id: string) {
     return this.request(`/api/variations/${id}/submit`, {
       method: 'POST',
+      body: JSON.stringify({}),
     });
   }
 
@@ -254,12 +260,14 @@ class ApiClient {
   async generateInvoice(jobId: string) {
     return this.request(`/api/invoices/generate/${jobId}`, {
       method: 'POST',
+      body: JSON.stringify({}),
     });
   }
 
   async sendInvoice(id: string) {
     return this.request(`/api/invoices/${id}/send`, {
       method: 'POST',
+      body: JSON.stringify({}),
     });
   }
 
