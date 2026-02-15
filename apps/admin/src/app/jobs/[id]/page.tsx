@@ -9,11 +9,16 @@ import { formatCurrency, formatDate, getStatusColor } from '@/lib/utils';
 
 interface TimeEntry {
   id: string;
-  technician_name: string;
-  start_time: string;
+  user_id: string;
+  date: string;
+  start_time?: string;
   end_time?: string;
-  duration_hours?: number;
+  hours: number;
+  break_minutes?: number;
+  description?: string;
+  is_overtime?: boolean;
   notes?: string;
+  technician_name?: string;
 }
 
 interface Material {
@@ -88,6 +93,7 @@ export default function JobDetailPage() {
   const [showMaterialForm, setShowMaterialForm] = useState(false);
   const [materialForm, setMaterialForm] = useState({
     sku: '',
+    name: '',
     description: '',
     quantity: '',
     unit: 'units',
@@ -232,7 +238,7 @@ export default function JobDetailPage() {
 
   const calculateTotalHours = () => {
     if (!Array.isArray(timeEntries)) return 0;
-    return timeEntries.reduce((sum, entry) => sum + (entry.duration_hours || 0), 0);
+    return timeEntries.reduce((sum, entry) => sum + (parseFloat(entry.hours as any) || 0), 0);
   };
 
   const calculateTotalMaterialsCost = () => {
@@ -332,7 +338,7 @@ export default function JobDetailPage() {
   const handleSubmitMaterial = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!materialForm.sku || !materialForm.description || !materialForm.quantity || !materialForm.unit_price_ex_vat) {
+    if (!materialForm.sku || !materialForm.name || !materialForm.quantity || !materialForm.unit_price_ex_vat) {
       alert('Please fill in all required fields');
       return;
     }
@@ -356,7 +362,8 @@ export default function JobDetailPage() {
       await api.logMaterial({
         job_id: jobId,
         sku: materialForm.sku,
-        description: materialForm.description,
+        name: materialForm.name,
+        description: materialForm.description || undefined,
         quantity: quantity,
         unit: materialForm.unit,
         unit_price_ex_vat: unitPrice,
@@ -366,6 +373,7 @@ export default function JobDetailPage() {
 
       setMaterialForm({
         sku: '',
+        name: '',
         description: '',
         quantity: '',
         unit: 'units',
@@ -698,14 +706,27 @@ export default function JobDetailPage() {
 
               <div>
                 <label className="block text-xs font-medium text-gray-700 mb-1">
-                  Material Description <span className="text-red-500">*</span>
+                  Material Name <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={materialForm.name}
+                  onChange={(e) => setMaterialForm({ ...materialForm, name: e.target.value })}
+                  required
+                  placeholder="e.g., 2.5mm T&E Cable"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">
+                  Description (Optional)
                 </label>
                 <input
                   type="text"
                   value={materialForm.description}
                   onChange={(e) => setMaterialForm({ ...materialForm, description: e.target.value })}
-                  required
-                  placeholder="e.g., 2.5mm Twin & Earth Cable"
+                  placeholder="e.g., 2.5mm Twin & Earth Cable, 100m roll"
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm"
                 />
               </div>
@@ -839,7 +860,7 @@ export default function JobDetailPage() {
                         {entry.end_time ? formatDate(entry.end_time) : 'In progress'}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-right">
-                        {entry.duration_hours ? `${entry.duration_hours.toFixed(1)} hrs` : '-'}
+                        {entry.hours ? `${parseFloat(entry.hours as any).toFixed(2)} hrs` : '-'}
                       </td>
                       <td className="px-6 py-4 text-sm text-gray-600">
                         {entry.notes || '-'}
