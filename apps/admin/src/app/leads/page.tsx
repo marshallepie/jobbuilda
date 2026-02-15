@@ -165,35 +165,6 @@ export default function LeadsPage() {
           </div>
         )}
       </div>
-
-      {/* Create Lead Modal - Placeholder */}
-      {showCreateModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 max-w-md w-full">
-            <h3 className="text-lg font-semibold mb-4">Create New Lead</h3>
-            <p className="text-gray-600 mb-4">
-              Lead creation form would go here with fields for client name, email, phone, source, etc.
-            </p>
-            <div className="flex justify-end space-x-3">
-              <button
-                onClick={() => setShowCreateModal(false)}
-                className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={() => {
-                  // TODO: Implement lead creation
-                  setShowCreateModal(false);
-                }}
-                className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700"
-              >
-                Create Lead
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </AppLayout>
   );
 
