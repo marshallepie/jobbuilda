@@ -21,7 +21,6 @@ export default function LeadsPage() {
   const [leads, setLeads] = useState<Lead[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [showCreateModal, setShowCreateModal] = useState(false);
 
   useEffect(() => {
     loadLeads();
@@ -65,12 +64,12 @@ export default function LeadsPage() {
             <h1 className="text-3xl font-bold text-gray-900">Leads</h1>
             <p className="mt-2 text-gray-600">Manage your sales pipeline</p>
           </div>
-          <button
-            onClick={() => setShowCreateModal(true)}
+          <Link
+            href="/leads/new"
             className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors font-medium"
           >
             + New Lead
-          </button>
+          </Link>
         </div>
 
         {/* Error Message */}
@@ -90,12 +89,12 @@ export default function LeadsPage() {
             <p className="text-gray-600 mb-6">
               Create your first lead to start building your pipeline
             </p>
-            <button
-              onClick={() => setShowCreateModal(true)}
-              className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors font-medium"
+            <Link
+              href="/leads/new"
+              className="inline-block px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors font-medium"
             >
               Create First Lead
-            </button>
+            </Link>
           </div>
         ) : (
           <div className="bg-white shadow rounded-lg overflow-hidden">
