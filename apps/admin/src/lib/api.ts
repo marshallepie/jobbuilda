@@ -201,14 +201,14 @@ class ApiClient {
 
   // ===== TIME TRACKING =====
   async logTime(jobId: string, data: any) {
-    return this.request(`/api/jobs/${jobId}/time-entries`, {
+    return this.request(`/api/jobs/${jobId}/time`, {
       method: 'POST',
       body: JSON.stringify(data),
     });
   }
 
   async getJobTimeEntries(jobId: string) {
-    return this.request(`/api/jobs/${jobId}/time-entries`);
+    return this.request(`/api/jobs/${jobId}/time`);
   }
 
   // ===== MATERIALS =====

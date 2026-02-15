@@ -106,6 +106,22 @@ export async function jobsRoutes(fastify: FastifyInstance) {
     }
   );
 
+  // GET /api/jobs/:id/time - Get time entries for job
+  fastify.get<{ Params: { id: string } }>(
+    '/api/jobs/:id/time',
+    async (request, reply) => {
+      const context = extractAuthContext(request);
+      const { id } = request.params;
+      const uri = `res://jobs/time-entries/job/${id}`;
+      try {
+        const result = await fastify.mcp.jobs.readResource(uri, context);
+        return result.data;
+      } catch (error: any) {
+        reply.status(500).send({ error: 'Failed to fetch time entries', message: error.message });
+      }
+    }
+  );
+
   // POST /api/jobs/:id/time - Log time entry
   fastify.post<{ Params: { id: string }; Body: Record<string, unknown> }>(
     '/api/jobs/:id/time',
