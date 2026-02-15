@@ -83,11 +83,24 @@ export default function InvoicesPage() {
     <AppLayout>
       <div className="space-y-6">
         {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
             <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Invoices</h1>
             <p className="mt-1 text-sm text-gray-600">Manage and track all invoices</p>
           </div>
+          <Link
+            href="/quotes"
+            className="inline-flex items-center px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 whitespace-nowrap"
+          >
+            <span className="mr-2">+</span> Create Invoice from Quote
+          </Link>
+        </div>
+
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+          <p className="text-sm text-blue-900">
+            <strong>Creating Invoices:</strong> Invoices are generated from approved quotes.
+            Go to the Quotes page, approve a quote, then click "Generate Deposit Invoice" to create an invoice.
+          </p>
         </div>
 
         {/* Stats Cards */}
