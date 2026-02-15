@@ -272,6 +272,7 @@ export default function JobDetailPage() {
       api.setAuth(mockAuth);
 
       await api.logTime(jobId, {
+        date: timerStart.toISOString().split('T')[0], // YYYY-MM-DD format
         start_time: timerStart.toISOString(),
         end_time: endTime.toISOString(),
         duration_hours: parseFloat(durationHours.toFixed(2)),
@@ -316,6 +317,7 @@ export default function JobDetailPage() {
       api.setAuth(mockAuth);
 
       await api.logTime(jobId, {
+        date: startTime.toISOString().split('T')[0], // YYYY-MM-DD format
         start_time: startTime.toISOString(),
         end_time: endTime.toISOString(),
         duration_hours: parseFloat(durationHours.toFixed(2)),
