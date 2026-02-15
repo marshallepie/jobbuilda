@@ -87,6 +87,7 @@ export default function JobDetailPage() {
   // Material logging state
   const [showMaterialForm, setShowMaterialForm] = useState(false);
   const [materialForm, setMaterialForm] = useState({
+    sku: '',
     description: '',
     quantity: '',
     unit: 'units',
@@ -269,7 +270,7 @@ export default function JobDetailPage() {
         date: timerStart.toISOString().split('T')[0], // YYYY-MM-DD format
         start_time: timerStart.toISOString(),
         end_time: endTime.toISOString(),
-        duration_hours: parseFloat(durationHours.toFixed(2)),
+        hours: parseFloat(durationHours.toFixed(2)),
         notes: timerNotes || undefined,
       });
 
@@ -314,7 +315,7 @@ export default function JobDetailPage() {
         date: startTime.toISOString().split('T')[0], // YYYY-MM-DD format
         start_time: startTime.toISOString(),
         end_time: endTime.toISOString(),
-        duration_hours: parseFloat(durationHours.toFixed(2)),
+        hours: parseFloat(durationHours.toFixed(2)),
         notes: manualEntry.notes || undefined,
       });
 
@@ -331,7 +332,7 @@ export default function JobDetailPage() {
   const handleSubmitMaterial = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!materialForm.description || !materialForm.quantity || !materialForm.unit_price_ex_vat) {
+    if (!materialForm.sku || !materialForm.description || !materialForm.quantity || !materialForm.unit_price_ex_vat) {
       alert('Please fill in all required fields');
       return;
     }
@@ -354,6 +355,7 @@ export default function JobDetailPage() {
 
       await api.logMaterial({
         job_id: jobId,
+        sku: materialForm.sku,
         description: materialForm.description,
         quantity: quantity,
         unit: materialForm.unit,
@@ -363,6 +365,7 @@ export default function JobDetailPage() {
       });
 
       setMaterialForm({
+        sku: '',
         description: '',
         quantity: '',
         unit: 'units',
@@ -676,6 +679,23 @@ export default function JobDetailPage() {
 
           {showMaterialForm && (
             <form onSubmit={handleSubmitMaterial} className="bg-gray-50 border border-gray-200 rounded-lg p-4 space-y-4">
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">
+                  SKU / Part Number <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={materialForm.sku}
+                  onChange={(e) => setMaterialForm({ ...materialForm, sku: e.target.value })}
+                  required
+                  placeholder="e.g., CABLE-25MM-100M"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm"
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  Stock keeping unit or product code
+                </p>
+              </div>
+
               <div>
                 <label className="block text-xs font-medium text-gray-700 mb-1">
                   Material Description <span className="text-red-500">*</span>
