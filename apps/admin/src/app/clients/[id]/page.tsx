@@ -5,7 +5,7 @@ import { useRouter, useParams } from 'next/navigation';
 import Link from 'next/link';
 import AppLayout from '@/components/AppLayout';
 import { api } from '@/lib/api';
-import { formatDate, getStatusColor } from '@/lib/utils';
+import { formatDate, formatCurrency, getStatusColor } from '@/lib/utils';
 
 interface Site {
   id: string;
@@ -493,7 +493,7 @@ export default function ClientDetailPage() {
                         </span>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-right">
-                        £{quote.total_inc_vat.toFixed(2)}
+                        {formatCurrency(quote.total_inc_vat)}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
                         {formatDate(quote.created_at)}
