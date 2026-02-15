@@ -154,9 +154,172 @@ export default function InvoiceDetailPage() {
 
   return (
     <AppLayout>
-      <div className="space-y-6 max-w-5xl">
-        {/* Header */}
-        <div className="flex items-center justify-between">
+      <style jsx global>{`
+        @media print {
+          /* Hide navigation, sidebar, and non-invoice elements */
+          aside, nav, header, .no-print,
+          button, .hamburger-menu,
+          [class*="menu"], [class*="nav"],
+          img[alt*="logo"], .logo {
+            display: none !important;
+          }
+
+          /* Hide AppLayout wrapper elements */
+          body > div:first-child,
+          #__next > div:first-child {
+            background: white !important;
+          }
+
+          /* Reset page margins to minimum */
+          @page {
+            margin: 10mm;
+          }
+
+          body {
+            margin: 0;
+            padding: 0;
+          }
+
+          html, body {
+            width: 210mm;
+            height: 297mm;
+          }
+
+          /* Make print content full width and compact */
+          .print-content {
+            max-width: 100% !important;
+            width: 100% !important;
+            margin: 0 !important;
+            padding: 10mm !important;
+          }
+
+          /* Reduce spacing between sections for print */
+          .print-content > div {
+            margin-bottom: 8px !important;
+          }
+
+          .space-y-6 > * + * {
+            margin-top: 0.5rem !important;
+          }
+
+          /* Make invoice sections more compact */
+          .invoice-section {
+            padding: 0.75rem !important;
+            margin-bottom: 0.5rem !important;
+          }
+
+          /* Reduce padding in cards/boxes */
+          .p-4, .p-6 {
+            padding: 0.5rem !important;
+          }
+
+          /* Compact grid spacing */
+          .gap-6 {
+            gap: 0.5rem !important;
+          }
+
+          /* Ensure tables fit within page */
+          table {
+            width: 100%;
+            table-layout: fixed;
+          }
+
+          /* Make columns responsive in print */
+          .grid {
+            display: grid !important;
+            grid-template-columns: repeat(2, 1fr) !important;
+            gap: 1rem !important;
+          }
+
+          /* Ensure proper page breaks */
+          .invoice-section {
+            page-break-inside: avoid;
+          }
+
+          /* Remove shadows and adjust colors for print */
+          .shadow, .rounded-lg {
+            box-shadow: none !important;
+          }
+
+          /* Hide any fixed/absolute positioned elements */
+          [style*="position: fixed"],
+          [style*="position: absolute"],
+          .fixed, .absolute {
+            display: none !important;
+          }
+
+          /* Print-specific header styling - more compact */
+          .print-header {
+            border-bottom: 2px solid #000;
+            padding-bottom: 8px;
+            margin-bottom: 12px;
+          }
+
+          /* Reduce header spacing */
+          .mb-8 {
+            margin-bottom: 0.75rem !important;
+          }
+
+          .mb-6 {
+            margin-bottom: 0.5rem !important;
+          }
+
+          .mt-6 {
+            margin-top: 0.5rem !important;
+          }
+
+          /* Make text slightly smaller for better fit */
+          .text-4xl {
+            font-size: 1.75rem !important;
+          }
+
+          .text-3xl {
+            font-size: 1.5rem !important;
+          }
+
+          .text-xl {
+            font-size: 1.125rem !important;
+          }
+
+          /* Ensure text is readable */
+          * {
+            color-adjust: exact !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+          }
+
+          /* Table styling for print - more compact */
+          table {
+            border-collapse: collapse;
+            width: 100%;
+            margin: 0.5rem 0;
+          }
+
+          th, td {
+            border: 1px solid #ddd;
+            padding: 4px 6px !important;
+            font-size: 0.875rem;
+          }
+
+          thead th {
+            padding: 6px !important;
+          }
+
+          /* Reduce table row height */
+          tbody tr {
+            line-height: 1.2;
+          }
+
+          th {
+            background-color: #f3f4f6 !important;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+          }
+        }
+      `}</style>
+      <div className="space-y-6 max-w-5xl print-content">
+        {/* Header - Screen Only */}
+        <div className="flex items-center justify-between no-print">
           <div>
             <div className="flex items-center gap-3 mb-2">
               <h1 className="text-3xl font-bold text-gray-900">{invoice.invoice_number}</h1>
@@ -179,8 +342,38 @@ export default function InvoiceDetailPage() {
           </Link>
         </div>
 
+        {/* Header - Print Only */}
+        <div className="hidden print:block mb-8">
+          <div className="flex justify-between items-start border-b-2 border-gray-800 pb-4">
+            <div>
+              <h1 className="text-4xl font-bold text-gray-900 mb-2">INVOICE</h1>
+              <p className="text-xl font-semibold">{invoice.invoice_number}</p>
+              <p className="text-sm text-gray-600 mt-2">
+                Invoice Type: <span className="font-medium capitalize">{invoice.invoice_type}</span>
+              </p>
+            </div>
+            <div className="text-right">
+              <p className="font-bold text-lg mb-2">JobBuilda Ltd</p>
+              <p className="text-sm text-gray-600">123 Business Street</p>
+              <p className="text-sm text-gray-600">London, UK</p>
+              <p className="text-sm text-gray-600 mt-2">Email: info@jobbuilda.com</p>
+              <p className="text-sm text-gray-600">Tel: +44 123 456 7890</p>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-4 mt-6 mb-6">
+            <div>
+              <p className="text-sm font-semibold text-gray-700 mb-1">Invoice Date:</p>
+              <p className="text-base">{formatDate(invoice.invoice_date)}</p>
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-gray-700 mb-1">Due Date:</p>
+              <p className="text-base">{formatDate(invoice.due_date)}</p>
+            </div>
+          </div>
+        </div>
+
         {/* Actions Bar */}
-        <div className="bg-white shadow rounded-lg p-4">
+        <div className="bg-white shadow rounded-lg p-4 no-print">
           <div className="flex items-center justify-between">
             <div className="text-sm text-gray-600">
               Created {formatDate(invoice.created_at)}
@@ -209,7 +402,7 @@ export default function InvoiceDetailPage() {
 
         {/* Payment Status */}
         {parseFloat(invoice.amount_paid as any) > 0 && (
-          <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+          <div className="bg-green-50 border border-green-200 rounded-lg p-4 invoice-section">
             <div className="flex justify-between items-center">
               <div>
                 <p className="font-semibold text-green-900">Payment Received</p>
@@ -228,7 +421,7 @@ export default function InvoiceDetailPage() {
         )}
 
         {/* Client & Site Info */}
-        <div className="grid grid-cols-2 gap-6">
+        <div className="grid grid-cols-2 gap-6 invoice-section">
           <div className="bg-white shadow rounded-lg p-6">
             <h2 className="text-lg font-semibold text-gray-900 mb-4">Client Details</h2>
             <div className="space-y-2 text-sm">
@@ -246,7 +439,7 @@ export default function InvoiceDetailPage() {
         </div>
 
         {/* Invoice Items */}
-        <div className="bg-white shadow rounded-lg overflow-hidden">
+        <div className="bg-white shadow rounded-lg overflow-hidden invoice-section">
           <div className="px-6 py-4 border-b border-gray-200">
             <h2 className="text-lg font-semibold text-gray-900">Invoice Items</h2>
           </div>
@@ -328,7 +521,7 @@ export default function InvoiceDetailPage() {
 
         {/* Notes */}
         {invoice.notes && (
-          <div className="bg-white shadow rounded-lg p-6">
+          <div className="bg-white shadow rounded-lg p-6 invoice-section">
             <h2 className="text-lg font-semibold text-gray-900 mb-2">Notes</h2>
             <p className="text-sm text-gray-700 whitespace-pre-wrap">{invoice.notes}</p>
           </div>
