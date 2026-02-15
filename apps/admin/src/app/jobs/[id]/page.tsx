@@ -197,14 +197,17 @@ export default function JobDetailPage() {
   };
 
   const calculateTotalHours = () => {
+    if (!Array.isArray(timeEntries)) return 0;
     return timeEntries.reduce((sum, entry) => sum + (entry.duration_hours || 0), 0);
   };
 
   const calculateTotalMaterialsCost = () => {
+    if (!Array.isArray(materials)) return 0;
     return materials.reduce((sum, material) => sum + material.total_ex_vat, 0);
   };
 
   const calculateTotalVariationsCost = () => {
+    if (!Array.isArray(variations)) return 0;
     return variations.reduce((sum, variation) => sum + variation.amount_inc_vat, 0);
   };
 
@@ -352,7 +355,7 @@ export default function JobDetailPage() {
               {totalHours.toFixed(1)} hrs
             </div>
             <div className="text-xs text-gray-500 mt-1">
-              {timeEntries.length} {timeEntries.length === 1 ? 'entry' : 'entries'}
+              {Array.isArray(timeEntries) ? timeEntries.length : 0} {Array.isArray(timeEntries) && timeEntries.length === 1 ? 'entry' : 'entries'}
             </div>
           </div>
           <div className="bg-white shadow rounded-lg p-6">
@@ -361,7 +364,7 @@ export default function JobDetailPage() {
               {formatCurrency(totalMaterialsCost)}
             </div>
             <div className="text-xs text-gray-500 mt-1">
-              {materials.length} {materials.length === 1 ? 'item' : 'items'}
+              {Array.isArray(materials) ? materials.length : 0} {Array.isArray(materials) && materials.length === 1 ? 'item' : 'items'}
             </div>
           </div>
           <div className="bg-white shadow rounded-lg p-6">
@@ -370,7 +373,7 @@ export default function JobDetailPage() {
               {formatCurrency(totalVariationsCost)}
             </div>
             <div className="text-xs text-gray-500 mt-1">
-              {variations.length} {variations.length === 1 ? 'variation' : 'variations'}
+              {Array.isArray(variations) ? variations.length : 0} {Array.isArray(variations) && variations.length === 1 ? 'variation' : 'variations'}
             </div>
           </div>
         </div>
@@ -379,9 +382,9 @@ export default function JobDetailPage() {
         <div className="bg-white shadow rounded-lg overflow-hidden">
           <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
             <h2 className="text-lg font-semibold text-gray-900">Time Entries</h2>
-            <span className="text-sm text-gray-500">{timeEntries.length} total</span>
+            <span className="text-sm text-gray-500">{Array.isArray(timeEntries) ? timeEntries.length : 0} total</span>
           </div>
-          {timeEntries.length === 0 ? (
+          {!Array.isArray(timeEntries) || timeEntries.length === 0 ? (
             <div className="p-6 text-center text-gray-500">
               No time entries logged yet
             </div>
@@ -437,9 +440,9 @@ export default function JobDetailPage() {
         <div className="bg-white shadow rounded-lg overflow-hidden">
           <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
             <h2 className="text-lg font-semibold text-gray-900">Materials Used</h2>
-            <span className="text-sm text-gray-500">{materials.length} items</span>
+            <span className="text-sm text-gray-500">{Array.isArray(materials) ? materials.length : 0} items</span>
           </div>
-          {materials.length === 0 ? (
+          {!Array.isArray(materials) || materials.length === 0 ? (
             <div className="p-6 text-center text-gray-500">
               No materials logged yet
             </div>
@@ -506,9 +509,9 @@ export default function JobDetailPage() {
         <div className="bg-white shadow rounded-lg overflow-hidden">
           <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
             <h2 className="text-lg font-semibold text-gray-900">Variations</h2>
-            <span className="text-sm text-gray-500">{variations.length} total</span>
+            <span className="text-sm text-gray-500">{Array.isArray(variations) ? variations.length : 0} total</span>
           </div>
-          {variations.length === 0 ? (
+          {!Array.isArray(variations) || variations.length === 0 ? (
             <div className="p-6 text-center text-gray-500">
               No variations created yet
             </div>
