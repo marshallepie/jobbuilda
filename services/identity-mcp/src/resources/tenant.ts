@@ -10,7 +10,15 @@ export async function getTenant(tenantId: string): Promise<Tenant | null> {
     span.setAttribute('tenant_id', tenantId);
 
     const result = await query<Tenant>(
-      `SELECT id, name, plan, created_at, updated_at
+      `SELECT
+        id, name, plan, created_at, updated_at,
+        trading_name, company_number, vat_number,
+        address_line1, address_line2, city, county, postcode, country,
+        phone, email, website,
+        invoice_prefix, next_invoice_number, quote_prefix, next_quote_number,
+        bank_name, account_name, sort_code, account_number,
+        payment_terms, default_vat_rate,
+        logo_url, primary_color
        FROM tenants
        WHERE id = $1`,
       [tenantId]

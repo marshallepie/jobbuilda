@@ -119,4 +119,53 @@ export async function identityRoutes(fastify: FastifyInstance) {
       }
     }
   );
+
+  /**
+   * GET /api/identity/profile
+   * Get current tenant's business profile
+   */
+  fastify.get('/api/identity/profile', async (request, reply) => {
+    const context = extractAuthContext(request);
+
+    try {
+      const tenant = await fastify.mcp.identity.readResource(
+        `res://identity/tenants/${context.tenant_id}`,
+        context
+      );
+
+      return tenant.data;
+    } catch (error: any) {
+      reply.status(500).send({
+        error: 'Failed to fetch business profile',
+        message: error.message
+      });
+    }
+  });
+
+  /**
+   * PUT /api/identity/profile
+   * Update current tenant's business profile
+   */
+  fastify.put<{ Body: Record<string, any> }>(
+    '/api/identity/profile',
+    async (request, reply) => {
+      const context = extractAuthContext(request);
+
+      try {
+        const result = await fastify.mcp.identity.callTool(
+          'update_tenant_profile',
+          request.body,
+          context
+        );
+
+        const data = JSON.parse(result.content[0]?.text || '{}');
+        return data;
+      } catch (error: any) {
+        reply.status(500).send({
+          error: 'Failed to update business profile',
+          message: error.message
+        });
+      }
+    }
+  );
 }
