@@ -1,0 +1,599 @@
+'use client';
+
+import { useState, useEffect } from 'react';
+import { useRouter, useParams } from 'next/navigation';
+import Link from 'next/link';
+import AppLayout from '@/components/AppLayout';
+import { api } from '@/lib/api';
+import { formatCurrency, formatDate, getStatusColor } from '@/lib/utils';
+
+interface TimeEntry {
+  id: string;
+  technician_name: string;
+  start_time: string;
+  end_time?: string;
+  duration_hours?: number;
+  notes?: string;
+}
+
+interface Material {
+  id: string;
+  description: string;
+  quantity: number;
+  unit: string;
+  unit_price_ex_vat: number;
+  total_ex_vat: number;
+  logged_at: string;
+}
+
+interface Variation {
+  id: string;
+  variation_number: string;
+  description: string;
+  status: string;
+  amount_ex_vat: number;
+  vat_amount: number;
+  amount_inc_vat: number;
+  created_at: string;
+}
+
+interface Job {
+  id: string;
+  job_number: string;
+  title: string;
+  description?: string;
+  status: string;
+  scheduled_start?: string;
+  scheduled_end?: string;
+  actual_start?: string;
+  actual_end?: string;
+  estimated_hours?: number;
+  created_at: string;
+  updated_at: string;
+  client_id?: string;
+  site_id?: string;
+  quote_id?: string;
+  client_name?: string;
+  site_name?: string;
+  site_address?: string;
+}
+
+export default function JobDetailPage() {
+  const router = useRouter();
+  const params = useParams();
+  const jobId = params?.id as string;
+
+  const [job, setJob] = useState<Job | null>(null);
+  const [timeEntries, setTimeEntries] = useState<TimeEntry[]>([]);
+  const [materials, setMaterials] = useState<Material[]>([]);
+  const [variations, setVariations] = useState<Variation[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [actionLoading, setActionLoading] = useState(false);
+
+  useEffect(() => {
+    if (jobId) {
+      loadJobDetails();
+    }
+  }, [jobId]);
+
+  const loadJobDetails = async () => {
+    try {
+      const mockAuth = {
+        token: 'mock-jwt-token',
+        tenant_id: '550e8400-e29b-41d4-a716-446655440000',
+        user_id: '550e8400-e29b-41d4-a716-446655440001',
+      };
+      api.setAuth(mockAuth);
+
+      // Load job details
+      const jobData = await api.getJob(jobId) as any;
+
+      // Fetch client details if client_id exists
+      if (jobData.client_id) {
+        try {
+          const clientData = await api.request(`/api/clients/clients/${jobData.client_id}`) as any;
+          jobData.client_name = clientData.name;
+        } catch (err) {
+          console.error('Failed to load client:', err);
+        }
+      }
+
+      // Fetch site details if site_id exists
+      if (jobData.site_id) {
+        try {
+          const siteData = await api.request(`/api/clients/sites/${jobData.site_id}`) as any;
+          jobData.site_name = siteData.name;
+          jobData.site_address = [
+            siteData.address_line1,
+            siteData.address_line2,
+            siteData.city,
+            siteData.county,
+            siteData.postcode
+          ].filter(Boolean).join(', ');
+        } catch (err) {
+          console.error('Failed to load site:', err);
+        }
+      }
+
+      setJob(jobData);
+
+      // Load related data in parallel
+      Promise.all([
+        loadTimeEntries(),
+        loadMaterials(),
+        loadVariations(),
+      ]);
+    } catch (err) {
+      console.error('Failed to load job:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadTimeEntries = async () => {
+    try {
+      const data = await api.getJobTimeEntries(jobId) as any;
+      const entries = Array.isArray(data) ? data : (data.data || []);
+      setTimeEntries(entries);
+    } catch (err) {
+      console.error('Failed to load time entries:', err);
+    }
+  };
+
+  const loadMaterials = async () => {
+    try {
+      const data = await api.getJobMaterials(jobId) as any;
+      const materialList = Array.isArray(data) ? data : (data.data || []);
+      setMaterials(materialList);
+    } catch (err) {
+      console.error('Failed to load materials:', err);
+    }
+  };
+
+  const loadVariations = async () => {
+    try {
+      const data = await api.getJobVariations(jobId) as any;
+      const variationList = Array.isArray(data) ? data : (data.data || []);
+      setVariations(variationList);
+    } catch (err) {
+      console.error('Failed to load variations:', err);
+    }
+  };
+
+  const handleStartJob = async () => {
+    if (!job) return;
+
+    if (confirm(`Start job ${job.job_number}?`)) {
+      setActionLoading(true);
+      try {
+        await api.startJob(jobId);
+        await loadJobDetails();
+        alert('Job started successfully!');
+      } catch (err: any) {
+        console.error('Failed to start job:', err);
+        alert(err.message || 'Failed to start job. Please try again.');
+      } finally {
+        setActionLoading(false);
+      }
+    }
+  };
+
+  const handleCompleteJob = async () => {
+    if (!job) return;
+
+    if (confirm(`Mark job ${job.job_number} as complete?`)) {
+      setActionLoading(true);
+      try {
+        await api.completeJob(jobId);
+        await loadJobDetails();
+        alert('Job completed successfully!');
+      } catch (err: any) {
+        console.error('Failed to complete job:', err);
+        alert(err.message || 'Failed to complete job. Please try again.');
+      } finally {
+        setActionLoading(false);
+      }
+    }
+  };
+
+  const calculateTotalHours = () => {
+    return timeEntries.reduce((sum, entry) => sum + (entry.duration_hours || 0), 0);
+  };
+
+  const calculateTotalMaterialsCost = () => {
+    return materials.reduce((sum, material) => sum + material.total_ex_vat, 0);
+  };
+
+  const calculateTotalVariationsCost = () => {
+    return variations.reduce((sum, variation) => sum + variation.amount_inc_vat, 0);
+  };
+
+  if (loading) {
+    return (
+      <AppLayout>
+        <div className="flex items-center justify-center h-64">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
+        </div>
+      </AppLayout>
+    );
+  }
+
+  if (!job) {
+    return (
+      <AppLayout>
+        <div className="text-center py-12">
+          <h2 className="text-2xl font-bold text-gray-900 mb-2">Job Not Found</h2>
+          <p className="text-gray-600 mb-6">The job you're looking for doesn't exist.</p>
+          <Link
+            href="/jobs"
+            className="inline-block px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700"
+          >
+            Back to Jobs
+          </Link>
+        </div>
+      </AppLayout>
+    );
+  }
+
+  const totalHours = calculateTotalHours();
+  const totalMaterialsCost = calculateTotalMaterialsCost();
+  const totalVariationsCost = calculateTotalVariationsCost();
+
+  return (
+    <AppLayout>
+      <div className="space-y-6 max-w-5xl">
+        {/* Header */}
+        <div className="flex items-center justify-between">
+          <div>
+            <div className="flex items-center space-x-3">
+              <Link
+                href="/jobs"
+                className="text-gray-400 hover:text-gray-600"
+              >
+                ← Back
+              </Link>
+              <h1 className="text-3xl font-bold text-gray-900">{job.job_number}</h1>
+              <span className={`px-3 py-1 text-sm font-medium rounded-full ${getStatusColor(job.status)}`}>
+                {job.status.replace('_', ' ')}
+              </span>
+            </div>
+            <p className="text-gray-600 mt-1">{job.title}</p>
+          </div>
+
+          <div className="flex items-center space-x-3">
+            {job.status === 'scheduled' && (
+              <button
+                onClick={handleStartJob}
+                disabled={actionLoading}
+                className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50"
+              >
+                Start Job
+              </button>
+            )}
+            {job.status === 'in_progress' && (
+              <button
+                onClick={handleCompleteJob}
+                disabled={actionLoading}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+              >
+                Complete Job
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Job Details Card */}
+        <div className="bg-white shadow rounded-lg p-6 space-y-6">
+          <div>
+            <h2 className="text-lg font-semibold text-gray-900 mb-4">Job Details</h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div>
+                <label className="text-sm font-medium text-gray-500">Client</label>
+                <p className="mt-1 text-gray-900">{job.client_name || 'N/A'}</p>
+              </div>
+              <div>
+                <label className="text-sm font-medium text-gray-500">Site Location</label>
+                <p className="mt-1 text-gray-900">{job.site_name || 'N/A'}</p>
+                {job.site_address && (
+                  <p className="text-sm text-gray-600">{job.site_address}</p>
+                )}
+              </div>
+              {job.description && (
+                <div className="md:col-span-2">
+                  <label className="text-sm font-medium text-gray-500">Description</label>
+                  <p className="mt-1 text-gray-900">{job.description}</p>
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="border-t pt-6">
+            <h3 className="text-sm font-semibold text-gray-900 mb-4">Schedule</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div>
+                <label className="text-sm font-medium text-gray-500">Scheduled Start</label>
+                <p className="mt-1 text-gray-900">
+                  {job.scheduled_start ? formatDate(job.scheduled_start) : 'Not scheduled'}
+                </p>
+              </div>
+              <div>
+                <label className="text-sm font-medium text-gray-500">Scheduled End</label>
+                <p className="mt-1 text-gray-900">
+                  {job.scheduled_end ? formatDate(job.scheduled_end) : 'Not scheduled'}
+                </p>
+              </div>
+              {job.actual_start && (
+                <div>
+                  <label className="text-sm font-medium text-gray-500">Actual Start</label>
+                  <p className="mt-1 text-gray-900">{formatDate(job.actual_start)}</p>
+                </div>
+              )}
+              {job.actual_end && (
+                <div>
+                  <label className="text-sm font-medium text-gray-500">Actual End</label>
+                  <p className="mt-1 text-gray-900">{formatDate(job.actual_end)}</p>
+                </div>
+              )}
+              {job.estimated_hours && (
+                <div>
+                  <label className="text-sm font-medium text-gray-500">Estimated Hours</label>
+                  <p className="mt-1 text-gray-900">{job.estimated_hours} hours</p>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Stats Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="bg-white shadow rounded-lg p-6">
+            <div className="text-sm text-gray-500">Time Logged</div>
+            <div className="text-2xl font-bold text-gray-900 mt-1">
+              {totalHours.toFixed(1)} hrs
+            </div>
+            <div className="text-xs text-gray-500 mt-1">
+              {timeEntries.length} {timeEntries.length === 1 ? 'entry' : 'entries'}
+            </div>
+          </div>
+          <div className="bg-white shadow rounded-lg p-6">
+            <div className="text-sm text-gray-500">Materials Used</div>
+            <div className="text-2xl font-bold text-gray-900 mt-1">
+              {formatCurrency(totalMaterialsCost)}
+            </div>
+            <div className="text-xs text-gray-500 mt-1">
+              {materials.length} {materials.length === 1 ? 'item' : 'items'}
+            </div>
+          </div>
+          <div className="bg-white shadow rounded-lg p-6">
+            <div className="text-sm text-gray-500">Variations</div>
+            <div className="text-2xl font-bold text-gray-900 mt-1">
+              {formatCurrency(totalVariationsCost)}
+            </div>
+            <div className="text-xs text-gray-500 mt-1">
+              {variations.length} {variations.length === 1 ? 'variation' : 'variations'}
+            </div>
+          </div>
+        </div>
+
+        {/* Time Entries */}
+        <div className="bg-white shadow rounded-lg overflow-hidden">
+          <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
+            <h2 className="text-lg font-semibold text-gray-900">Time Entries</h2>
+            <span className="text-sm text-gray-500">{timeEntries.length} total</span>
+          </div>
+          {timeEntries.length === 0 ? (
+            <div className="p-6 text-center text-gray-500">
+              No time entries logged yet
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                      Technician
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                      Start Time
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                      End Time
+                    </th>
+                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">
+                      Duration
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                      Notes
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {timeEntries.map((entry) => (
+                    <tr key={entry.id}>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        {entry.technician_name}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                        {formatDate(entry.start_time)}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                        {entry.end_time ? formatDate(entry.end_time) : 'In progress'}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-right">
+                        {entry.duration_hours ? `${entry.duration_hours.toFixed(1)} hrs` : '-'}
+                      </td>
+                      <td className="px-6 py-4 text-sm text-gray-600">
+                        {entry.notes || '-'}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+
+        {/* Materials */}
+        <div className="bg-white shadow rounded-lg overflow-hidden">
+          <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
+            <h2 className="text-lg font-semibold text-gray-900">Materials Used</h2>
+            <span className="text-sm text-gray-500">{materials.length} items</span>
+          </div>
+          {materials.length === 0 ? (
+            <div className="p-6 text-center text-gray-500">
+              No materials logged yet
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                      Description
+                    </th>
+                    <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">
+                      Quantity
+                    </th>
+                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">
+                      Unit Price
+                    </th>
+                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">
+                      Total
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                      Logged
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {materials.map((material) => (
+                    <tr key={material.id}>
+                      <td className="px-6 py-4 text-sm text-gray-900">
+                        {material.description}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">
+                        {material.quantity} {material.unit}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-right">
+                        {formatCurrency(material.unit_price_ex_vat)}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 text-right">
+                        {formatCurrency(material.total_ex_vat)}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                        {formatDate(material.logged_at)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot className="bg-gray-50">
+                  <tr>
+                    <td colSpan={3} className="px-6 py-3 text-right text-sm font-semibold text-gray-900">
+                      Total Materials:
+                    </td>
+                    <td className="px-6 py-3 text-right text-sm font-bold text-gray-900">
+                      {formatCurrency(totalMaterialsCost)}
+                    </td>
+                    <td></td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          )}
+        </div>
+
+        {/* Variations */}
+        <div className="bg-white shadow rounded-lg overflow-hidden">
+          <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
+            <h2 className="text-lg font-semibold text-gray-900">Variations</h2>
+            <span className="text-sm text-gray-500">{variations.length} total</span>
+          </div>
+          {variations.length === 0 ? (
+            <div className="p-6 text-center text-gray-500">
+              No variations created yet
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                      Variation #
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                      Description
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                      Status
+                    </th>
+                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">
+                      Amount
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                      Created
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {variations.map((variation) => (
+                    <tr key={variation.id}>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                        {variation.variation_number}
+                      </td>
+                      <td className="px-6 py-4 text-sm text-gray-900">
+                        {variation.description}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className={`px-2 py-1 text-xs font-medium rounded-full ${getStatusColor(variation.status)}`}>
+                          {variation.status}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 text-right">
+                        {formatCurrency(variation.amount_inc_vat)}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                        {formatDate(variation.created_at)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot className="bg-gray-50">
+                  <tr>
+                    <td colSpan={3} className="px-6 py-3 text-right text-sm font-semibold text-gray-900">
+                      Total Variations:
+                    </td>
+                    <td className="px-6 py-3 text-right text-sm font-bold text-gray-900">
+                      {formatCurrency(totalVariationsCost)}
+                    </td>
+                    <td></td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          )}
+        </div>
+
+        {/* Related Links */}
+        <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+          <h3 className="text-sm font-semibold text-gray-900 mb-2">Related</h3>
+          <div className="flex gap-3">
+            {job.quote_id && (
+              <Link
+                href={`/quotes/${job.quote_id}`}
+                className="text-sm text-primary-600 hover:text-primary-700"
+              >
+                View Original Quote →
+              </Link>
+            )}
+            <Link
+              href="/invoices"
+              className="text-sm text-primary-600 hover:text-primary-700"
+            >
+              View Invoices →
+            </Link>
+          </div>
+        </div>
+      </div>
+    </AppLayout>
+  );
+}
