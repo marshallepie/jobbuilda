@@ -156,9 +156,13 @@ export default function JobDetailPage() {
 
       setJob(jobData);
 
+      // Extract time entries from job data (they're included in the job response)
+      if (jobData.time_entries && Array.isArray(jobData.time_entries)) {
+        setTimeEntries(jobData.time_entries);
+      }
+
       // Load related data in parallel
       Promise.all([
-        loadTimeEntries(),
         loadMaterials(),
         loadVariations(),
       ]);
@@ -166,16 +170,6 @@ export default function JobDetailPage() {
       console.error('Failed to load job:', err);
     } finally {
       setLoading(false);
-    }
-  };
-
-  const loadTimeEntries = async () => {
-    try {
-      const data = await api.getJobTimeEntries(jobId) as any;
-      const entries = Array.isArray(data) ? data : (data.data || []);
-      setTimeEntries(entries);
-    } catch (err) {
-      console.error('Failed to load time entries:', err);
     }
   };
 
@@ -283,7 +277,7 @@ export default function JobDetailPage() {
       setTimerStart(null);
       setElapsedSeconds(0);
       setTimerNotes('');
-      await loadTimeEntries();
+      await loadJobDetails(); // Reload job details which includes time entries
       alert('Time logged successfully!');
     } catch (err: any) {
       console.error('Failed to log time:', err);
@@ -326,7 +320,7 @@ export default function JobDetailPage() {
 
       setManualEntry({ start_time: '', end_time: '', notes: '' });
       setShowManualEntry(false);
-      await loadTimeEntries();
+      await loadJobDetails(); // Reload job details which includes time entries
       alert('Time logged successfully!');
     } catch (err: any) {
       console.error('Failed to log time:', err);
