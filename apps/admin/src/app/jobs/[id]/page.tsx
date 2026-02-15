@@ -70,11 +70,50 @@ export default function JobDetailPage() {
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
 
+  // Timer state
+  const [timerRunning, setTimerRunning] = useState(false);
+  const [timerStart, setTimerStart] = useState<Date | null>(null);
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
+  const [timerNotes, setTimerNotes] = useState('');
+
+  // Manual time entry state
+  const [showManualEntry, setShowManualEntry] = useState(false);
+  const [manualEntry, setManualEntry] = useState({
+    start_time: '',
+    end_time: '',
+    notes: '',
+  });
+
+  // Material logging state
+  const [showMaterialForm, setShowMaterialForm] = useState(false);
+  const [materialForm, setMaterialForm] = useState({
+    description: '',
+    quantity: '',
+    unit: 'units',
+    unit_price_ex_vat: '',
+    notes: '',
+  });
+
   useEffect(() => {
     if (jobId) {
       loadJobDetails();
     }
   }, [jobId]);
+
+  // Timer effect
+  useEffect(() => {
+    let interval: NodeJS.Timeout;
+    if (timerRunning && timerStart) {
+      interval = setInterval(() => {
+        const now = new Date();
+        const elapsed = Math.floor((now.getTime() - timerStart.getTime()) / 1000);
+        setElapsedSeconds(elapsed);
+      }, 1000);
+    }
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [timerRunning, timerStart]);
 
   const loadJobDetails = async () => {
     try {
@@ -209,6 +248,145 @@ export default function JobDetailPage() {
   const calculateTotalVariationsCost = () => {
     if (!Array.isArray(variations)) return 0;
     return variations.reduce((sum, variation) => sum + variation.amount_inc_vat, 0);
+  };
+
+  const handleStartTimer = () => {
+    setTimerStart(new Date());
+    setTimerRunning(true);
+    setElapsedSeconds(0);
+    setTimerNotes('');
+  };
+
+  const handleStopTimer = async () => {
+    if (!timerStart) return;
+
+    const endTime = new Date();
+    const durationHours = (endTime.getTime() - timerStart.getTime()) / (1000 * 60 * 60);
+
+    try {
+      const mockAuth = {
+        token: 'mock-jwt-token',
+        tenant_id: '550e8400-e29b-41d4-a716-446655440000',
+        user_id: '550e8400-e29b-41d4-a716-446655440001',
+      };
+      api.setAuth(mockAuth);
+
+      await api.logTime(jobId, {
+        start_time: timerStart.toISOString(),
+        end_time: endTime.toISOString(),
+        duration_hours: parseFloat(durationHours.toFixed(2)),
+        notes: timerNotes || undefined,
+      });
+
+      setTimerRunning(false);
+      setTimerStart(null);
+      setElapsedSeconds(0);
+      setTimerNotes('');
+      await loadTimeEntries();
+      alert('Time logged successfully!');
+    } catch (err: any) {
+      console.error('Failed to log time:', err);
+      alert(err.message || 'Failed to log time. Please try again.');
+    }
+  };
+
+  const handleSubmitManualEntry = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (!manualEntry.start_time || !manualEntry.end_time) {
+      alert('Please enter both start and end times');
+      return;
+    }
+
+    const startTime = new Date(manualEntry.start_time);
+    const endTime = new Date(manualEntry.end_time);
+    const durationHours = (endTime.getTime() - startTime.getTime()) / (1000 * 60 * 60);
+
+    if (durationHours <= 0) {
+      alert('End time must be after start time');
+      return;
+    }
+
+    try {
+      const mockAuth = {
+        token: 'mock-jwt-token',
+        tenant_id: '550e8400-e29b-41d4-a716-446655440000',
+        user_id: '550e8400-e29b-41d4-a716-446655440001',
+      };
+      api.setAuth(mockAuth);
+
+      await api.logTime(jobId, {
+        start_time: startTime.toISOString(),
+        end_time: endTime.toISOString(),
+        duration_hours: parseFloat(durationHours.toFixed(2)),
+        notes: manualEntry.notes || undefined,
+      });
+
+      setManualEntry({ start_time: '', end_time: '', notes: '' });
+      setShowManualEntry(false);
+      await loadTimeEntries();
+      alert('Time logged successfully!');
+    } catch (err: any) {
+      console.error('Failed to log time:', err);
+      alert(err.message || 'Failed to log time. Please try again.');
+    }
+  };
+
+  const handleSubmitMaterial = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (!materialForm.description || !materialForm.quantity || !materialForm.unit_price_ex_vat) {
+      alert('Please fill in all required fields');
+      return;
+    }
+
+    const quantity = parseFloat(materialForm.quantity);
+    const unitPrice = parseFloat(materialForm.unit_price_ex_vat);
+
+    if (quantity <= 0 || unitPrice < 0) {
+      alert('Please enter valid quantity and price');
+      return;
+    }
+
+    try {
+      const mockAuth = {
+        token: 'mock-jwt-token',
+        tenant_id: '550e8400-e29b-41d4-a716-446655440000',
+        user_id: '550e8400-e29b-41d4-a716-446655440001',
+      };
+      api.setAuth(mockAuth);
+
+      await api.logMaterial({
+        job_id: jobId,
+        description: materialForm.description,
+        quantity: quantity,
+        unit: materialForm.unit,
+        unit_price_ex_vat: unitPrice,
+        total_ex_vat: quantity * unitPrice,
+        notes: materialForm.notes || undefined,
+      });
+
+      setMaterialForm({
+        description: '',
+        quantity: '',
+        unit: 'units',
+        unit_price_ex_vat: '',
+        notes: '',
+      });
+      setShowMaterialForm(false);
+      await loadMaterials();
+      alert('Material logged successfully!');
+    } catch (err: any) {
+      console.error('Failed to log material:', err);
+      alert(err.message || 'Failed to log material. Please try again.');
+    }
+  };
+
+  const formatElapsedTime = (seconds: number) => {
+    const hours = Math.floor(seconds / 3600);
+    const minutes = Math.floor((seconds % 3600) / 60);
+    const secs = seconds % 60;
+    return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
 
   if (loading) {
@@ -376,6 +554,228 @@ export default function JobDetailPage() {
               {Array.isArray(variations) ? variations.length : 0} {Array.isArray(variations) && variations.length === 1 ? 'variation' : 'variations'}
             </div>
           </div>
+        </div>
+
+        {/* Time Tracking Section */}
+        <div className="bg-white shadow rounded-lg p-6">
+          <h2 className="text-lg font-semibold text-gray-900 mb-4">⏱️ Time Tracking</h2>
+
+          {/* Timer */}
+          <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-lg p-6 mb-4">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h3 className="text-sm font-semibold text-gray-900 mb-1">Live Timer</h3>
+                <p className="text-xs text-gray-600">Track time in real-time</p>
+              </div>
+              <div className="text-3xl font-mono font-bold text-blue-600">
+                {formatElapsedTime(elapsedSeconds)}
+              </div>
+            </div>
+
+            {timerRunning ? (
+              <div className="space-y-3">
+                <textarea
+                  value={timerNotes}
+                  onChange={(e) => setTimerNotes(e.target.value)}
+                  placeholder="What work was done? (optional)"
+                  rows={2}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                />
+                <button
+                  onClick={handleStopTimer}
+                  className="w-full px-4 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 font-medium flex items-center justify-center gap-2"
+                >
+                  ⏹ Stop Timer & Log Time
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={handleStartTimer}
+                className="w-full px-4 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium flex items-center justify-center gap-2"
+              >
+                ▶️ Start Timer
+              </button>
+            )}
+          </div>
+
+          {/* Manual Entry Toggle */}
+          <div className="flex justify-center">
+            <button
+              onClick={() => setShowManualEntry(!showManualEntry)}
+              className="text-sm text-blue-600 hover:text-blue-700 underline"
+            >
+              {showManualEntry ? '✕ Cancel Manual Entry' : '📝 Enter Time Manually'}
+            </button>
+          </div>
+
+          {/* Manual Entry Form */}
+          {showManualEntry && (
+            <form onSubmit={handleSubmitManualEntry} className="mt-4 bg-gray-50 border border-gray-200 rounded-lg p-4 space-y-4">
+              <h3 className="text-sm font-semibold text-gray-900">Manual Time Entry</h3>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">
+                    Start Time <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="datetime-local"
+                    value={manualEntry.start_time}
+                    onChange={(e) => setManualEntry({ ...manualEntry, start_time: e.target.value })}
+                    required
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">
+                    End Time <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="datetime-local"
+                    value={manualEntry.end_time}
+                    onChange={(e) => setManualEntry({ ...manualEntry, end_time: e.target.value })}
+                    required
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">
+                  Work Notes
+                </label>
+                <textarea
+                  value={manualEntry.notes}
+                  onChange={(e) => setManualEntry({ ...manualEntry, notes: e.target.value })}
+                  placeholder="Describe what work was done during this time..."
+                  rows={3}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                />
+              </div>
+
+              <button
+                type="submit"
+                className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium"
+              >
+                Log Time Entry
+              </button>
+            </form>
+          )}
+        </div>
+
+        {/* Materials Logging Section */}
+        <div className="bg-white shadow rounded-lg p-6">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h2 className="text-lg font-semibold text-gray-900">📦 Log Materials Used</h2>
+              <p className="text-xs text-gray-600 mt-1">Record materials used on this job</p>
+            </div>
+            <button
+              onClick={() => setShowMaterialForm(!showMaterialForm)}
+              className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 text-sm font-medium"
+            >
+              {showMaterialForm ? '✕ Cancel' : '+ Add Material'}
+            </button>
+          </div>
+
+          {showMaterialForm && (
+            <form onSubmit={handleSubmitMaterial} className="bg-gray-50 border border-gray-200 rounded-lg p-4 space-y-4">
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">
+                  Material Description <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={materialForm.description}
+                  onChange={(e) => setMaterialForm({ ...materialForm, description: e.target.value })}
+                  required
+                  placeholder="e.g., 2.5mm Twin & Earth Cable"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm"
+                />
+              </div>
+
+              <div className="grid grid-cols-3 gap-4">
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">
+                    Quantity <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={materialForm.quantity}
+                    onChange={(e) => setMaterialForm({ ...materialForm, quantity: e.target.value })}
+                    required
+                    placeholder="10"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">
+                    Unit
+                  </label>
+                  <select
+                    value={materialForm.unit}
+                    onChange={(e) => setMaterialForm({ ...materialForm, unit: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm"
+                  >
+                    <option value="units">units</option>
+                    <option value="meters">meters</option>
+                    <option value="feet">feet</option>
+                    <option value="boxes">boxes</option>
+                    <option value="rolls">rolls</option>
+                    <option value="pieces">pieces</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">
+                    Unit Price (£) <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={materialForm.unit_price_ex_vat}
+                    onChange={(e) => setMaterialForm({ ...materialForm, unit_price_ex_vat: e.target.value })}
+                    required
+                    placeholder="5.50"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm"
+                  />
+                </div>
+              </div>
+
+              {materialForm.quantity && materialForm.unit_price_ex_vat && (
+                <div className="bg-blue-50 border border-blue-200 rounded p-3">
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm font-medium text-gray-700">Total Cost (ex VAT):</span>
+                    <span className="text-lg font-bold text-blue-600">
+                      {formatCurrency(parseFloat(materialForm.quantity || '0') * parseFloat(materialForm.unit_price_ex_vat || '0'))}
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">
+                  Notes
+                </label>
+                <textarea
+                  value={materialForm.notes}
+                  onChange={(e) => setMaterialForm({ ...materialForm, notes: e.target.value })}
+                  placeholder="Additional notes about this material..."
+                  rows={2}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm"
+                />
+              </div>
+
+              <button
+                type="submit"
+                className="w-full px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 font-medium"
+              >
+                Log Material
+              </button>
+            </form>
+          )}
         </div>
 
         {/* Time Entries */}
