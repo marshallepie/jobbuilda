@@ -212,12 +212,16 @@ class ApiClient {
   }
 
   // ===== MATERIALS =====
+  async getMaterials() {
+    return this.request('/api/materials');
+  }
+
   async getJobMaterials(jobId: string) {
-    return this.request(`/api/materials/job/${jobId}`);
+    return this.request(`/api/materials/job-usage/${jobId}`);
   }
 
   async logMaterial(data: any) {
-    return this.request('/api/materials', {
+    return this.request('/api/materials/usage', {
       method: 'POST',
       body: JSON.stringify(data),
     });

@@ -11,16 +11,18 @@
     "clean": "rm -rf dist"
   },
   "dependencies": {
-    "fastify": "^5.2.0",
     "@fastify/cors": "^10.0.1",
-    "@jobbuilda/mcp-sdk": "workspace:*",
     "@jobbuilda/contracts": "workspace:*",
+    "@jobbuilda/mcp-sdk": "workspace:*",
     "@opentelemetry/api": "^1.9.0",
-    "@opentelemetry/sdk-node": "^0.55.0",
     "@opentelemetry/auto-instrumentations-node": "^0.52.1",
     "@opentelemetry/exporter-trace-otlp-http": "^0.55.0",
     "@opentelemetry/instrumentation-fastify": "^0.42.0",
-    "dotenv": "^16.4.7"
+    "@opentelemetry/sdk-node": "^0.55.0",
+    "@types/pg": "^8.11.10",
+    "dotenv": "^16.4.7",
+    "fastify": "^5.2.0",
+    "pg": "^8.13.1"
   },
   "devDependencies": {
     "@types/node": "^20.11.0",

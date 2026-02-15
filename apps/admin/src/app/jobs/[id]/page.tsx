@@ -23,12 +23,17 @@ interface TimeEntry {
 
 interface Material {
   id: string;
-  description: string;
-  quantity: number;
+  name?: string;
+  description?: string;
+  quantity?: number;
+  quantity_used?: number;
   unit: string;
-  unit_price_ex_vat: number;
-  total_ex_vat: number;
-  logged_at: string;
+  unit_price_ex_vat?: number;
+  unit_cost?: number;
+  total_ex_vat?: number;
+  total_cost?: number;
+  logged_at?: string;
+  created_at?: string;
 }
 
 interface Variation {
@@ -91,6 +96,11 @@ export default function JobDetailPage() {
 
   // Material logging state
   const [showMaterialForm, setShowMaterialForm] = useState(false);
+  const [materialsCatalog, setMaterialsCatalog] = useState<any[]>([]);
+  const [filteredMaterials, setFilteredMaterials] = useState<any[]>([]);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedMaterial, setSelectedMaterial] = useState<any>(null);
+  const [useCustomMaterial, setUseCustomMaterial] = useState(false);
   const [materialForm, setMaterialForm] = useState({
     sku: '',
     name: '',
@@ -183,7 +193,17 @@ export default function JobDetailPage() {
   const loadMaterials = async () => {
     try {
       const data = await api.getJobMaterials(jobId) as any;
-      const materialList = Array.isArray(data) ? data : (data.data || []);
+      // Handle different possible response structures
+      let materialList = [];
+      if (Array.isArray(data)) {
+        materialList = data;
+      } else if (data.data && data.data.materials) {
+        materialList = data.data.materials;
+      } else if (data.data && Array.isArray(data.data)) {
+        materialList = data.data;
+      } else if (data.materials) {
+        materialList = data.materials;
+      }
       setMaterials(materialList);
     } catch (err) {
       console.error('Failed to load materials:', err);
@@ -198,6 +218,55 @@ export default function JobDetailPage() {
     } catch (err) {
       console.error('Failed to load variations:', err);
     }
+  };
+
+  const loadMaterialsCatalog = async () => {
+    try {
+      const mockAuth = {
+        token: 'mock-jwt-token',
+        tenant_id: '550e8400-e29b-41d4-a716-446655440000',
+        user_id: '550e8400-e29b-41d4-a716-446655440001',
+      };
+      api.setAuth(mockAuth);
+
+      const data = await api.getMaterials() as any;
+      const catalogList = Array.isArray(data) ? data : (data.data || []);
+      setMaterialsCatalog(catalogList);
+      setFilteredMaterials(catalogList);
+    } catch (err) {
+      console.error('Failed to load materials catalog:', err);
+    }
+  };
+
+  const handleMaterialSearch = (query: string) => {
+    setSearchQuery(query);
+    if (!query.trim()) {
+      setFilteredMaterials(materialsCatalog);
+      return;
+    }
+
+    const lowerQuery = query.toLowerCase();
+    const filtered = materialsCatalog.filter(
+      (material) =>
+        material.name?.toLowerCase().includes(lowerQuery) ||
+        material.sku?.toLowerCase().includes(lowerQuery) ||
+        material.description?.toLowerCase().includes(lowerQuery)
+    );
+    setFilteredMaterials(filtered);
+  };
+
+  const handleSelectMaterial = (material: any) => {
+    setSelectedMaterial(material);
+    setSearchQuery(material.name);
+    setMaterialForm({
+      ...materialForm,
+      sku: material.sku || '',
+      name: material.name || '',
+      description: material.description || '',
+      unit: material.unit || 'units',
+      unit_price_ex_vat: material.unit_cost?.toString() || '',
+    });
+    setFilteredMaterials([]);
   };
 
   const handleStartJob = async () => {
@@ -243,7 +312,10 @@ export default function JobDetailPage() {
 
   const calculateTotalMaterialsCost = () => {
     if (!Array.isArray(materials)) return 0;
-    return materials.reduce((sum, material) => sum + material.total_ex_vat, 0);
+    return materials.reduce((sum, material) => {
+      const total = parseFloat(material.total_cost?.toString() || material.total_ex_vat?.toString() || '0');
+      return sum + total;
+    }, 0);
   };
 
   const calculateTotalVariationsCost = () => {
@@ -335,11 +407,40 @@ export default function JobDetailPage() {
     }
   };
 
+  const handleOpenMaterialForm = () => {
+    setShowMaterialForm(true);
+    if (materialsCatalog.length === 0) {
+      loadMaterialsCatalog();
+    }
+  };
+
+  const handleCloseMaterialForm = () => {
+    setShowMaterialForm(false);
+    setSearchQuery('');
+    setSelectedMaterial(null);
+    setUseCustomMaterial(false);
+    setFilteredMaterials([]);
+    setMaterialForm({
+      sku: '',
+      name: '',
+      description: '',
+      quantity: '',
+      unit: 'units',
+      unit_price_ex_vat: '',
+      notes: '',
+    });
+  };
+
   const handleSubmitMaterial = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!materialForm.sku || !materialForm.name || !materialForm.quantity || !materialForm.unit_price_ex_vat) {
+    if (!materialForm.name || !materialForm.quantity || !materialForm.unit_price_ex_vat) {
       alert('Please fill in all required fields');
+      return;
+    }
+
+    if (!useCustomMaterial && !materialForm.sku) {
+      alert('Please select a material from the catalog or use custom material');
       return;
     }
 
@@ -361,7 +462,7 @@ export default function JobDetailPage() {
 
       await api.logMaterial({
         job_id: jobId,
-        sku: materialForm.sku,
+        sku: materialForm.sku || 'CUSTOM',
         name: materialForm.name,
         description: materialForm.description || undefined,
         quantity: quantity,
@@ -371,16 +472,7 @@ export default function JobDetailPage() {
         notes: materialForm.notes || undefined,
       });
 
-      setMaterialForm({
-        sku: '',
-        name: '',
-        description: '',
-        quantity: '',
-        unit: 'units',
-        unit_price_ex_vat: '',
-        notes: '',
-      });
-      setShowMaterialForm(false);
+      handleCloseMaterialForm();
       await loadMaterials();
       alert('Material logged successfully!');
     } catch (err: any) {
@@ -678,7 +770,7 @@ export default function JobDetailPage() {
               <p className="text-xs text-gray-600 mt-1">Record materials used on this job</p>
             </div>
             <button
-              onClick={() => setShowMaterialForm(!showMaterialForm)}
+              onClick={() => showMaterialForm ? handleCloseMaterialForm() : handleOpenMaterialForm()}
               className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 text-sm font-medium"
             >
               {showMaterialForm ? '✕ Cancel' : '+ Add Material'}
@@ -687,50 +779,168 @@ export default function JobDetailPage() {
 
           {showMaterialForm && (
             <form onSubmit={handleSubmitMaterial} className="bg-gray-50 border border-gray-200 rounded-lg p-4 space-y-4">
-              <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">
-                  SKU / Part Number <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  value={materialForm.sku}
-                  onChange={(e) => setMaterialForm({ ...materialForm, sku: e.target.value })}
-                  required
-                  placeholder="e.g., CABLE-25MM-100M"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm"
-                />
-                <p className="text-xs text-gray-500 mt-1">
-                  Stock keeping unit or product code
-                </p>
+              {/* Toggle between catalog and custom */}
+              <div className="flex items-center gap-4 pb-3 border-b border-gray-300">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setUseCustomMaterial(false);
+                    setMaterialForm({
+                      sku: '',
+                      name: '',
+                      description: '',
+                      quantity: materialForm.quantity,
+                      unit: 'units',
+                      unit_price_ex_vat: '',
+                      notes: materialForm.notes,
+                    });
+                    setSearchQuery('');
+                    setSelectedMaterial(null);
+                  }}
+                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                    !useCustomMaterial
+                      ? 'bg-primary-600 text-white'
+                      : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                  }`}
+                >
+                  📦 From Catalog
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setUseCustomMaterial(true);
+                    setMaterialForm({
+                      sku: '',
+                      name: '',
+                      description: '',
+                      quantity: materialForm.quantity,
+                      unit: 'units',
+                      unit_price_ex_vat: '',
+                      notes: materialForm.notes,
+                    });
+                    setSearchQuery('');
+                    setSelectedMaterial(null);
+                  }}
+                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                    useCustomMaterial
+                      ? 'bg-primary-600 text-white'
+                      : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                  }`}
+                >
+                  ✏️ Custom Material
+                </button>
               </div>
 
-              <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">
-                  Material Name <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  value={materialForm.name}
-                  onChange={(e) => setMaterialForm({ ...materialForm, name: e.target.value })}
-                  required
-                  placeholder="e.g., 2.5mm T&E Cable"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm"
-                />
-              </div>
+              {/* Catalog Material Search */}
+              {!useCustomMaterial && (
+                <div className="relative">
+                  <label className="block text-xs font-medium text-gray-700 mb-1">
+                    Search Material <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={searchQuery}
+                    onChange={(e) => handleMaterialSearch(e.target.value)}
+                    onFocus={() => {
+                      if (materialsCatalog.length > 0 && !selectedMaterial) {
+                        setFilteredMaterials(materialsCatalog);
+                      }
+                    }}
+                    placeholder="Type to search materials by name..."
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm"
+                  />
+                  {filteredMaterials.length > 0 && !selectedMaterial && (
+                    <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-y-auto">
+                      {filteredMaterials.slice(0, 10).map((material) => (
+                        <button
+                          key={material.id}
+                          type="button"
+                          onClick={() => handleSelectMaterial(material)}
+                          className="w-full px-3 py-2 text-left hover:bg-gray-100 focus:bg-gray-100 focus:outline-none border-b border-gray-100 last:border-b-0"
+                        >
+                          <div className="text-sm font-medium text-gray-900">{material.name}</div>
+                          {material.description && (
+                            <div className="text-xs text-gray-600">{material.description}</div>
+                          )}
+                          <div className="text-xs text-gray-500 mt-1">
+                            SKU: {material.sku} • {formatCurrency(parseFloat(material.unit_cost || '0'))}/{material.unit || 'unit'}
+                          </div>
+                        </button>
+                      ))}
+                      {filteredMaterials.length > 10 && (
+                        <div className="px-3 py-2 text-xs text-gray-500 bg-gray-50 text-center">
+                          Showing 10 of {filteredMaterials.length} results. Keep typing to narrow down...
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  {selectedMaterial && (
+                    <div className="mt-2 p-3 bg-green-50 border border-green-200 rounded-md">
+                      <div className="flex items-start justify-between">
+                        <div>
+                          <div className="text-sm font-medium text-green-900">{selectedMaterial.name}</div>
+                          <div className="text-xs text-green-700 mt-1">SKU: {selectedMaterial.sku}</div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedMaterial(null);
+                            setSearchQuery('');
+                            setMaterialForm({
+                              ...materialForm,
+                              sku: '',
+                              name: '',
+                              description: '',
+                              unit: 'units',
+                              unit_price_ex_vat: '',
+                            });
+                          }}
+                          className="text-green-600 hover:text-green-800 text-sm"
+                        >
+                          ✕ Change
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                  <p className="text-xs text-gray-500 mt-1">
+                    Start typing the material name to search your catalog
+                  </p>
+                </div>
+              )}
 
-              <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">
-                  Description (Optional)
-                </label>
-                <input
-                  type="text"
-                  value={materialForm.description}
-                  onChange={(e) => setMaterialForm({ ...materialForm, description: e.target.value })}
-                  placeholder="e.g., 2.5mm Twin & Earth Cable, 100m roll"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm"
-                />
-              </div>
+              {/* Custom Material Fields */}
+              {useCustomMaterial && (
+                <>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">
+                      Material Name <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={materialForm.name}
+                      onChange={(e) => setMaterialForm({ ...materialForm, name: e.target.value })}
+                      required
+                      placeholder="e.g., 2.5mm T&E Cable"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm"
+                    />
+                  </div>
 
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">
+                      Description (Optional)
+                    </label>
+                    <input
+                      type="text"
+                      value={materialForm.description}
+                      onChange={(e) => setMaterialForm({ ...materialForm, description: e.target.value })}
+                      placeholder="e.g., 2.5mm Twin & Earth Cable, 100m roll"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm"
+                    />
+                  </div>
+                </>
+              )}
+
+              {/* Common Fields (Quantity, Unit, Price) */}
               <div className="grid grid-cols-3 gap-4">
                 <div>
                   <label className="block text-xs font-medium text-gray-700 mb-1">
@@ -909,19 +1119,22 @@ export default function JobDetailPage() {
                   {materials.map((material) => (
                     <tr key={material.id}>
                       <td className="px-6 py-4 text-sm text-gray-900">
-                        {material.description}
+                        <div className="font-medium">{material.name}</div>
+                        {material.description && (
+                          <div className="text-xs text-gray-500">{material.description}</div>
+                        )}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">
-                        {material.quantity} {material.unit}
+                        {material.quantity_used || material.quantity} {material.unit}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-right">
-                        {formatCurrency(material.unit_price_ex_vat)}
+                        {formatCurrency(parseFloat(material.unit_cost?.toString() || material.unit_price_ex_vat?.toString() || '0'))}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 text-right">
-                        {formatCurrency(material.total_ex_vat)}
+                        {formatCurrency(parseFloat(material.total_cost?.toString() || material.total_ex_vat?.toString() || '0'))}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                        {formatDate(material.logged_at)}
+                        {formatDate(material.created_at || material.logged_at)}
                       </td>
                     </tr>
                   ))}
