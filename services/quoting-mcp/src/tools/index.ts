@@ -4,6 +4,7 @@ import { createQuote, CreateQuoteInput, CreateQuoteOutput } from './create-quote
 import { sendQuote, SendQuoteInput, SendQuoteOutput } from './send-quote.js';
 import { approveQuote, ApproveQuoteInput, ApproveQuoteOutput } from './approve-quote.js';
 import { rejectQuote, RejectQuoteInput, RejectQuoteOutput } from './reject-quote.js';
+import { updateQuote, UpdateQuoteInput, UpdateQuoteOutput } from './update-quote.js';
 
 export const tools = [
   {
@@ -96,6 +97,28 @@ export const tools = [
       },
       required: ['quote_id']
     }
+  },
+  {
+    name: 'update_quote',
+    description: 'Update a quote with new values',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        quote_id: { type: 'string', description: 'Quote ID (UUID)' },
+        title: { type: 'string', description: 'Quote title' },
+        description: { type: 'string', description: 'Quote description' },
+        status: {
+          type: 'string',
+          enum: ['draft', 'sent', 'viewed', 'approved', 'rejected', 'expired'],
+          description: 'Quote status',
+        },
+        valid_until: { type: 'string', description: 'Valid until date (ISO 8601)' },
+        terms: { type: 'string', description: 'Terms and conditions' },
+        notes: { type: 'string', description: 'Internal notes' },
+        job_id: { type: 'string', description: 'Associated job ID (UUID)' },
+      },
+      required: ['quote_id'],
+    }
   }
 ];
 
@@ -120,6 +143,9 @@ export async function handleToolCall(name: string, args: any): Promise<any> {
 
     case 'reject_quote':
       return await rejectQuote(args as RejectQuoteInput, context);
+
+    case 'update_quote':
+      return await updateQuote(args as UpdateQuoteInput, context);
 
     default:
       throw new Error(`Unknown tool: ${name}`);

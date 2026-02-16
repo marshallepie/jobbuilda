@@ -40,9 +40,12 @@ interface Quote {
   updated_at: string;
   sent_at?: string;
   approved_at?: string;
+  client_id?: string;
   client_name?: string;
+  site_id?: string;
   site_name?: string;
   site_address?: string;
+  job_id?: string;
   items?: QuoteItem[];
 }
 
@@ -139,18 +142,76 @@ export default function QuoteDetailPage() {
   const approveQuote = async () => {
     if (!quote) return;
 
-    if (confirm(`Approve quote ${quote.quote_number}? This will allow deposit invoice generation.`)) {
+    if (confirm(`Approve quote ${quote.quote_number}? This will create a job and allow work to begin.`)) {
       setActionLoading(true);
       try {
+        // Step 1: Approve the quote
         await api.request(`/api/quotes/${quoteId}/approve`, {
           method: 'POST',
           body: JSON.stringify({}),
         });
+
+        // Step 2: Create a job from the approved quote
+        const mockAuth = {
+          tenant_id: '550e8400-e29b-41d4-a716-446655440000',
+          user_id: 'test-user',
+          scopes: [],
+          x_request_id: crypto.randomUUID(),
+        };
+        api.setAuth(mockAuth);
+
+        const jobResult = await api.request('/api/jobs', {
+          method: 'POST',
+          body: JSON.stringify({
+            quote_id: quoteId,
+            title: quote.title,
+            client_id: quote.client_id,
+            site_id: quote.site_id,
+          }),
+        }) as any;
+
         await loadQuote();
-        alert('Quote approved! You can now generate a deposit invoice.');
-      } catch (err) {
+        alert(`Quote approved and job ${jobResult.job_number} created successfully!`);
+
+        // Optionally redirect to the new job
+        if (confirm('Would you like to view the newly created job?')) {
+          router.push(`/jobs/${jobResult.id}`);
+        }
+      } catch (err: any) {
         console.error('Failed to approve quote:', err);
-        alert('Failed to approve quote. Please try again.');
+        alert(err.message || 'Failed to approve quote. Please try again.');
+      } finally {
+        setActionLoading(false);
+      }
+    }
+  };
+
+  const rejectQuote = async () => {
+    if (!quote) return;
+
+    const reason = prompt(`Reject quote ${quote.quote_number}?\n\nPlease provide a reason for rejection:`);
+
+    if (reason !== null) { // User clicked OK (even if empty string)
+      setActionLoading(true);
+      try {
+        const mockAuth = {
+          tenant_id: '550e8400-e29b-41d4-a716-446655440000',
+          user_id: 'test-user',
+          scopes: [],
+          x_request_id: crypto.randomUUID(),
+        };
+        api.setAuth(mockAuth);
+
+        await api.request(`/api/quotes/${quoteId}/reject`, {
+          method: 'POST',
+          body: JSON.stringify({ reason: reason || 'No reason provided' }),
+        });
+
+        await loadQuote();
+        alert('Quote rejected.');
+      } catch (err: any) {
+        console.error('Failed to reject quote:', err);
+        alert(err.message || 'Failed to reject quote. Please try again.');
       } finally {
         setActionLoading(false);
       }
@@ -293,15 +354,32 @@ export default function QuoteDetailPage() {
                 </>
               )}
               {(quote.status === 'sent' || quote.status === 'viewed') && (
+                <>
+                  <button
+                    onClick={approveQuote}
+                    disabled={actionLoading}
+                    className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50 text-sm font-medium"
+                  >
+                    {actionLoading ? 'Approving...' : 'Approve Quote'}
+                  </button>
+                  <button
+                    onClick={rejectQuote}
+                    disabled={actionLoading}
+                    className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 disabled:opacity-50 text-sm font-medium"
+                  >
+                    {actionLoading ? 'Rejecting...' : 'Reject Quote'}
+                  </button>
+                </>
+              )}
+              {quote.status === 'approved' && quote.job_id && (
                 <button
-                  onClick={approveQuote}
-                  disabled={actionLoading}
-                  className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50 text-sm font-medium"
+                  onClick={() => router.push(`/jobs/${quote.job_id}`)}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 text-sm font-medium"
                 >
-                  {actionLoading ? 'Approving...' : 'Approve Quote'}
+                  View Job
                 </button>
               )}
-              {quote.status === 'approved' && (
+              {quote.status === 'approved' && !quote.job_id && (
                 <button
                   onClick={() => router.push(`/invoices/new?quote_id=${quoteId}`)}
                   className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 text-sm font-medium"

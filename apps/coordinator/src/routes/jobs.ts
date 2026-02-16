@@ -52,13 +52,29 @@ export async function jobsRoutes(fastify: FastifyInstance) {
     async (request, reply) => {
       const context = extractAuthContext(request);
       try {
+        // Step 1: Create the job
         const result = await fastify.mcp.jobs.callTool(
           'create_job_from_quote',
           request.body,
           context
         );
-        const data = JSON.parse(result.content[0]?.text || '{}');
-        return data;
+        const job = JSON.parse(result.content[0]?.text || '{}');
+
+        // Step 2: Update the quote with the job_id
+        const { quote_id } = request.body as { quote_id: string };
+        if (quote_id && job.id) {
+          try {
+            await fastify.mcp.quoting.callTool(
+              'update_quote',
+              { quote_id, job_id: job.id },
+              context
+            );
+          } catch (updateError: any) {
+            fastify.log.warn(`Failed to update quote ${quote_id} with job_id: ${updateError.message}`);
+          }
+        }
+
+        return job;
       } catch (error: any) {
         reply.status(500).send({ error: 'Failed to create job', message: error.message });
       }
