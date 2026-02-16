@@ -697,10 +697,34 @@ export default function SettingsPage() {
               </div>
             </div>
 
+            {/* Preview Buttons */}
+            <div className="mb-8">
+              <h4 className="text-md font-medium text-gray-900 mb-4">Live Preview</h4>
+              <p className="text-sm text-gray-600 mb-4">
+                Preview how your invoices and quotes will look with your current settings
+              </p>
+              <div className="flex gap-4">
+                <button
+                  onClick={() => window.open('http://localhost:3000/api/preview/invoice', '_blank')}
+                  className="flex items-center gap-2 px-6 py-3 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors font-medium shadow-sm"
+                >
+                  <span>👁️</span>
+                  <span>Preview Invoice</span>
+                </button>
+                <button
+                  onClick={() => window.open('http://localhost:3000/api/preview/quote', '_blank')}
+                  className="flex items-center gap-2 px-6 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-medium shadow-sm"
+                >
+                  <span>👁️</span>
+                  <span>Preview Quote</span>
+                </button>
+              </div>
+            </div>
+
             {/* Preview Note */}
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
               <p className="text-sm text-blue-800">
-                💡 <strong>Preview:</strong> Changes to templates will be reflected when you generate invoices and quotes. Your company logo and brand color from the Business Profile section are automatically included.
+                💡 <strong>Tip:</strong> Changes to templates will be reflected when you generate invoices and quotes. Your company logo and brand color from the Business Profile section are automatically included. Save your changes and refresh the preview to see updates.
               </p>
             </div>
           </div>
