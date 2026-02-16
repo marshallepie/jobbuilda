@@ -53,6 +53,14 @@ export default function InvoiceDetailPage() {
   const [invoice, setInvoice] = useState<Invoice | null>(null);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
+  const [showPaymentForm, setShowPaymentForm] = useState(false);
+  const [paymentForm, setPaymentForm] = useState({
+    amount: '',
+    payment_date: new Date().toISOString().split('T')[0],
+    payment_method: 'bank_transfer',
+    payment_reference: '',
+    notes: '',
+  });
 
   useEffect(() => {
     if (invoiceId) {
@@ -122,6 +130,58 @@ export default function InvoiceDetailPage() {
       } finally {
         setActionLoading(false);
       }
+    }
+  };
+
+  const handleRecordPayment = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (!invoice || !paymentForm.amount) {
+      alert('Please enter a payment amount');
+      return;
+    }
+
+    const amount = parseFloat(paymentForm.amount);
+    if (amount <= 0 || amount > parseFloat(invoice.amount_due as any)) {
+      alert(`Payment amount must be between £0 and £${invoice.amount_due.toFixed(2)}`);
+      return;
+    }
+
+    setActionLoading(true);
+    try {
+      const mockAuth = {
+        token: 'mock-jwt-token',
+        tenant_id: '550e8400-e29b-41d4-a716-446655440000',
+        user_id: '550e8400-e29b-41d4-a716-446655440001',
+      };
+      api.setAuth(mockAuth);
+
+      await api.request(`/api/invoices/${invoiceId}/payment`, {
+        method: 'POST',
+        body: JSON.stringify({
+          amount: amount,
+          payment_date: paymentForm.payment_date,
+          payment_method: paymentForm.payment_method,
+          payment_reference: paymentForm.payment_reference || undefined,
+          notes: paymentForm.notes || undefined,
+        }),
+      });
+
+      setPaymentForm({
+        amount: '',
+        payment_date: new Date().toISOString().split('T')[0],
+        payment_method: 'bank_transfer',
+        payment_reference: '',
+        notes: '',
+      });
+      setShowPaymentForm(false);
+      await loadInvoice();
+      alert('Payment recorded successfully!');
+    } catch (err: any) {
+      console.error('Failed to record payment:', err);
+      alert(err.message || 'Failed to record payment. Please try again.');
+    } finally {
+      setActionLoading(false);
     }
   };
 
@@ -390,6 +450,14 @@ export default function InvoiceDetailPage() {
                   {actionLoading ? 'Sending...' : 'Send to Client'}
                 </button>
               )}
+              {(invoice.status === 'sent' || invoice.status === 'viewed' || invoice.status === 'partial' || invoice.status === 'overdue') && parseFloat(invoice.amount_due as any) > 0 && (
+                <button
+                  onClick={() => setShowPaymentForm(!showPaymentForm)}
+                  className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 text-sm font-medium"
+                >
+                  {showPaymentForm ? '✕ Cancel' : '💰 Record Payment'}
+                </button>
+              )}
               <button
                 onClick={() => window.print()}
                 className="px-4 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 text-sm font-medium"
@@ -399,6 +467,111 @@ export default function InvoiceDetailPage() {
             </div>
           </div>
         </div>
+
+        {/* Payment Form */}
+        {showPaymentForm && (
+          <div className="bg-white shadow rounded-lg p-6 no-print">
+            <h2 className="text-lg font-semibold text-gray-900 mb-4">Record Payment</h2>
+            <form onSubmit={handleRecordPayment} className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Payment Amount (£) <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    max={invoice.amount_due}
+                    value={paymentForm.amount}
+                    onChange={(e) => setPaymentForm({ ...paymentForm, amount: e.target.value })}
+                    required
+                    placeholder={`Max: ${formatCurrency(invoice.amount_due)}`}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    Outstanding: {formatCurrency(invoice.amount_due)}
+                  </p>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Payment Date <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="date"
+                    value={paymentForm.payment_date}
+                    onChange={(e) => setPaymentForm({ ...paymentForm, payment_date: e.target.value })}
+                    required
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Payment Method <span className="text-red-500">*</span>
+                  </label>
+                  <select
+                    value={paymentForm.payment_method}
+                    onChange={(e) => setPaymentForm({ ...paymentForm, payment_method: e.target.value })}
+                    required
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+                  >
+                    <option value="bank_transfer">Bank Transfer</option>
+                    <option value="cash">Cash</option>
+                    <option value="cheque">Cheque</option>
+                    <option value="card">Card</option>
+                    <option value="stripe">Stripe</option>
+                    <option value="other">Other</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Payment Reference
+                  </label>
+                  <input
+                    type="text"
+                    value={paymentForm.payment_reference}
+                    onChange={(e) => setPaymentForm({ ...paymentForm, payment_reference: e.target.value })}
+                    placeholder="e.g., Transaction ID, Cheque number"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Notes
+                </label>
+                <textarea
+                  value={paymentForm.notes}
+                  onChange={(e) => setPaymentForm({ ...paymentForm, notes: e.target.value })}
+                  placeholder="Additional notes about this payment..."
+                  rows={2}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+                />
+              </div>
+
+              <div className="flex gap-3">
+                <button
+                  type="submit"
+                  disabled={actionLoading}
+                  className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 font-medium"
+                >
+                  {actionLoading ? 'Recording...' : 'Record Payment'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowPaymentForm(false)}
+                  className="px-6 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 font-medium"
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
+          </div>
+        )}
 
         {/* Payment Status */}
         {parseFloat(invoice.amount_paid as any) > 0 && (
