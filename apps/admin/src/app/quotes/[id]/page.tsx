@@ -110,15 +110,26 @@ export default function QuoteDetailPage() {
   const sendQuote = async () => {
     if (!quote) return;
 
-    if (confirm(`Send quote ${quote.quote_number} to client?`)) {
+    if (confirm(`Send quote ${quote.quote_number} to client via email?\n\nThe quote will be sent as a PDF attachment.`)) {
       setActionLoading(true);
       try {
-        await api.sendQuote(quoteId);
+        const mockAuth = {
+          token: 'mock-jwt-token',
+          tenant_id: '550e8400-e29b-41d4-a716-446655440000',
+          user_id: '550e8400-e29b-41d4-a716-446655440001',
+        };
+        api.setAuth(mockAuth);
+
+        const result = await api.request(`/api/email/quote/${quoteId}/send`, {
+          method: 'POST',
+        }) as any;
+
         await loadQuote();
-        alert('Quote sent successfully!');
-      } catch (err) {
+        alert(`Quote sent successfully to ${result.sentTo}!`);
+      } catch (err: any) {
         console.error('Failed to send quote:', err);
-        alert('Failed to send quote. Please try again.');
+        const message = err.message || 'Failed to send quote. Please try again.';
+        alert(message);
       } finally {
         setActionLoading(false);
       }

@@ -15,6 +15,7 @@ import { paymentsRoutes } from './routes/payments.js';
 import { reportingRoutes } from './routes/reporting.js';
 import { previewRoutes } from './routes/preview.js';
 import { pdfRoutes } from './routes/pdf.js';
+import { emailRoutes } from './routes/email.js';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
@@ -312,6 +313,7 @@ export async function createServer() {
   await fastify.register(reportingRoutes);
   await fastify.register(previewRoutes);
   await fastify.register(pdfRoutes);
+  await fastify.register(emailRoutes);
 
   return fastify;
 }

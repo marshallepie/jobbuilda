@@ -23,7 +23,8 @@
     "dotenv": "^16.4.7",
     "fastify": "^5.2.0",
     "pg": "^8.13.1",
-    "puppeteer": "^24.37.3"
+    "puppeteer": "^24.37.3",
+    "resend": "^6.9.2"
   },
   "devDependencies": {
     "@types/node": "^20.11.0",
