@@ -13,6 +13,7 @@ import { testsRoutes } from './routes/tests.js';
 import { invoicingRoutes } from './routes/invoicing.js';
 import { paymentsRoutes } from './routes/payments.js';
 import { reportingRoutes } from './routes/reporting.js';
+import { previewRoutes } from './routes/preview.js';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
@@ -308,6 +309,7 @@ export async function createServer() {
   await fastify.register(invoicingRoutes);
   await fastify.register(paymentsRoutes);
   await fastify.register(reportingRoutes);
+  await fastify.register(previewRoutes);
 
   return fastify;
 }

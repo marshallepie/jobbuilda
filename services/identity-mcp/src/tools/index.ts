@@ -70,7 +70,15 @@ export const tools = [
         payment_terms: { type: 'string', description: 'Payment terms text' },
         default_vat_rate: { type: 'number', description: 'Default VAT rate percentage' },
         logo_url: { type: 'string', description: 'Logo URL' },
-        primary_color: { type: 'string', description: 'Primary brand color (hex)' }
+        primary_color: { type: 'string', description: 'Primary brand color (hex)' },
+        invoice_template_id: { type: 'string', description: 'Invoice template layout ID' },
+        quote_template_id: { type: 'string', description: 'Quote template layout ID' },
+        template_font: { type: 'string', description: 'Font family for PDFs' },
+        show_payment_qr: { type: 'boolean', description: 'Show payment QR code' },
+        show_item_codes: { type: 'boolean', description: 'Show SKU codes on items' },
+        show_item_descriptions: { type: 'boolean', description: 'Show item descriptions' },
+        footer_text: { type: 'string', description: 'Custom footer text' },
+        header_image_url: { type: 'string', description: 'Header banner image URL' }
       }
     }
   }

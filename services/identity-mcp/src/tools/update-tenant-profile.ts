@@ -43,6 +43,16 @@ export interface UpdateTenantProfileInput {
   // Branding
   logo_url?: string;
   primary_color?: string;
+
+  // Templates
+  invoice_template_id?: string;
+  quote_template_id?: string;
+  template_font?: string;
+  show_payment_qr?: boolean;
+  show_item_codes?: boolean;
+  show_item_descriptions?: boolean;
+  footer_text?: string;
+  header_image_url?: string;
 }
 
 export async function updateTenantProfile(
@@ -96,6 +106,14 @@ export async function updateTenantProfile(
       addField('default_vat_rate', input.default_vat_rate);
       addField('logo_url', input.logo_url);
       addField('primary_color', input.primary_color);
+      addField('invoice_template_id', input.invoice_template_id);
+      addField('quote_template_id', input.quote_template_id);
+      addField('template_font', input.template_font);
+      addField('show_payment_qr', input.show_payment_qr);
+      addField('show_item_codes', input.show_item_codes);
+      addField('show_item_descriptions', input.show_item_descriptions);
+      addField('footer_text', input.footer_text);
+      addField('header_image_url', input.header_image_url);
 
       if (updates.length === 0) {
         throw new Error('No fields to update');

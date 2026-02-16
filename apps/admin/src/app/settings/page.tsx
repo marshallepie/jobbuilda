@@ -31,6 +31,14 @@ interface BusinessProfile {
   default_vat_rate?: number;
   logo_url?: string;
   primary_color?: string;
+  invoice_template_id?: string;
+  quote_template_id?: string;
+  template_font?: string;
+  show_payment_qr?: boolean;
+  show_item_codes?: boolean;
+  show_item_descriptions?: boolean;
+  footer_text?: string;
+  header_image_url?: string;
 }
 
 export default function SettingsPage() {
@@ -455,6 +463,65 @@ export default function SettingsPage() {
                 </div>
               </div>
 
+              {/* Branding */}
+              <div>
+                <h3 className="text-base font-semibold text-gray-900 mb-4">Branding</h3>
+                <p className="text-sm text-gray-600 mb-4">Customize the appearance of your documents</p>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Company Logo URL
+                    </label>
+                    <input
+                      type="url"
+                      value={profile.logo_url || ''}
+                      onChange={(e) => updateField('logo_url', e.target.value)}
+                      placeholder="https://example.com/logo.png"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+                    />
+                    <p className="mt-1 text-xs text-gray-500">
+                      Logo displayed on invoices and quotes (recommended: 400x100px PNG)
+                    </p>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Primary Brand Color
+                    </label>
+                    <div className="flex gap-2">
+                      <input
+                        type="color"
+                        value={profile.primary_color || '#3B82F6'}
+                        onChange={(e) => updateField('primary_color', e.target.value)}
+                        className="h-10 w-20 border border-gray-300 rounded-md cursor-pointer"
+                      />
+                      <input
+                        type="text"
+                        value={profile.primary_color || '#3B82F6'}
+                        onChange={(e) => updateField('primary_color', e.target.value)}
+                        placeholder="#3B82F6"
+                        className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+                      />
+                    </div>
+                    <p className="mt-1 text-xs text-gray-500">
+                      Used for headings and accents on documents
+                    </p>
+                  </div>
+                </div>
+                {profile.logo_url && (
+                  <div className="mt-4 p-4 bg-gray-50 rounded-lg">
+                    <p className="text-sm font-medium text-gray-700 mb-2">Logo Preview:</p>
+                    <img
+                      src={profile.logo_url}
+                      alt="Company Logo"
+                      className="max-h-20 object-contain"
+                      onError={(e) => {
+                        e.currentTarget.style.display = 'none';
+                      }}
+                    />
+                  </div>
+                )}
+              </div>
+
               {/* Save Button */}
               <div className="pt-4 border-t border-gray-200">
                 <button
@@ -483,12 +550,159 @@ export default function SettingsPage() {
 
         {activeSection === 'templates' && (
           <div className="bg-white shadow rounded-lg p-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">
+            <h3 className="text-lg font-semibold text-gray-900 mb-6">
               📋 Invoice & Quote Templates
             </h3>
-            <p className="text-gray-600 text-sm">
-              Coming soon: Customize your invoice and quote templates
-            </p>
+
+            {/* Template Layout Selection */}
+            <div className="mb-8">
+              <h4 className="text-md font-medium text-gray-900 mb-4">Template Layouts</h4>
+              <div className="grid md:grid-cols-2 gap-6">
+                {/* Invoice Template */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Invoice Template
+                  </label>
+                  <select
+                    value={profile?.invoice_template_id || 'modern'}
+                    onChange={(e) => updateField('invoice_template_id', e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="modern">Modern - Clean and minimal design</option>
+                    <option value="classic">Classic - Traditional invoice layout</option>
+                    <option value="minimal">Minimal - Ultra-simple design</option>
+                    <option value="detailed">Detailed - Comprehensive information</option>
+                  </select>
+                </div>
+
+                {/* Quote Template */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Quote Template
+                  </label>
+                  <select
+                    value={profile?.quote_template_id || 'modern'}
+                    onChange={(e) => updateField('quote_template_id', e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="modern">Modern - Clean and minimal design</option>
+                    <option value="classic">Classic - Traditional quote layout</option>
+                    <option value="minimal">Minimal - Ultra-simple design</option>
+                    <option value="detailed">Detailed - Comprehensive information</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            {/* Typography */}
+            <div className="mb-8">
+              <h4 className="text-md font-medium text-gray-900 mb-4">Typography</h4>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Font Family
+                </label>
+                <select
+                  value={profile?.template_font || 'Inter'}
+                  onChange={(e) => updateField('template_font', e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="Inter">Inter - Modern sans-serif</option>
+                  <option value="Helvetica">Helvetica - Classic sans-serif</option>
+                  <option value="Times New Roman">Times New Roman - Traditional serif</option>
+                  <option value="Georgia">Georgia - Elegant serif</option>
+                  <option value="Arial">Arial - Standard sans-serif</option>
+                </select>
+              </div>
+            </div>
+
+            {/* Display Options */}
+            <div className="mb-8">
+              <h4 className="text-md font-medium text-gray-900 mb-4">Display Options</h4>
+              <div className="space-y-3">
+                <label className="flex items-center">
+                  <input
+                    type="checkbox"
+                    checked={profile?.show_item_codes || false}
+                    onChange={(e) => updateField('show_item_codes', e.target.checked)}
+                    className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                  />
+                  <span className="ml-3 text-sm text-gray-700">
+                    Show item codes/SKUs on line items
+                  </span>
+                </label>
+
+                <label className="flex items-center">
+                  <input
+                    type="checkbox"
+                    checked={profile?.show_item_descriptions || false}
+                    onChange={(e) => updateField('show_item_descriptions', e.target.checked)}
+                    className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                  />
+                  <span className="ml-3 text-sm text-gray-700">
+                    Show detailed item descriptions
+                  </span>
+                </label>
+
+                <label className="flex items-center">
+                  <input
+                    type="checkbox"
+                    checked={profile?.show_payment_qr || false}
+                    onChange={(e) => updateField('show_payment_qr', e.target.checked)}
+                    className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                  />
+                  <span className="ml-3 text-sm text-gray-700">
+                    Show QR code for payment (invoices only)
+                  </span>
+                </label>
+              </div>
+            </div>
+
+            {/* Custom Header */}
+            <div className="mb-8">
+              <h4 className="text-md font-medium text-gray-900 mb-4">Custom Header</h4>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Header Banner Image URL
+                </label>
+                <input
+                  type="url"
+                  value={profile?.header_image_url || ''}
+                  onChange={(e) => updateField('header_image_url', e.target.value)}
+                  placeholder="https://example.com/header-banner.jpg"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+                <p className="mt-1 text-xs text-gray-500">
+                  Optional banner image displayed at the top of PDFs (recommended: 1200x200px)
+                </p>
+              </div>
+            </div>
+
+            {/* Custom Footer */}
+            <div className="mb-8">
+              <h4 className="text-md font-medium text-gray-900 mb-4">Custom Footer</h4>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Footer Text
+                </label>
+                <textarea
+                  value={profile?.footer_text || ''}
+                  onChange={(e) => updateField('footer_text', e.target.value)}
+                  placeholder="e.g., Thank you for your business! We are fully insured and registered with..."
+                  rows={4}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+                <p className="mt-1 text-xs text-gray-500">
+                  Custom text displayed at the bottom of invoices and quotes
+                </p>
+              </div>
+            </div>
+
+            {/* Preview Note */}
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+              <p className="text-sm text-blue-800">
+                💡 <strong>Preview:</strong> Changes to templates will be reflected when you generate invoices and quotes. Your company logo and brand color from the Business Profile section are automatically included.
+              </p>
+            </div>
           </div>
         )}
       </div>

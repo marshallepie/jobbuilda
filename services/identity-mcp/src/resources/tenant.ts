@@ -18,7 +18,10 @@ export async function getTenant(tenantId: string): Promise<Tenant | null> {
         invoice_prefix, next_invoice_number, quote_prefix, next_quote_number,
         bank_name, account_name, sort_code, account_number,
         payment_terms, default_vat_rate,
-        logo_url, primary_color
+        logo_url, primary_color,
+        invoice_template_id, quote_template_id, template_font,
+        show_payment_qr, show_item_codes, show_item_descriptions,
+        footer_text, header_image_url
        FROM tenants
        WHERE id = $1`,
       [tenantId]
