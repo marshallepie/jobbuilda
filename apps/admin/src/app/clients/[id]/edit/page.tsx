@@ -1,14 +1,35 @@
 'use client';
 
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useEffect } from 'react';
+import { useRouter, useParams } from 'next/navigation';
 import Link from 'next/link';
 import AppLayout from '@/components/AppLayout';
 import { api } from '@/lib/api';
 
-export default function NewClientPage() {
+interface Client {
+  id: string;
+  name: string;
+  email?: string;
+  phone?: string;
+  mobile?: string;
+  company?: string;
+  address_line1?: string;
+  address_line2?: string;
+  city?: string;
+  county?: string;
+  postcode?: string;
+  notes?: string;
+  gdpr_consent: boolean;
+}
+
+export default function EditClientPage() {
   const router = useRouter();
-  const [loading, setLoading] = useState(false);
+  const params = useParams();
+  const clientId = params?.id as string;
+
+  const [client, setClient] = useState<Client | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
 
   const [formData, setFormData] = useState({
     name: '',
@@ -25,6 +46,46 @@ export default function NewClientPage() {
     gdpr_consent: false,
   });
 
+  useEffect(() => {
+    if (clientId) {
+      loadClient();
+    }
+  }, [clientId]);
+
+  const loadClient = async () => {
+    try {
+      const mockAuth = {
+        token: 'mock-jwt-token',
+        tenant_id: '550e8400-e29b-41d4-a716-446655440000',
+        user_id: '550e8400-e29b-41d4-a716-446655440001',
+      };
+      api.setAuth(mockAuth);
+
+      const clientData = await api.request(`/api/clients/clients/${clientId}`) as any;
+      setClient(clientData);
+
+      // Populate form
+      setFormData({
+        name: clientData.name || '',
+        email: clientData.email || '',
+        phone: clientData.phone || '',
+        mobile: clientData.mobile || '',
+        company: clientData.company || '',
+        address_line1: clientData.address_line1 || '',
+        address_line2: clientData.address_line2 || '',
+        city: clientData.city || '',
+        county: clientData.county || '',
+        postcode: clientData.postcode || '',
+        notes: clientData.notes || '',
+        gdpr_consent: clientData.gdpr_consent || false,
+      });
+    } catch (err) {
+      console.error('Failed to load client:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -33,7 +94,7 @@ export default function NewClientPage() {
       return;
     }
 
-    setLoading(true);
+    setSaving(true);
     try {
       const mockAuth = {
         token: 'mock-jwt-token',
@@ -57,32 +118,61 @@ export default function NewClientPage() {
         gdpr_consent: formData.gdpr_consent,
       };
 
-      const response = await api.createClient(clientData) as any;
-      const client = response.data || response;
+      await api.request(`/api/clients/clients/${clientId}`, {
+        method: 'PATCH',
+        body: JSON.stringify(clientData),
+      });
 
-      alert(`Client "${client.name}" created successfully!`);
-      router.push(`/clients`);
+      alert('Client updated successfully!');
+      router.push(`/clients/${clientId}`);
     } catch (err: any) {
-      console.error('Failed to create client:', err);
-      alert(err.message || 'Failed to create client. Please try again.');
+      console.error('Failed to update client:', err);
+      alert(err.message || 'Failed to update client. Please try again.');
     } finally {
-      setLoading(false);
+      setSaving(false);
     }
   };
+
+  if (loading) {
+    return (
+      <AppLayout>
+        <div className="flex items-center justify-center h-64">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
+        </div>
+      </AppLayout>
+    );
+  }
+
+  if (!client) {
+    return (
+      <AppLayout>
+        <div className="text-center py-12">
+          <h2 className="text-2xl font-bold text-gray-900 mb-2">Client Not Found</h2>
+          <p className="text-gray-600 mb-6">The client you're looking for doesn't exist.</p>
+          <Link
+            href="/clients"
+            className="inline-block px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700"
+          >
+            Back to Clients
+          </Link>
+        </div>
+      </AppLayout>
+    );
+  }
 
   return (
     <AppLayout>
       <div className="space-y-6 max-w-3xl">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900">Create New Client</h1>
-            <p className="text-gray-600 mt-1">Add a new client to your system</p>
+            <h1 className="text-3xl font-bold text-gray-900">Edit Client</h1>
+            <p className="text-gray-600 mt-1">Update client information</p>
           </div>
           <Link
-            href="/clients"
+            href={`/clients/${clientId}`}
             className="px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
           >
-            Back to Clients
+            Back to Client
           </Link>
         </div>
 
@@ -263,7 +353,7 @@ export default function NewClientPage() {
                 <span className="font-medium">GDPR Consent</span>
                 <p className="text-gray-500 mt-1">
                   The client consents to processing their personal data for business purposes including quotes,
-                  jobs, invoicing, and communications. This consent is required for GDPR compliance.
+                  jobs, invoicing, and communications.
                 </p>
               </label>
             </div>
@@ -272,17 +362,17 @@ export default function NewClientPage() {
           {/* Actions */}
           <div className="flex justify-end gap-3 pt-4 border-t">
             <Link
-              href="/clients"
+              href={`/clients/${clientId}`}
               className="px-6 py-2 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
             >
               Cancel
             </Link>
             <button
               type="submit"
-              disabled={loading}
+              disabled={saving}
               className="px-6 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50"
             >
-              {loading ? 'Creating...' : 'Create Client'}
+              {saving ? 'Saving...' : 'Save Changes'}
             </button>
           </div>
         </form>

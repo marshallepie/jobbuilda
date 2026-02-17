@@ -212,6 +212,122 @@ export async function clientsRoutes(fastify: FastifyInstance) {
   );
 
   /**
+   * PATCH /api/clients/clients/:clientId
+   * Update client information
+   */
+  fastify.patch<{
+    Params: { clientId: string };
+    Body: {
+      name?: string;
+      email?: string;
+      phone?: string;
+      mobile?: string;
+      company?: string;
+      address_line1?: string;
+      address_line2?: string;
+      city?: string;
+      county?: string;
+      postcode?: string;
+      notes?: string;
+      gdpr_consent?: boolean;
+    };
+  }>(
+    '/api/clients/clients/:clientId',
+    async (request, reply) => {
+      const context = extractAuthContext(request);
+      const { clientId } = request.params;
+
+      try {
+        const result = await fastify.mcp.clients.callTool(
+          'update_client',
+          { client_id: clientId, ...request.body },
+          context
+        );
+
+        const data = JSON.parse(result.content[0]?.text || '{}');
+        return data;
+      } catch (error: any) {
+        reply.status(500).send({
+          error: 'Failed to update client',
+          message: error.message
+        });
+      }
+    }
+  );
+
+  /**
+   * PATCH /api/clients/sites/:siteId
+   * Update site information
+   */
+  fastify.patch<{
+    Params: { siteId: string };
+    Body: {
+      name?: string;
+      address_line1?: string;
+      address_line2?: string;
+      city?: string;
+      county?: string;
+      postcode?: string;
+      country?: string;
+      contact_name?: string;
+      contact_phone?: string;
+      access_notes?: string;
+    };
+  }>(
+    '/api/clients/sites/:siteId',
+    async (request, reply) => {
+      const context = extractAuthContext(request);
+      const { siteId } = request.params;
+
+      try {
+        const result = await fastify.mcp.clients.callTool(
+          'update_site',
+          { site_id: siteId, ...request.body },
+          context
+        );
+
+        const data = JSON.parse(result.content[0]?.text || '{}');
+        return data;
+      } catch (error: any) {
+        reply.status(500).send({
+          error: 'Failed to update site',
+          message: error.message
+        });
+      }
+    }
+  );
+
+  /**
+   * DELETE /api/clients/sites/:siteId
+   * Delete a site
+   */
+  fastify.delete<{
+    Params: { siteId: string };
+  }>(
+    '/api/clients/sites/:siteId',
+    async (request, reply) => {
+      const context = extractAuthContext(request);
+      const { siteId } = request.params;
+
+      try {
+        const result = await fastify.mcp.clients.callTool(
+          'delete_site',
+          { site_id: siteId },
+          context
+        );
+
+        const data = JSON.parse(result.content[0]?.text || '{}');
+        return data;
+      } catch (error: any) {
+        reply.status(500).send({
+          error: 'Failed to delete site',
+          message: error.message
+        });
+      }
+    }
+  );
+
+  /**
    * DELETE /api/clients/gdpr/:clientId
    * Delete client data for GDPR compliance
    */

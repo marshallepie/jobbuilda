@@ -138,8 +138,31 @@ export default function ClientDetailPage() {
     if (confirm(`Export all data for ${client.name}? This will generate a GDPR-compliant data export.`)) {
       setActionLoading(true);
       try {
-        // TODO: Implement GDPR export
-        alert('GDPR export functionality will be implemented');
+        const mockAuth = {
+          token: 'mock-jwt-token',
+          tenant_id: '550e8400-e29b-41d4-a716-446655440000',
+          user_id: '550e8400-e29b-41d4-a716-446655440001',
+        };
+        api.setAuth(mockAuth);
+
+        const result = await api.request('/api/clients/gdpr/export', {
+          method: 'POST',
+          body: JSON.stringify({ client_id: clientId }),
+        }) as any;
+
+        // Convert the export data to JSON and trigger download
+        const exportData = JSON.stringify(result.export || result, null, 2);
+        const blob = new Blob([exportData], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `gdpr-export-${client.name.replace(/\s+/g, '-')}-${new Date().toISOString().split('T')[0]}.json`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+
+        alert('GDPR export completed successfully!');
       } catch (err: any) {
         console.error('Failed to export data:', err);
         alert(err.message || 'Failed to export data. Please try again.');
@@ -152,18 +175,43 @@ export default function ClientDetailPage() {
   const handleGdprDelete = async () => {
     if (!client) return;
 
-    if (confirm(`DELETE all data for ${client.name}? This action CANNOT be undone and will remove all associated quotes, jobs, and invoices.`)) {
+    const confirmMessage = `DELETE all data for ${client.name}?
+
+This action CANNOT be undone and will remove:
+• Client profile and contact information
+• All associated sites and locations
+• All quotes, jobs, and invoices
+• All related time tracking and materials
+• All compliance test records
+
+Type "${client.name}" to confirm deletion:`;
+
+    const confirmation = prompt(confirmMessage);
+
+    if (confirmation === client.name) {
       setActionLoading(true);
       try {
-        // TODO: Implement GDPR delete
-        alert('GDPR delete functionality will be implemented');
-        // router.push('/clients');
+        const mockAuth = {
+          token: 'mock-jwt-token',
+          tenant_id: '550e8400-e29b-41d4-a716-446655440000',
+          user_id: '550e8400-e29b-41d4-a716-446655440001',
+        };
+        api.setAuth(mockAuth);
+
+        await api.request(`/api/clients/gdpr/${clientId}?confirm=true`, {
+          method: 'DELETE',
+        });
+
+        alert(`All data for ${client.name} has been permanently deleted.`);
+        router.push('/clients');
       } catch (err: any) {
         console.error('Failed to delete client data:', err);
         alert(err.message || 'Failed to delete client data. Please try again.');
       } finally {
         setActionLoading(false);
       }
+    } else if (confirmation !== null) {
+      alert('Deletion cancelled. The name did not match.');
     }
   };
 
@@ -230,6 +278,12 @@ export default function ClientDetailPage() {
           </div>
 
           <div className="flex items-center space-x-3">
+            <Link
+              href={`/clients/${clientId}/edit`}
+              className="px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
+            >
+              Edit Client
+            </Link>
             <button
               onClick={handleGdprExport}
               disabled={actionLoading}

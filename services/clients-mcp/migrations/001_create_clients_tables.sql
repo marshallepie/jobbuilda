@@ -74,12 +74,14 @@ CREATE INDEX IF NOT EXISTS idx_contact_history_client_id ON contact_history(clie
 CREATE INDEX IF NOT EXISTS idx_contact_history_contacted_at ON contact_history(contacted_at DESC);
 CREATE INDEX IF NOT EXISTS idx_contact_history_type ON contact_history(contact_type);
 
--- Add updated_at triggers
+-- Add updated_at triggers (use DROP IF EXISTS for idempotency)
+DROP TRIGGER IF EXISTS update_clients_updated_at ON clients;
 CREATE TRIGGER update_clients_updated_at
   BEFORE UPDATE ON clients
   FOR EACH ROW
   EXECUTE FUNCTION update_updated_at_column();
 
+DROP TRIGGER IF EXISTS update_sites_updated_at ON sites;
 CREATE TRIGGER update_sites_updated_at
   BEFORE UPDATE ON sites
   FOR EACH ROW
