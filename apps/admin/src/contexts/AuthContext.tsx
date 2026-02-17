@@ -2,7 +2,7 @@
 
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { User, Session } from '@supabase/supabase-js';
-import { supabase } from '@/lib/supabase';
+import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { useRouter } from 'next/navigation';
 
 interface AuthContextType {
@@ -25,6 +25,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const router = useRouter();
 
   useEffect(() => {
+    // Only use Supabase if configured, otherwise just set loading to false
+    if (!isSupabaseConfigured()) {
+      setLoading(false);
+      return;
+    }
+
     // Check active session
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
@@ -48,8 +54,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signIn = async (email: string, password: string) => {
     // Development mode: if Supabase not configured, use mock auth
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    if (!supabaseUrl) {
+    if (!isSupabaseConfigured()) {
       console.warn('Supabase not configured - using development mode');
       // Create mock session
       const mockUser: any = {
@@ -88,8 +93,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signUp = async (email: string, password: string, metadata?: any) => {
     // Development mode: if Supabase not configured, use mock auth
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    if (!supabaseUrl) {
+    if (!isSupabaseConfigured()) {
       console.warn('Supabase not configured - using development mode');
       // Create mock session with provided metadata
       const mockUser: any = {
@@ -131,9 +135,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const signOut = async () => {
-    const { error } = await supabase.auth.signOut();
-    if (error) throw error;
+    // If Supabase is configured, sign out through Supabase
+    if (isSupabaseConfigured()) {
+      const { error } = await supabase.auth.signOut();
+      if (error) throw error;
+    }
 
+    // Clear local state
     setSession(null);
     setUser(null);
     setTenantId(null);
