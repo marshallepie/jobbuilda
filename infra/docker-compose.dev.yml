@@ -60,7 +60,7 @@ services:
       - ./grafana-datasources.yml:/etc/grafana/provisioning/datasources/datasources.yml
       - grafana-data:/var/lib/grafana
     ports:
-      - "3001:3000"    # Using 3001 to avoid conflict with coordinator on 3000
+      - "3003:3000"    # Using 3003 to avoid conflict with coordinator on 3000 and portal on 3001
     depends_on:
       tempo:
         condition: service_healthy

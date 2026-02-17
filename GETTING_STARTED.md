@@ -42,9 +42,10 @@ pnpm dev:core
 
 After running `pnpm start`:
 
-- **Admin Dashboard**: http://localhost:3002
+- **Client Portal**: http://localhost:3001 (for customers)
+- **Admin Dashboard**: http://localhost:3002 (for contractors)
 - **Coordinator API**: http://localhost:3000
-- **Grafana (Observability)**: http://localhost:3001
+- **Grafana (Observability)**: http://localhost:3003
 
 ## Stopping Services
 

@@ -51,13 +51,16 @@ echo ""
 # Step 4: Start core services
 echo -e "${BLUE}🌟 Starting core services...${NC}"
 echo -e "${YELLOW}   - Coordinator API (port 3000)${NC}"
+echo -e "${YELLOW}   - Client Portal (port 3001)${NC}"
 echo -e "${YELLOW}   - Admin Dashboard (port 3002)${NC}"
 echo ""
 
-# Start only coordinator and admin (they will start MCP services as needed)
-pnpm dev --filter=coordinator --filter=admin
+# Start coordinator, portal, and admin (coordinator will start MCP services as needed)
+pnpm dev --filter=coordinator --filter=portal --filter=admin
 
 echo ""
 echo -e "${GREEN}✨ JobBuilda is running!${NC}"
-echo -e "${GREEN}   Admin: http://localhost:3002${NC}"
+echo -e "${GREEN}   Client Portal: http://localhost:3001${NC}"
+echo -e "${GREEN}   Admin Dashboard: http://localhost:3002${NC}"
 echo -e "${GREEN}   API: http://localhost:3000${NC}"
+echo -e "${GREEN}   Grafana: http://localhost:3003${NC}"
