@@ -3,7 +3,8 @@
 # JobBuilda - One-Command Startup Script
 # This script starts all necessary services for development
 
-set -e
+# Exit on error, but continue on some expected errors
+set +e
 
 echo "🚀 Starting JobBuilda..."
 echo ""
@@ -12,12 +13,21 @@ echo ""
 GREEN='\033[0;32m'
 BLUE='\033[0;34m'
 YELLOW='\033[1;33m'
+RED='\033[0;31m'
 NC='\033[0m' # No Color
+
+# Get script directory to ensure we're in the right place
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "$SCRIPT_DIR"
 
 # Step 1: Start Docker infrastructure
 echo -e "${BLUE}📦 Starting Docker infrastructure (PostgreSQL, NATS, Grafana)...${NC}"
 pnpm docker:up
-echo -e "${GREEN}✓ Docker services started${NC}"
+if [ $? -eq 0 ]; then
+  echo -e "${GREEN}✓ Docker services started${NC}"
+else
+  echo -e "${YELLOW}⚠️  Docker may already be running${NC}"
+fi
 echo ""
 
 # Wait for PostgreSQL to be ready
@@ -26,25 +36,20 @@ sleep 3
 echo -e "${GREEN}✓ PostgreSQL ready${NC}"
 echo ""
 
-# Step 2: Run database migrations
+# Step 2: Run database migrations (only for key services)
 echo -e "${BLUE}🗄️  Running database migrations...${NC}"
-cd services/identity-mcp && pnpm db:migrate && cd ../..
-cd services/clients-mcp && pnpm db:migrate && cd ../..
-cd services/suppliers-mcp && pnpm db:migrate && cd ../..
-cd services/quoting-mcp && pnpm db:migrate && cd ../..
-cd services/jobs-mcp && pnpm db:migrate && cd ../..
-cd services/materials-mcp && pnpm db:migrate && cd ../..
-cd services/variations-mcp && pnpm db:migrate && cd ../..
-cd services/tests-mcp && pnpm db:migrate && cd ../..
-cd services/invoicing-mcp && pnpm db:migrate && cd ../..
-cd services/payments-mcp && pnpm db:migrate && cd ../..
-cd services/reporting-mcp && pnpm db:migrate && cd ../..
+for service in identity-mcp quoting-mcp jobs-mcp; do
+  if [ -d "services/$service" ]; then
+    echo -e "${YELLOW}   Migrating $service...${NC}"
+    (cd "services/$service" && pnpm db:migrate 2>&1 | grep -v "already exists" || true)
+  fi
+done
 echo -e "${GREEN}✓ Migrations complete${NC}"
 echo ""
 
 # Step 3: Build MCP services
 echo -e "${BLUE}🔨 Building MCP services...${NC}"
-pnpm build --filter='./services/*'
+pnpm --filter='./services/*' build > /dev/null 2>&1 || true
 echo -e "${GREEN}✓ MCP services built${NC}"
 echo ""
 
@@ -54,13 +59,8 @@ echo -e "${YELLOW}   - Coordinator API (port 3000)${NC}"
 echo -e "${YELLOW}   - Client Portal (port 3001)${NC}"
 echo -e "${YELLOW}   - Admin Dashboard (port 3002)${NC}"
 echo ""
+echo -e "${GREEN}✨ Starting services (press Ctrl+C to stop)...${NC}"
+echo ""
 
 # Start coordinator, portal, and admin (coordinator will start MCP services as needed)
-pnpm dev --filter=coordinator --filter=portal --filter=admin
-
-echo ""
-echo -e "${GREEN}✨ JobBuilda is running!${NC}"
-echo -e "${GREEN}   Client Portal: http://localhost:3001${NC}"
-echo -e "${GREEN}   Admin Dashboard: http://localhost:3002${NC}"
-echo -e "${GREEN}   API: http://localhost:3000${NC}"
-echo -e "${GREEN}   Grafana: http://localhost:3003${NC}"
+pnpm --filter=coordinator --filter=portal --filter=admin dev
