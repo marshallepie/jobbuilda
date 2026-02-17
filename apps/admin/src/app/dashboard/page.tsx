@@ -58,20 +58,42 @@ export default function DashboardPage() {
       api.setAuth(mockAuth);
 
       // Fetch dashboard data
-      const [jobsData, quotesData] = await Promise.all([
+      const [jobsData, quotesData, invoicesData] = await Promise.all([
         api.getJobs() as Promise<Job[]>,
         api.getQuotes() as Promise<Quote[]>,
+        api.request('/api/invoices') as Promise<any[]>,
       ]);
 
       // Calculate stats
       const activeJobs = jobsData.filter((j) => j.status === 'in_progress').length;
       const pending = quotesData.filter((q) => q.status === 'sent' || q.status === 'viewed').length;
 
+      // Calculate unpaid invoices
+      const unpaidInvoices = invoicesData.filter(
+        (inv) => inv.status === 'sent' || inv.status === 'viewed' || inv.status === 'overdue'
+      ).length;
+
+      // Calculate monthly revenue (current month)
+      const now = new Date();
+      const currentMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+      const monthlyRevenue = invoicesData
+        .filter((inv) => {
+          const createdAt = new Date(inv.created_at);
+          return (
+            createdAt >= currentMonthStart &&
+            (inv.status === 'paid' || inv.status === 'partially_paid')
+          );
+        })
+        .reduce((sum, inv) => {
+          const paid = parseFloat(inv.amount_paid || '0');
+          return sum + paid;
+        }, 0);
+
       setStats({
         activeJobs,
         pendingQuotes: pending,
-        unpaidInvoices: 0, // TODO: Calculate from invoices
-        monthlyRevenue: 0, // TODO: Calculate from payments
+        unpaidInvoices,
+        monthlyRevenue,
       });
 
       setRecentJobs(jobsData.slice(0, 5));
