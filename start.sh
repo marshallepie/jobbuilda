@@ -63,4 +63,4 @@ echo -e "${GREEN}✨ Starting services (press Ctrl+C to stop)...${NC}"
 echo ""
 
 # Start coordinator, portal, and admin (coordinator will start MCP services as needed)
-pnpm --filter=coordinator --filter=portal --filter=admin dev
+pnpm --filter=@jobbuilda/coordinator --filter=@jobbuilda/portal --filter=@jobbuilda/admin dev
