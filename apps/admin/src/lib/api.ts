@@ -92,7 +92,9 @@ class ApiClient {
   // ===== LEADS =====
   async getLeads() {
     if (USE_MOCK_DATA) return mockApi.getLeads();
-    return this.request('/api/leads');
+    const response: any = await this.request('/api/leads');
+    // Unwrap response if needed (API returns { data: [...] })
+    return response.data || response;
   }
 
   async getLead(id: string) {
@@ -124,7 +126,9 @@ class ApiClient {
   // ===== QUOTES =====
   async getQuotes() {
     if (USE_MOCK_DATA) return mockApi.getQuotes();
-    return this.request('/api/quotes');
+    const response: any = await this.request('/api/quotes');
+    // Unwrap response if needed (API returns { data: [...] })
+    return response.data || response;
   }
 
   async getQuote(id: string) {
@@ -163,7 +167,9 @@ class ApiClient {
   // ===== JOBS =====
   async getJobs() {
     if (USE_MOCK_DATA) return mockApi.getJobs();
-    return this.request('/api/jobs');
+    const response: any = await this.request('/api/jobs');
+    // Unwrap response if needed (API returns { data: [...] })
+    return response.data || response;
   }
 
   async getJob(id: string) {
@@ -208,16 +214,22 @@ class ApiClient {
   }
 
   async getJobTimeEntries(jobId: string) {
-    return this.request(`/api/jobs/${jobId}/time`);
+    const response: any = await this.request(`/api/jobs/${jobId}/time`);
+    // Unwrap response if needed (API returns { data: [...] })
+    return response.data || response;
   }
 
   // ===== MATERIALS =====
   async getMaterials() {
-    return this.request('/api/materials');
+    const response: any = await this.request('/api/materials');
+    // Unwrap response if needed (API returns { data: [...] })
+    return response.data || response;
   }
 
   async getJobMaterials(jobId: string) {
-    return this.request(`/api/materials/job-usage/${jobId}`);
+    const response: any = await this.request(`/api/materials/job-usage/${jobId}`);
+    // Unwrap response if needed (API returns { data: [...] })
+    return response.data || response;
   }
 
   async logMaterial(data: any) {
@@ -233,7 +245,9 @@ class ApiClient {
 
   // ===== VARIATIONS =====
   async getJobVariations(jobId: string) {
-    return this.request(`/api/variations/job/${jobId}`);
+    const response: any = await this.request(`/api/variations/job/${jobId}`);
+    // Unwrap response if needed (API returns { data: [...] })
+    return response.data || response;
   }
 
   async createVariation(data: any) {
@@ -253,7 +267,9 @@ class ApiClient {
   // ===== INVOICES =====
   async getInvoices() {
     if (USE_MOCK_DATA) return mockApi.getInvoices();
-    return this.request('/api/invoices');
+    const response: any = await this.request('/api/invoices');
+    // Unwrap response if needed (API returns { data: [...] })
+    return response.data || response;
   }
 
   async getInvoice(id: string) {
@@ -277,17 +293,23 @@ class ApiClient {
 
   // ===== PAYMENTS =====
   async getPayments() {
-    return this.request('/api/payments');
+    const response: any = await this.request('/api/payments');
+    // Unwrap response if needed (API returns { data: [...] })
+    return response.data || response;
   }
 
   async getInvoiceTransactions(invoiceId: string) {
-    return this.request(`/api/payments/invoices/${invoiceId}/transactions`);
+    const response: any = await this.request(`/api/payments/invoices/${invoiceId}/transactions`);
+    // Unwrap response if needed (API returns { data: [...] })
+    return response.data || response;
   }
 
   // ===== CLIENTS =====
   async getClients() {
     if (USE_MOCK_DATA) return mockApi.getClients();
-    return this.request('/api/clients');
+    const response: any = await this.request('/api/clients');
+    // Unwrap response if needed (API returns { data: [...] })
+    return response.data || response;
   }
 
   async getClient(id: string) {

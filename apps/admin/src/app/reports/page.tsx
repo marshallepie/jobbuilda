@@ -50,10 +50,13 @@ export default function ReportsPage() {
       api.setAuth(mockAuth);
 
       // Fetch all data
-      const [jobs, invoices] = await Promise.all([
+      const [jobs, invoicesResponse] = await Promise.all([
         api.getJobs() as Promise<any[]>,
-        api.request('/api/invoices') as Promise<any[]>,
+        api.request('/api/invoices') as Promise<any>,
       ]);
+
+      // Unwrap invoices response (API returns { data: [...] })
+      const invoices = invoicesResponse.data || invoicesResponse;
 
       // Calculate date range based on selected period
       const now = new Date();

@@ -58,11 +58,14 @@ export default function DashboardPage() {
       api.setAuth(mockAuth);
 
       // Fetch dashboard data
-      const [jobsData, quotesData, invoicesData] = await Promise.all([
+      const [jobsData, quotesData, invoicesResponse] = await Promise.all([
         api.getJobs() as Promise<Job[]>,
         api.getQuotes() as Promise<Quote[]>,
-        api.request('/api/invoices') as Promise<any[]>,
+        api.request('/api/invoices') as Promise<any>,
       ]);
+
+      // Unwrap invoices response (API returns { data: [...] })
+      const invoicesData = invoicesResponse.data || invoicesResponse;
 
       // Calculate stats
       const activeJobs = jobsData.filter((j) => j.status === 'in_progress').length;
