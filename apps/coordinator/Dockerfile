@@ -22,9 +22,27 @@ COPY apps/coordinator ./apps/coordinator
 # Install all dependencies with hoisting for better module resolution
 RUN pnpm install --frozen-lockfile --shamefully-hoist
 
-# Build shared packages with hoisted modules
-RUN cd packages/contracts && pnpm run build && ls -la dist/
-RUN cd packages/mcp-sdk && pnpm run build
+# Build shared packages
+# Clean and build contracts with explicit paths
+RUN cd /app/packages/contracts && \
+    echo "=== Building contracts package ===" && \
+    rm -rf dist .tsbuildinfo && \
+    echo "Running: pnpm run build" && \
+    pnpm run build && \
+    echo "=== Build complete. Checking output ===" && \
+    ls -la dist/ && \
+    echo "=== Checking .d.ts files ===" && \
+    ls -la dist/*.d.ts && \
+    echo "=== Checking subdirectories ===" && \
+    find dist/ -type f
+
+# Build mcp-sdk
+RUN cd /app/packages/mcp-sdk && \
+    echo "=== Building mcp-sdk package ===" && \
+    rm -rf dist .tsbuildinfo && \
+    pnpm run build && \
+    echo "=== mcp-sdk build complete ===" && \
+    ls -la dist/
 
 # Set working directory to coordinator
 WORKDIR /app/apps/coordinator
