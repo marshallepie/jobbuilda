@@ -40,13 +40,13 @@ export async function sendEmail(options: SendEmailOptions): Promise<{ id: string
         filename: att.filename,
         content: att.content,
       })),
-      reply_to: options.replyTo,
+      replyTo: options.replyTo,
       cc: options.cc ? (Array.isArray(options.cc) ? options.cc : [options.cc]) : undefined,
       bcc: options.bcc ? (Array.isArray(options.bcc) ? options.bcc : [options.bcc]) : undefined,
     });
 
     return {
-      id: data.id || 'unknown',
+      id: (data as any).data?.id || 'unknown',
       success: true,
     };
   } catch (error: any) {

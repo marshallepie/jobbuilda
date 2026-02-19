@@ -57,7 +57,7 @@ export async function generatePDFFromHTML(html: string, options: {
       printBackground: options.printBackground ?? true,
     });
 
-    return pdf;
+    return Buffer.from(pdf);
   } finally {
     await page.close();
   }
@@ -101,7 +101,7 @@ export async function generatePDFFromURL(url: string, options: {
       printBackground: true,
     });
 
-    return pdf;
+    return Buffer.from(pdf);
   } finally {
     await page.close();
   }
