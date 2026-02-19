@@ -23,7 +23,7 @@ COPY apps/coordinator ./apps/coordinator
 RUN pnpm install --frozen-lockfile --shamefully-hoist
 
 # Build shared packages with hoisted modules
-RUN cd packages/contracts && pnpm run build
+RUN cd packages/contracts && pnpm run build && ls -la dist/
 RUN cd packages/mcp-sdk && pnpm run build
 
 # Set working directory to coordinator
