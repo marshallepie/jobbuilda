@@ -22,19 +22,11 @@ COPY apps/coordinator ./apps/coordinator
 # Install all dependencies (needed for workspace packages)
 RUN pnpm install --frozen-lockfile
 
-# Build packages in correct order
-RUN cd packages/contracts && pnpm run build && \
-    cd ../mcp-sdk && pnpm run build && \
-    cd ../../apps/coordinator && pnpm run build
-
-# Verify build output exists
-RUN ls -la /app/apps/coordinator/dist/
-
 # Set working directory to coordinator
 WORKDIR /app/apps/coordinator
 
 # Expose port
 EXPOSE 3000
 
-# Start server
-CMD ["node", "dist/index.js"]
+# Start server with tsx (runs TypeScript directly, no build needed!)
+CMD ["npx", "tsx", "src/index.ts"]
