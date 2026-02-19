@@ -22,8 +22,13 @@ COPY apps/coordinator ./apps/coordinator
 # Install all dependencies (needed for workspace packages)
 RUN pnpm install --frozen-lockfile
 
-# Use TypeScript project references to build (handles dependencies correctly)
-RUN cd apps/coordinator && npx tsc --build
+# Build packages in correct order
+RUN cd packages/contracts && pnpm run build && \
+    cd ../mcp-sdk && pnpm run build && \
+    cd ../../apps/coordinator && pnpm run build
+
+# Verify build output exists
+RUN ls -la /app/apps/coordinator/dist/
 
 # Set working directory to coordinator
 WORKDIR /app/apps/coordinator
