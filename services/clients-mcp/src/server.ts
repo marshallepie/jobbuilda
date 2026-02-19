@@ -24,8 +24,12 @@ export async function createServer(): Promise<Server> {
     }
   );
 
-  // Initialize NATS connection
-  await connectToNATS();
+  // Initialize NATS connection (optional for MVP)
+  try {
+    await connectToNATS();
+  } catch (error) {
+    console.warn('NATS connection failed, continuing without event bus:', error.message);
+  }
 
   // List resources handler
   server.setRequestHandler(ListResourcesRequestSchema, async () => ({
