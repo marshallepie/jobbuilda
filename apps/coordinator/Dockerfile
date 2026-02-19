@@ -22,8 +22,8 @@ COPY apps/coordinator ./apps/coordinator
 # Install all dependencies (needed for workspace packages)
 RUN pnpm install --frozen-lockfile
 
-# Build using Turbo (handles dependency order automatically)
-RUN pnpm turbo build --filter=@jobbuilda/coordinator...
+# Build all packages recursively (pnpm handles dependency order)
+RUN pnpm -r --filter @jobbuilda/coordinator... build
 
 # Set working directory to coordinator
 WORKDIR /app/apps/coordinator
