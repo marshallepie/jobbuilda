@@ -22,6 +22,10 @@ COPY apps/coordinator ./apps/coordinator
 # Install all dependencies (needed for workspace packages)
 RUN pnpm install --frozen-lockfile
 
+# Build shared packages first (in dependency order)
+RUN cd packages/contracts && pnpm build
+RUN cd packages/mcp-sdk && pnpm build
+
 # Build coordinator
 RUN cd apps/coordinator && pnpm build
 
