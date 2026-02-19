@@ -10,6 +10,9 @@ WORKDIR /app
 # Copy package files first (for better caching)
 COPY package.json pnpm-workspace.yaml pnpm-lock.yaml ./
 
+# Copy TypeScript config files
+COPY tsconfig.base.json ./
+
 # Copy packages (shared dependencies)
 COPY packages ./packages
 
