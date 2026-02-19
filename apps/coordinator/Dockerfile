@@ -1,5 +1,5 @@
-# Build stage
-FROM node:20-alpine AS builder
+# Use single-stage build for monorepo with workspace dependencies
+FROM node:20-alpine
 
 # Install pnpm
 RUN npm install -g pnpm
@@ -7,33 +7,20 @@ RUN npm install -g pnpm
 # Set working directory to monorepo root
 WORKDIR /app
 
-# Copy entire monorepo
-COPY . .
+# Copy package files first (for better caching)
+COPY package.json pnpm-workspace.yaml pnpm-lock.yaml ./
 
-# Install dependencies
+# Copy packages (shared dependencies)
+COPY packages ./packages
+
+# Copy coordinator app
+COPY apps/coordinator ./apps/coordinator
+
+# Install all dependencies (needed for workspace packages)
 RUN pnpm install --frozen-lockfile
 
 # Build coordinator
 RUN cd apps/coordinator && pnpm build
-
-# Production stage
-FROM node:20-alpine
-
-# Install pnpm
-RUN npm install -g pnpm
-
-WORKDIR /app
-
-# Copy package files
-COPY package.json pnpm-workspace.yaml pnpm-lock.yaml ./
-COPY packages ./packages
-COPY apps/coordinator/package.json ./apps/coordinator/
-
-# Install production dependencies only
-RUN pnpm install --prod --frozen-lockfile
-
-# Copy built files from builder
-COPY --from=builder /app/apps/coordinator/dist ./apps/coordinator/dist
 
 # Set working directory to coordinator
 WORKDIR /app/apps/coordinator
