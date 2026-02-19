@@ -16,6 +16,9 @@ COPY tsconfig.base.json turbo.json ./
 # Copy packages (shared dependencies)
 COPY packages ./packages
 
+# Copy MCP services
+COPY services ./services
+
 # Copy coordinator app
 COPY apps/coordinator ./apps/coordinator
 
@@ -37,6 +40,17 @@ RUN echo "=== Building mcp-sdk package ===" && \
     pnpm run build && \
     echo "=== Build complete. Listing output ===" && \
     ls -laR dist/
+
+# Build all MCP services
+WORKDIR /app/services
+RUN echo "=== Building all MCP services ===" && \
+    for service in identity-mcp clients-mcp suppliers-mcp quoting-mcp jobs-mcp materials-mcp variations-mcp tests-mcp invoicing-mcp payments-mcp reporting-mcp; do \
+      echo "Building $service..." && \
+      cd /app/services/$service && \
+      rm -rf dist *.tsbuildinfo && \
+      pnpm run build; \
+    done && \
+    echo "=== All services built ==="
 
 # Set working directory to coordinator
 WORKDIR /app/apps/coordinator
