@@ -23,11 +23,12 @@ COPY apps/coordinator ./apps/coordinator
 RUN pnpm install --frozen-lockfile
 
 # Build shared packages first (in dependency order)
-RUN cd packages/contracts && pnpm build
-RUN cd packages/mcp-sdk && pnpm build
+# Use TypeScript project references for proper dependency building
+RUN pnpm --filter @jobbuilda/contracts build
+RUN pnpm --filter @jobbuilda/mcp-sdk build
 
 # Build coordinator
-RUN cd apps/coordinator && pnpm build
+RUN pnpm --filter @jobbuilda/coordinator build
 
 # Set working directory to coordinator
 WORKDIR /app/apps/coordinator
