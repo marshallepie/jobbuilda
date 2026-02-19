@@ -22,27 +22,31 @@ COPY apps/coordinator ./apps/coordinator
 # Install all dependencies with hoisting for better module resolution
 RUN pnpm install --frozen-lockfile --shamefully-hoist
 
-# Build shared packages
-# Clean and build contracts with explicit paths
-RUN cd /app/packages/contracts && \
-    echo "=== Building contracts package ===" && \
+# Build shared packages - use WORKDIR instead of cd
+WORKDIR /app/packages/contracts
+RUN echo "=== Building contracts package ===" && \
+    echo "Current directory: $(pwd)" && \
+    echo "Checking tsconfig:" && \
+    ls -la tsconfig.json && \
     rm -rf dist .tsbuildinfo && \
-    echo "Running: pnpm run build" && \
-    pnpm run build && \
-    echo "=== Build complete. Checking output ===" && \
-    ls -la dist/ && \
-    echo "=== Checking .d.ts files ===" && \
-    ls -la dist/*.d.ts && \
-    echo "=== Checking subdirectories ===" && \
-    find dist/ -type f
+    echo "Running: npx tsc --version" && \
+    npx tsc --version && \
+    echo "Running: pnpm run build with full output" && \
+    pnpm run build 2>&1 | tee build.log && \
+    echo "=== Build exit code: $? ===" && \
+    echo "=== Build output: ===" && \
+    cat build.log && \
+    echo "=== Checking current directory contents ===" && \
+    ls -la && \
+    echo "=== Contents of dist (if exists) ===" && \
+    (ls -laR dist/ || echo "dist directory not found")
 
 # Build mcp-sdk
-RUN cd /app/packages/mcp-sdk && \
-    echo "=== Building mcp-sdk package ===" && \
+WORKDIR /app/packages/mcp-sdk
+RUN echo "=== Building mcp-sdk package ===" && \
     rm -rf dist .tsbuildinfo && \
-    pnpm run build && \
-    echo "=== mcp-sdk build complete ===" && \
-    ls -la dist/
+    pnpm run build 2>&1 && \
+    (ls -laR dist/ || echo "dist directory not found")
 
 # Set working directory to coordinator
 WORKDIR /app/apps/coordinator
