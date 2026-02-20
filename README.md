@@ -177,9 +177,27 @@ pnpm --filter @jobbuilda/contracts test
 ./scripts/test-e2e.sh
 ```
 
+## Deployment
+
+**JobBuilda is currently LIVE and operational! 🚀**
+
+- **Admin Dashboard:** https://admin.jobbuilda.co.uk
+- **Client Portal:** https://portal.jobbuilda.co.uk
+- **API Backend:** https://api.jobbuilda.co.uk
+
+See [DEPLOYMENT_STATUS.md](./DEPLOYMENT_STATUS.md) for full deployment details including:
+- Custom domain configuration
+- Environment variables
+- Database schema status
+- Health checks and monitoring
+
+For deployment guides to other platforms, see [DEPLOYMENT_PLATFORMS.md](./DEPLOYMENT_PLATFORMS.md).
+
 ## Documentation
 
 - `CLAUDE.md` - Claude Code instructions
+- `DEPLOYMENT_STATUS.md` - Current deployment status and configuration
+- `DEPLOYMENT_PLATFORMS.md` - Platform deployment guides
 - `JobBuilda_MCP_PRD_FRD_v2.0.md` - Full architecture specification
 - Individual service READMEs in `services/*/README.md`
 

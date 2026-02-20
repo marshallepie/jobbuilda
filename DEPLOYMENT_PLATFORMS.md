@@ -4,6 +4,21 @@ Quick deployment guides for hosting JobBuilda on popular platforms.
 
 ---
 
+## 🎯 Current Production Deployment
+
+**JobBuilda is currently deployed and operational using the following configuration:**
+
+| Component | Platform | Domain | Status |
+|-----------|----------|--------|--------|
+| Admin Dashboard | **Vercel** | https://admin.jobbuilda.co.uk | ✅ Live |
+| Client Portal | **Vercel** | https://portal.jobbuilda.co.uk | ✅ Live |
+| API Backend | **Railway** | https://api.jobbuilda.co.uk | ✅ Live |
+| Database | **Supabase** | PostgreSQL | ✅ Live |
+
+**See [DEPLOYMENT_STATUS.md](./DEPLOYMENT_STATUS.md) for full deployment details.**
+
+---
+
 ## 📱 Frontend Deployment (Admin & Portal)
 
 ### Option 1: Vercel (Recommended) ⭐
