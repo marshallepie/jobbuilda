@@ -9,8 +9,12 @@ async function main() {
   // Initialize OpenTelemetry
   initTracing('reporting-mcp');
 
-  // Initialize NATS
-  await initEventBus();
+  // Initialize NATS (optional for MVP)
+  try {
+    await initEventBus();
+  } catch (error) {
+    console.error('NATS connection failed, continuing without event bus:', error.message);
+  }
 
   // Start MCP server
   await runServer();
