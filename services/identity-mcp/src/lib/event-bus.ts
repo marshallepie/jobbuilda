@@ -38,7 +38,7 @@ export async function publish(event: BaseEvent): Promise<void> {
     span.setAttribute('event.subject', subject);
 
     console.log(`Published event: ${event.type} (${event.id})`);
-  } catch (error) {
+  } catch (error: any) {
     span.recordException(error as Error);
     console.warn('Failed to publish event (NATS unavailable):', error.message);
     // Don't throw - allow operation to continue without event publishing for MVP

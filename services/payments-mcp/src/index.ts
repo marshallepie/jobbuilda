@@ -12,7 +12,7 @@ async function main() {
   // Initialize NATS (optional for MVP)
   try {
     await initEventBus();
-  } catch (error) {
+  } catch (error: any) {
     console.error('NATS connection failed, continuing without event bus:', error.message);
   }
 

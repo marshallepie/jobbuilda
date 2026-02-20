@@ -27,7 +27,7 @@ export async function createServer(): Promise<Server> {
   // Initialize NATS connection (optional for MVP)
   try {
     await connectToNATS();
-  } catch (error) {
+  } catch (error: any) {
     console.warn('NATS connection failed, continuing without event bus:', error.message);
   }
 
