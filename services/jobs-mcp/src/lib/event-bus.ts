@@ -38,10 +38,10 @@ export async function publishEvent(event: BaseEvent): Promise<void> {
     span.setAttribute('event.subject', subject);
 
     console.log(`Published event: ${event.type} (${event.id})`);
-  } catch (error) {
+  } catch (error: any) {
     span.recordException(error as Error);
-    console.error('Failed to publish event:', error);
-    throw error;
+    console.warn('Failed to publish event (NATS unavailable):', error.message);
+    // Don't throw - continue without event publishing
   } finally {
     span.end();
   }

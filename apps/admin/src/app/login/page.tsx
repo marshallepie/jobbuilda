@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
+import { isSupabaseConfigured } from '@/lib/supabase';
 import Link from 'next/link';
 
 export default function LoginPage() {
@@ -93,18 +94,20 @@ export default function LoginPage() {
             </Link>
           </div>
 
-          <div className="mt-6 border-t border-gray-200 pt-6">
-            <div className="text-sm text-gray-600 bg-blue-50 border border-blue-200 rounded-lg p-4">
-              <p className="font-semibold text-blue-900 mb-2">Development Mode</p>
-              <p>
-                For development, you can use any email/password combination. In production, configure
-                Supabase with your project URL and anon key in <code className="bg-blue-100 px-1 rounded">.env.local</code>
-              </p>
-              <p className="mt-2 text-xs">
-                Mock auth will be used if Supabase is not configured.
-              </p>
+          {!isSupabaseConfigured() && (
+            <div className="mt-6 border-t border-gray-200 pt-6">
+              <div className="text-sm text-gray-600 bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <p className="font-semibold text-blue-900 mb-2">Development Mode</p>
+                <p>
+                  For development, you can use any email/password combination. In production, configure
+                  Supabase with your project URL and anon key in <code className="bg-blue-100 px-1 rounded">.env.local</code>
+                </p>
+                <p className="mt-2 text-xs">
+                  Mock auth will be used if Supabase is not configured.
+                </p>
+              </div>
             </div>
-          </div>
+          )}
         </form>
       </div>
     </div>

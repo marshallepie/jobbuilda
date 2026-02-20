@@ -307,25 +307,25 @@ class ApiClient {
   // ===== CLIENTS =====
   async getClients() {
     if (USE_MOCK_DATA) return mockApi.getClients();
-    const response: any = await this.request('/api/clients');
+    const response: any = await this.request('/api/clients/clients');
     // Unwrap response if needed (API returns { data: [...] })
     return response.data || response;
   }
 
   async getClient(id: string) {
     if (USE_MOCK_DATA) return mockApi.getClient(id);
-    return this.request(`/api/clients/${id}`);
+    return this.request(`/api/clients/clients/${id}`);
   }
 
   async createClient(data: any) {
-    return this.request('/api/clients', {
+    return this.request('/api/clients/clients', {
       method: 'POST',
       body: JSON.stringify(data),
     });
   }
 
   async updateClient(id: string, data: any) {
-    return this.request(`/api/clients/${id}`, {
+    return this.request(`/api/clients/clients/${id}`, {
       method: 'PATCH',
       body: JSON.stringify(data),
     });
