@@ -83,7 +83,7 @@ export async function createServer() {
     command: 'node',
     args: [path.join(clientsMcpPath, 'dist/index.js')],
     env: {
-      DATABASE_URL: process.env.CLIENTS_DATABASE_URL || 'postgresql://jobbuilda:jobbuilda@localhost:5432/clients_mcp',
+      DATABASE_URL: process.env.DATABASE_URL || 'postgresql://jobbuilda:jobbuilda@localhost:5432/clients_mcp',
       NATS_URL: process.env.NATS_URL || 'nats://localhost:4222',
       OTEL_EXPORTER_OTLP_ENDPOINT: process.env.OTEL_EXPORTER_OTLP_ENDPOINT || 'http://localhost:4318',
       OTEL_SERVICE_NAME: 'clients-mcp',
@@ -102,7 +102,7 @@ export async function createServer() {
     command: 'node',
     args: [path.join(suppliersMcpPath, 'dist/index.js')],
     env: {
-      DATABASE_URL: process.env.SUPPLIERS_DATABASE_URL || 'postgresql://jobbuilda:jobbuilda@localhost:5432/suppliers_mcp',
+      DATABASE_URL: process.env.DATABASE_URL || 'postgresql://jobbuilda:jobbuilda@localhost:5432/suppliers_mcp',
       NATS_URL: process.env.NATS_URL || 'nats://localhost:4222',
       OTEL_EXPORTER_OTLP_ENDPOINT: process.env.OTEL_EXPORTER_OTLP_ENDPOINT || 'http://localhost:4318',
       OTEL_SERVICE_NAME: 'suppliers-mcp',
@@ -121,7 +121,7 @@ export async function createServer() {
     command: 'node',
     args: [path.join(quotingMcpPath, 'dist/index.js')],
     env: {
-      DATABASE_URL: process.env.QUOTING_DATABASE_URL || 'postgresql://jobbuilda:jobbuilda@localhost:5432/quoting_mcp',
+      DATABASE_URL: process.env.DATABASE_URL || 'postgresql://jobbuilda:jobbuilda@localhost:5432/quoting_mcp',
       NATS_URL: process.env.NATS_URL || 'nats://localhost:4222',
       OTEL_EXPORTER_OTLP_ENDPOINT: process.env.OTEL_EXPORTER_OTLP_ENDPOINT || 'http://localhost:4318',
       OTEL_SERVICE_NAME: 'quoting-mcp',
@@ -140,7 +140,7 @@ export async function createServer() {
     command: 'node',
     args: [path.join(jobsMcpPath, 'dist/index.js')],
     env: {
-      DATABASE_URL: process.env.JOBS_DATABASE_URL || 'postgresql://jobbuilda:jobbuilda@localhost:5432/jobs_mcp',
+      DATABASE_URL: process.env.DATABASE_URL || 'postgresql://jobbuilda:jobbuilda@localhost:5432/jobs_mcp',
       NATS_URL: process.env.NATS_URL || 'nats://localhost:4222',
       OTEL_EXPORTER_OTLP_ENDPOINT: process.env.OTEL_EXPORTER_OTLP_ENDPOINT || 'http://localhost:4318',
       OTEL_SERVICE_NAME: 'jobs-mcp',
@@ -159,7 +159,7 @@ export async function createServer() {
     command: 'node',
     args: [path.join(materialsMcpPath, 'dist/index.js')],
     env: {
-      DATABASE_URL: process.env.MATERIALS_DATABASE_URL || 'postgresql://jobbuilda:jobbuilda@localhost:5432/materials_mcp',
+      DATABASE_URL: process.env.DATABASE_URL || 'postgresql://jobbuilda:jobbuilda@localhost:5432/materials_mcp',
       NATS_URL: process.env.NATS_URL || 'nats://localhost:4222',
       OTEL_EXPORTER_OTLP_ENDPOINT: process.env.OTEL_EXPORTER_OTLP_ENDPOINT || 'http://localhost:4318',
       OTEL_SERVICE_NAME: 'materials-mcp',
@@ -178,7 +178,7 @@ export async function createServer() {
     command: 'node',
     args: [path.join(variationsMcpPath, 'dist/index.js')],
     env: {
-      DATABASE_URL: process.env.VARIATIONS_DATABASE_URL || 'postgresql://jobbuilda:jobbuilda@localhost:5432/variations_mcp',
+      DATABASE_URL: process.env.DATABASE_URL || 'postgresql://jobbuilda:jobbuilda@localhost:5432/variations_mcp',
       NATS_URL: process.env.NATS_URL || 'nats://localhost:4222',
       OTEL_EXPORTER_OTLP_ENDPOINT: process.env.OTEL_EXPORTER_OTLP_ENDPOINT || 'http://localhost:4318',
       OTEL_SERVICE_NAME: 'variations-mcp',
@@ -197,7 +197,7 @@ export async function createServer() {
     command: 'node',
     args: [path.join(testsMcpPath, 'dist/index.js')],
     env: {
-      DATABASE_URL: process.env.TESTS_DATABASE_URL || 'postgresql://jobbuilda:jobbuilda@localhost:5432/tests_mcp',
+      DATABASE_URL: process.env.DATABASE_URL || 'postgresql://jobbuilda:jobbuilda@localhost:5432/tests_mcp',
       NATS_URL: process.env.NATS_URL || 'nats://localhost:4222',
       OTEL_EXPORTER_OTLP_ENDPOINT: process.env.OTEL_EXPORTER_OTLP_ENDPOINT || 'http://localhost:4318',
       OTEL_SERVICE_NAME: 'tests-mcp',
@@ -216,7 +216,7 @@ export async function createServer() {
     command: 'node',
     args: [path.join(invoicingMcpPath, 'dist/index.js')],
     env: {
-      DATABASE_URL: process.env.INVOICING_DATABASE_URL || 'postgresql://jobbuilda:jobbuilda@localhost:5432/invoicing_mcp',
+      DATABASE_URL: process.env.DATABASE_URL || 'postgresql://jobbuilda:jobbuilda@localhost:5432/invoicing_mcp',
       NATS_URL: process.env.NATS_URL || 'nats://localhost:4222',
       OTEL_EXPORTER_OTLP_ENDPOINT: process.env.OTEL_EXPORTER_OTLP_ENDPOINT || 'http://localhost:4318',
       OTEL_SERVICE_NAME: 'invoicing-mcp',
@@ -235,7 +235,7 @@ export async function createServer() {
     command: 'node',
     args: [path.join(paymentsMcpPath, 'dist/index.js')],
     env: {
-      DATABASE_URL: process.env.PAYMENTS_DATABASE_URL || 'postgresql://jobbuilda:jobbuilda@localhost:5432/payments_mcp',
+      DATABASE_URL: process.env.DATABASE_URL || 'postgresql://jobbuilda:jobbuilda@localhost:5432/payments_mcp',
       NATS_URL: process.env.NATS_URL || 'nats://localhost:4222',
       STRIPE_SECRET_KEY: process.env.STRIPE_SECRET_KEY || 'sk_test_fake_key',
       OTEL_EXPORTER_OTLP_ENDPOINT: process.env.OTEL_EXPORTER_OTLP_ENDPOINT || 'http://localhost:4318',
@@ -255,7 +255,7 @@ export async function createServer() {
     command: 'node',
     args: [path.join(reportingMcpPath, 'dist/index.js')],
     env: {
-      DATABASE_URL: process.env.REPORTING_DATABASE_URL || 'postgresql://jobbuilda:jobbuilda@localhost:5432/reporting_mcp',
+      DATABASE_URL: process.env.DATABASE_URL || 'postgresql://jobbuilda:jobbuilda@localhost:5432/reporting_mcp',
       NATS_URL: process.env.NATS_URL || 'nats://localhost:4222',
       OTEL_EXPORTER_OTLP_ENDPOINT: process.env.OTEL_EXPORTER_OTLP_ENDPOINT || 'http://localhost:4318',
       OTEL_SERVICE_NAME: 'reporting-mcp',
