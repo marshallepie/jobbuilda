@@ -4,7 +4,24 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Status
 
-**JobBuilda is currently in the planning phase with no implementation yet.** The repository contains comprehensive PRD (Product Requirements Documents) but zero production code. When working in this repo, you'll be building from scratch following the documented MCP-based architecture.
+**JobBuilda v2.0 MVP is DEPLOYED and RUNNING in production!** 🚀
+
+- **Backend**: Railway (https://jobbuilda-production.up.railway.app)
+- **Admin Dashboard**: Vercel
+- **Client Portal**: Vercel
+- **Database**: Supabase PostgreSQL
+- **Status**: All 11 MCP services built and operational
+- **Deployed**: February 19, 2026
+
+### MVP Architecture Simplifications
+
+The current MVP deployment uses pragmatic simplifications for faster time-to-market:
+- **Single Container**: All MCP services run as child processes in the coordinator container (not distributed)
+- **Optional NATS**: Event bus is optional/disabled for MVP (events logged but not distributed)
+- **Shared Database**: All services use single Supabase PostgreSQL instance (not one DB per service)
+- **stdio Transport**: Services communicate via stdio in same container (not HTTP)
+
+These simplifications will be migrated to the full distributed architecture as the system scales.
 
 ## Architecture Overview
 
@@ -31,10 +48,11 @@ JobBuilda v2.0 is designed as a **modular, event-driven ecosystem powered by the
   - `mcp-sdk`: Typed SDK for MCP clients
 - **Portal** (`/apps/portal`): Public client portal (Next.js PWA)
 
-### Planned Directory Structure
+### Current Directory Structure
 
 ```
 /apps
+  /admin                # Admin dashboard (Next.js)
   /coordinator          # Orchestrator + REST/GraphQL API
   /portal               # Client-facing Next.js app
 /services
@@ -61,17 +79,20 @@ JobBuilda v2.0 is designed as a **modular, event-driven ecosystem powered by the
 
 ## Tech Stack
 
-| Layer | Technology |
-|-------|------------|
-| MCP Runtime | Node.js / TypeScript (Fastify / NestJS) |
-| Database | PostgreSQL (one per MCP server) |
-| Messaging | NATS / Kafka for event bus |
-| Observability | OpenTelemetry + Grafana Tempo |
-| Auth | Supabase Auth + service tokens |
-| Storage | S3 / Supabase Storage |
-| Deployment | Docker + Kubernetes + GitHub Actions |
-| Portal | Next.js (React PWA) |
-| Payments | Stripe |
+| Layer | Technology | MVP Status |
+|-------|------------|------------|
+| MCP Runtime | Node.js / TypeScript + Fastify | ✅ Deployed |
+| Database | Supabase PostgreSQL (shared) | ✅ Configured |
+| Messaging | NATS (optional for MVP) | ⚠️ Disabled |
+| Observability | OpenTelemetry (code ready) | ⚠️ No backend |
+| Auth | Supabase Auth + JWT | ✅ Configured |
+| Storage | Supabase Storage | ✅ Available |
+| Deployment | Railway (backend) + Vercel (frontend) | ✅ Live |
+| Admin | Next.js dashboard | ✅ Deployed |
+| Portal | Next.js PWA | ✅ Deployed |
+| Email | Resend | ⚠️ Test key |
+| PDF | Puppeteer | ✅ Built-in |
+| Payments | Stripe | ⚠️ Not configured |
 
 ## Key Architectural Principles
 
@@ -104,18 +125,24 @@ Standard envelope for all domain events:
 
 ### Cross-Cutting Concerns
 - **Observability**: OpenTelemetry spans; `x-request-id` and `tenant_id` propagate across all servers
-- **Secrets**: Use Vault / Cloud KMS; never commit secrets to `.env` files
-- **Migrations**: Each MCP server maintains its own database migrations
-- **Transport**: stdio for local dev, streamable HTTP for production, mTLS for internal MCP auth
+- **Secrets**: Railway/Vercel environment variables; never commit secrets to `.env` files
+- **Migrations**: Each MCP server maintains its own database migrations (not yet run in production)
+- **Transport**: stdio for MVP (services as child processes); HTTP transport available for future scaling
 
 ## Development Workflow
 
-### Standard Flow (when code exists)
+### Standard Flow
 1. **Define schemas** in `/packages/contracts` (JSON Schema)
 2. **Expose resources & tools** in respective MCP server
 3. **Orchestrate flows** in Coordinator
-4. **Emit events** to event bus for async updates
-5. **Trace** via OpenTelemetry for debugging
+4. **Emit events** (logged for MVP; will publish to NATS when enabled)
+5. **Trace** via OpenTelemetry (when observability backend is configured)
+
+### Local Development
+1. Connect to Supabase for database access
+2. Run coordinator with `tsx src/index.ts` (starts all MCP services)
+3. Frontend apps connect to local coordinator or Railway API
+4. See `.env.example` files for required environment variables
 
 ### Example MCP Orchestration Pattern
 ```typescript
@@ -136,13 +163,38 @@ await mcp.quoting.tools.send_quote.invoke(ctx, {quote_id: quote.id});
 
 ## Migration Plan (5 Phases)
 
-| Phase | Focus | Description |
-|-------|-------|-------------|
-| 1 | Wrapping | Wrap existing REST modules as MCP servers (Identity, Quoting) |
-| 2 | Extraction | Extract Jobs, Invoicing, Payments as new MCP servers |
-| 3 | Coordination | Introduce Coordinator orchestration for Quote→Job→Invoice→Payment |
-| 4 | Full Eventing | Implement event bus; Reporting consumes all events |
-| 5 | Refactor Portal | Portal reads via Coordinator REST façade only |
+| Phase | Focus | Description | Status |
+|-------|-------|-------------|--------|
+| 1 | Wrapping | Wrap existing REST modules as MCP servers (Identity, Quoting) | ✅ Done |
+| 2 | Extraction | Extract Jobs, Invoicing, Payments as new MCP servers | ✅ Done |
+| 3 | Coordination | Introduce Coordinator orchestration for Quote→Job→Invoice→Payment | ✅ Done |
+| 4 | Full Eventing | Implement event bus; Reporting consumes all events | ⚠️ Events logged, not published |
+| 5 | Refactor Portal | Portal reads via Coordinator REST façade only | ✅ Done |
+
+**Current Phase**: MVP deployed! All phases complete except full event distribution (Phase 4).
+
+## Next Steps for Production
+
+### Immediate (Required for Go-Live)
+1. **Run Database Migrations**: Initialize all MCP service schemas
+2. **Test API Health**: Verify `/api/health` endpoint responds
+3. **Test Authentication**: Login to admin dashboard
+4. **Configure Custom Domains**: Set up DNS for admin/portal/api subdomains
+5. **Production Email Key**: Replace Resend test key with production key
+
+### Short-Term (First Week)
+6. **Test Core Workflows**: Quote creation, job tracking, invoicing
+7. **Stripe Configuration**: Add production Stripe keys for payments
+8. **User Acceptance Testing**: Run through full business workflows
+9. **Performance Testing**: Load test API endpoints
+10. **Monitoring Setup**: Configure error tracking (Sentry) and uptime monitoring
+
+### Long-Term (Future Scaling)
+11. **Enable NATS**: Set up event bus for distributed events
+12. **Observability**: Configure Grafana/Tempo for distributed tracing
+13. **Scale Architecture**: Migrate to independent service deployments
+14. **Database Separation**: Split into per-service databases
+15. **CI/CD Pipeline**: Automated testing and deployment
 
 ## Core Workflows
 
@@ -174,18 +226,37 @@ The system orchestrates the following high-level business flows:
 - **Certificates**: Generated PDFs stored in S3, references in `tests-mcp`
 - **Invoices**: Generated PDFs stored in S3, references in `invoicing-mcp`
 
-## Future Implementation Notes
+## Implementation Status
 
-When implementing this system, prioritize:
+### ✅ Completed
+1. **Monorepo Setup**: ✅ pnpm workspaces
+2. **Shared Packages**: ✅ contracts, mcp-sdk, pricing-utils
+3. **All 11 MCP Services**: ✅ Built and deployed
+4. **Coordinator**: ✅ Orchestrates all services via MCP
+5. **Authentication**: ✅ Supabase Auth + JWT validation
+6. **Frontend**: ✅ Admin dashboard + client portal
+7. **Deployment**: ✅ Railway (backend) + Vercel (frontend)
 
-1. **Monorepo Setup**: Choose a monorepo tool (Nx, Turborepo, etc.) for workspace management
-2. **Shared Packages First**: Implement `/packages/contracts` and `/packages/pricing-utils` before MCP servers
-3. **Start with Identity**: `identity-mcp` must be implemented first as it handles auth for all other services
-4. **Coordinator Early**: Build Coordinator skeleton early to validate orchestration patterns
-5. **Event Bus**: Set up NATS/Kafka early for async communication between services
-6. **OpenTelemetry Baseline**: Instrument all services from the start for distributed tracing
+### ⚠️ Configured but Not Tested
+- Database migrations (need to run)
+- End-to-end workflows (quote → job → invoice)
+- Email sending (using test API key)
+- PDF generation (built but not tested)
+
+### 🔮 Future Enhancements
+1. **NATS Event Bus**: Enable distributed events for real-time features
+2. **Observability Backend**: Configure Grafana/Tempo for tracing
+3. **Distributed Services**: Migrate from monolithic container to independent deployments
+4. **Per-Service Databases**: Split shared database into service-specific schemas
+5. **Stripe Payments**: Configure production Stripe keys
+6. **Custom Domains**: Set up admin/portal/api subdomains
 
 ## Reference Documentation
 
-- `JobBuilda_MCP_PRD_FRD_v2.0.md`: Comprehensive MCP architecture specification (primary reference)
+- `JobBuilda_MCP_PRD_FRD_v2.0.md`: Comprehensive MCP architecture specification (describes ideal/future architecture)
+- `DEPLOYMENT_STATUS_*.md`: Current deployment status and what's actually running (updated regularly)
+- `DOCUMENTATION_ALIGNMENT_REVIEW.md`: Comparison of docs vs reality (explains MVP simplifications)
+- `PRODUCTION_DEPLOYMENT.md`: Deployment checklist (partially completed)
 - `JobBuilda_PRD_FRD_v1.0.md`: Original MVP product requirements (legacy reference)
+
+**Note**: The PRD describes the ideal distributed architecture. The MVP uses simplified deployment (single container, optional NATS, shared DB) for faster time-to-market. See deployment status docs for current reality.
