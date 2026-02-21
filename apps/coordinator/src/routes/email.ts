@@ -28,14 +28,14 @@ export async function emailRoutes(fastify: FastifyInstance) {
         `res://quoting/quotes/${quoteId}`,
         context
       );
-      const quote = quoteResource.data;
+      const quote = quoteResource.data as any;
 
       // Fetch client data to get email
       const clientResource = await fastify.mcp.clients.readResource(
         `res://clients/clients/${quote.client_id}`,
         context
       );
-      const client = clientResource.data;
+      const client = clientResource.data as any;
 
       if (!client.email) {
         return reply.status(400).send({
@@ -49,7 +49,7 @@ export async function emailRoutes(fastify: FastifyInstance) {
         `res://identity/tenants/${context.tenant_id}`,
         context
       );
-      const profile = profileResource.data;
+      const profile = profileResource.data as any;
 
       // Generate quote PDF
       const quoteHTML = generateQuoteHTMLForPDF(quote, profile);
@@ -163,14 +163,14 @@ export async function emailRoutes(fastify: FastifyInstance) {
         `res://invoicing/invoices/${invoiceId}`,
         context
       );
-      const invoice = invoiceResource.data;
+      const invoice = invoiceResource.data as any;
 
       // Fetch client data
       const clientResource = await fastify.mcp.clients.readResource(
         `res://clients/clients/${invoice.client_id}`,
         context
       );
-      const client = clientResource.data;
+      const client = clientResource.data as any;
 
       if (!client.email) {
         return reply.status(400).send({
@@ -184,7 +184,7 @@ export async function emailRoutes(fastify: FastifyInstance) {
         `res://identity/tenants/${context.tenant_id}`,
         context
       );
-      const profile = profileResource.data;
+      const profile = profileResource.data as any;
 
       // Generate invoice PDF
       const invoiceHTML = generateInvoiceHTMLForPDF(invoice, profile);

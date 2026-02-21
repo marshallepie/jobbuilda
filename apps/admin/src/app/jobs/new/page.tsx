@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import AppLayout from '@/components/AppLayout';
+import CircuitDetailsForm, { CircuitDetail } from '@/components/CircuitDetailsForm';
 import { api } from '@/lib/api';
 
 interface Client {
@@ -34,7 +35,11 @@ export default function NewJobPage() {
     scheduled_start: '',
     scheduled_end: '',
     estimated_hours: '',
+    electrical_work_type: '',
+    creates_new_circuits: false,
   });
+
+  const [circuitDetails, setCircuitDetails] = useState<CircuitDetail[]>([]);
 
   useEffect(() => {
     loadClients();
@@ -102,6 +107,9 @@ export default function NewJobPage() {
         scheduled_start: formData.scheduled_start || undefined,
         scheduled_end: formData.scheduled_end || undefined,
         estimated_hours: formData.estimated_hours ? parseFloat(formData.estimated_hours) : undefined,
+        electrical_work_type: formData.electrical_work_type || undefined,
+        creates_new_circuits: formData.creates_new_circuits,
+        circuit_details: formData.creates_new_circuits && circuitDetails.length > 0 ? circuitDetails : undefined,
       };
 
       // Note: This creates a job without a quote
@@ -259,6 +267,110 @@ export default function NewJobPage() {
               placeholder="e.g., 8"
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
             />
+          </div>
+
+          {/* Electrical Work Classification */}
+          <div className="border-t pt-6">
+            <h3 className="text-lg font-medium text-gray-900 mb-4">⚡ Electrical Work Classification</h3>
+            <p className="text-sm text-gray-600 mb-4">
+              Select the type of electrical work to determine certification requirements per BS 7671
+            </p>
+
+            <div className="space-y-3">
+              <label className="flex items-start space-x-3 p-3 border border-gray-200 rounded-lg cursor-pointer hover:bg-gray-50">
+                <input
+                  type="radio"
+                  name="electrical_work_type"
+                  value="new_circuit"
+                  checked={formData.electrical_work_type === 'new_circuit'}
+                  onChange={(e) => setFormData({
+                    ...formData,
+                    electrical_work_type: e.target.value,
+                    creates_new_circuits: true
+                  })}
+                  className="mt-1"
+                />
+                <div className="flex-1">
+                  <div className="font-medium text-gray-900">New Circuit Installation</div>
+                  <div className="text-sm text-gray-600">
+                    Requires Electrical Installation Certificate (EIC)
+                  </div>
+                </div>
+              </label>
+
+              <label className="flex items-start space-x-3 p-3 border border-gray-200 rounded-lg cursor-pointer hover:bg-gray-50">
+                <input
+                  type="radio"
+                  name="electrical_work_type"
+                  value="minor_works"
+                  checked={formData.electrical_work_type === 'minor_works'}
+                  onChange={(e) => setFormData({
+                    ...formData,
+                    electrical_work_type: e.target.value,
+                    creates_new_circuits: false
+                  })}
+                  className="mt-1"
+                />
+                <div className="flex-1">
+                  <div className="font-medium text-gray-900">Minor Works</div>
+                  <div className="text-sm text-gray-600">
+                    Requires Minor Works Certificate (e.g., adding socket, replacing consumer unit)
+                  </div>
+                </div>
+              </label>
+
+              <label className="flex items-start space-x-3 p-3 border border-gray-200 rounded-lg cursor-pointer hover:bg-gray-50">
+                <input
+                  type="radio"
+                  name="electrical_work_type"
+                  value="inspection_only"
+                  checked={formData.electrical_work_type === 'inspection_only'}
+                  onChange={(e) => setFormData({
+                    ...formData,
+                    electrical_work_type: e.target.value,
+                    creates_new_circuits: false
+                  })}
+                  className="mt-1"
+                />
+                <div className="flex-1">
+                  <div className="font-medium text-gray-900">Periodic Inspection</div>
+                  <div className="text-sm text-gray-600">
+                    Requires Electrical Installation Condition Report (EICR)
+                  </div>
+                </div>
+              </label>
+
+              <label className="flex items-start space-x-3 p-3 border border-gray-200 rounded-lg cursor-pointer hover:bg-gray-50">
+                <input
+                  type="radio"
+                  name="electrical_work_type"
+                  value=""
+                  checked={formData.electrical_work_type === ''}
+                  onChange={(e) => setFormData({
+                    ...formData,
+                    electrical_work_type: '',
+                    creates_new_circuits: false
+                  })}
+                  className="mt-1"
+                />
+                <div className="flex-1">
+                  <div className="font-medium text-gray-900">No Electrical Work</div>
+                  <div className="text-sm text-gray-600">
+                    This job does not involve electrical certification
+                  </div>
+                </div>
+              </label>
+            </div>
+
+            {/* Circuit Details (shown only for new circuit installations) */}
+            {formData.creates_new_circuits && (
+              <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                <CircuitDetailsForm
+                  circuits={circuitDetails}
+                  onChange={setCircuitDetails}
+                />
+              </div>
+            )}
           </div>
 
           {/* Actions */}

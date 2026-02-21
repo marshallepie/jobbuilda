@@ -28,7 +28,7 @@ export async function pdfRoutes(fastify: FastifyInstance) {
         context
       );
 
-      const quote = quoteResource.data;
+      const quote = quoteResource.data as any;
 
       // Fetch business profile for template settings
       const profileResource = await fastify.mcp.identity.readResource(
@@ -36,7 +36,7 @@ export async function pdfRoutes(fastify: FastifyInstance) {
         context
       );
 
-      const profile = profileResource.data;
+      const profile = profileResource.data as any;
 
       // Generate HTML for the quote
       const html = generateQuoteHTML(quote, profile);
@@ -95,7 +95,7 @@ export async function pdfRoutes(fastify: FastifyInstance) {
         context
       );
 
-      const invoice = invoiceResource.data;
+      const invoice = invoiceResource.data as any;
 
       // Fetch business profile for template settings
       const profileResource = await fastify.mcp.identity.readResource(
@@ -103,7 +103,7 @@ export async function pdfRoutes(fastify: FastifyInstance) {
         context
       );
 
-      const profile = profileResource.data;
+      const profile = profileResource.data as any;
 
       // Generate HTML for the invoice
       const html = generateInvoiceHTML(invoice, profile);

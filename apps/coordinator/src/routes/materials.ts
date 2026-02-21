@@ -10,7 +10,7 @@ export async function materialsRoutes(fastify: FastifyInstance) {
       const result = await fastify.mcp.materials.readResource(uri, context);
       // MCP resources return { data: { data: [...], _meta: {...} } }
       // Extract the actual array from result.data.data
-      const materials = result.data?.data || result.data || [];
+      const materials = (result.data as any)?.data || result.data || [];
       return materials;
     } catch (error: any) {
       reply.status(500).send({ error: 'Failed to list materials', message: error.message });
@@ -136,7 +136,7 @@ export async function materialsRoutes(fastify: FastifyInstance) {
           const result = await fastify.mcp.materials.readResource(materialsUri, context);
 
           // Extract materials array from nested structure
-          const materials = result.data?.data || result.data || [];
+          const materials = (result.data as any)?.data || result.data || [];
 
           if (!Array.isArray(materials)) {
             console.error('[POST /api/materials/usage] Materials is not an array:', materials);

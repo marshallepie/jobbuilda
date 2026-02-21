@@ -14,6 +14,25 @@ export async function testsRoutes(fastify: FastifyInstance) {
     }
   });
 
+  // GET /api/tests/standards - Get measurement standards (MUST come before /:id route)
+  fastify.get<{ Querystring: { measurement_type: string; circuit_type?: string; circuit_rating?: string } }>(
+    '/api/tests/standards',
+    async (request, reply) => {
+      const context = extractAuthContext(request);
+      try {
+        const result = await fastify.mcp.tests.callTool(
+          'get_measurement_standards',
+          request.query,
+          context
+        );
+        const data = JSON.parse(result.content[0]?.text || '{}');
+        return data;
+      } catch (error: any) {
+        reply.status(500).send({ error: 'Failed to get measurement standards', message: error.message });
+      }
+    }
+  );
+
   // GET /api/tests/:id - Get test by ID
   fastify.get<{ Params: { id: string } }>(
     '/api/tests/:id',
@@ -124,6 +143,90 @@ export async function testsRoutes(fastify: FastifyInstance) {
         return data;
       } catch (error: any) {
         reply.status(500).send({ error: 'Failed to generate certificate', message: error.message });
+      }
+    }
+  );
+
+  // POST /api/tests/:id/circuits - Create circuit
+  fastify.post<{ Params: { id: string }; Body: Record<string, unknown> }>(
+    '/api/tests/:id/circuits',
+    async (request, reply) => {
+      const context = extractAuthContext(request);
+      const { id } = request.params;
+      try {
+        const args: Record<string, unknown> = { test_id: id, ...request.body };
+        const result = await fastify.mcp.tests.callTool(
+          'create_circuit',
+          args,
+          context
+        );
+        const data = JSON.parse(result.content[0]?.text || '{}');
+        return data;
+      } catch (error: any) {
+        reply.status(500).send({ error: 'Failed to create circuit', message: error.message });
+      }
+    }
+  );
+
+  // PUT /api/tests/:id/circuits/:circuitId - Update circuit measurements
+  fastify.put<{ Params: { id: string; circuitId: string }; Body: Record<string, unknown> }>(
+    '/api/tests/:id/circuits/:circuitId',
+    async (request, reply) => {
+      const context = extractAuthContext(request);
+      const { circuitId } = request.params;
+      try {
+        const args: Record<string, unknown> = { circuit_id: circuitId, ...request.body };
+        const result = await fastify.mcp.tests.callTool(
+          'update_circuit_measurements',
+          args,
+          context
+        );
+        const data = JSON.parse(result.content[0]?.text || '{}');
+        return data;
+      } catch (error: any) {
+        reply.status(500).send({ error: 'Failed to update circuit measurements', message: error.message });
+      }
+    }
+  );
+
+  // POST /api/tests/:id/circuits/bulk - Bulk create circuits from job
+  fastify.post<{ Params: { id: string }; Body: Record<string, unknown> }>(
+    '/api/tests/:id/circuits/bulk',
+    async (request, reply) => {
+      const context = extractAuthContext(request);
+      const { id } = request.params;
+      try {
+        const args: Record<string, unknown> = { test_id: id, ...request.body };
+        const result = await fastify.mcp.tests.callTool(
+          'bulk_create_circuits_from_job',
+          args,
+          context
+        );
+        const data = JSON.parse(result.content[0]?.text || '{}');
+        return data;
+      } catch (error: any) {
+        reply.status(500).send({ error: 'Failed to bulk create circuits', message: error.message });
+      }
+    }
+  );
+
+  // POST /api/tests/:id/inspections - Add inspection item
+  fastify.post<{ Params: { id: string }; Body: Record<string, unknown> }>(
+    '/api/tests/:id/inspections',
+    async (request, reply) => {
+      const context = extractAuthContext(request);
+      const { id } = request.params;
+      try {
+        const args: Record<string, unknown> = { test_id: id, ...request.body };
+        const result = await fastify.mcp.tests.callTool(
+          'add_inspection_item',
+          args,
+          context
+        );
+        const data = JSON.parse(result.content[0]?.text || '{}');
+        return data;
+      } catch (error: any) {
+        reply.status(500).send({ error: 'Failed to add inspection item', message: error.message });
       }
     }
   );

@@ -22,6 +22,15 @@ export interface CreateJobFromQuoteInput {
     quantity_planned: number;
     unit?: string;
   }>;
+  // Electrical work classification fields
+  electrical_work_type?: 'new_circuit' | 'minor_works' | 'alteration' | 'inspection_only';
+  creates_new_circuits?: boolean;
+  circuit_details?: Array<{
+    circuit_reference: string;
+    location: string;
+    overcurrent_device_type: string;
+    overcurrent_device_rating: string;
+  }>;
 }
 
 export interface CreateJobFromQuoteOutput {
@@ -61,8 +70,9 @@ export async function createJobFromQuote(
     await query(
       `INSERT INTO jobs (id, tenant_id, job_number, quote_id, client_id, site_id, title,
                          description, status, scheduled_start, scheduled_end, assigned_to,
-                         estimated_hours, notes, created_by, created_at, updated_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)`,
+                         estimated_hours, notes, electrical_work_type, creates_new_circuits,
+                         circuit_details, created_by, created_at, updated_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)`,
       [
         jobId,
         context.tenant_id,
@@ -78,6 +88,9 @@ export async function createJobFromQuote(
         input.assigned_to || context.user_id,
         input.estimated_hours || null,
         input.notes || null,
+        input.electrical_work_type || null,
+        input.creates_new_circuits || false,
+        input.circuit_details ? JSON.stringify(input.circuit_details) : null,
         context.user_id,
         now,
         now
@@ -112,6 +125,17 @@ export async function createJobFromQuote(
       }
     }
 
+    // Auto-create test record if electrical work is specified
+    // This enables automatic certificate generation workflow
+    if (input.electrical_work_type) {
+      // Note: Test creation is handled by tests-mcp service via event subscription
+      // or can be called directly via MCP tool in coordinator
+      span.addEvent('electrical_work_detected', {
+        electrical_work_type: input.electrical_work_type,
+        creates_new_circuits: input.creates_new_circuits || false
+      });
+    }
+
     // Publish event
     await publishEvent({
       id: randomUUID(),
@@ -127,7 +151,10 @@ export async function createJobFromQuote(
         site_id: input.site_id,
         title: input.title,
         scheduled_start: input.scheduled_start,
-        item_count: itemCount
+        item_count: itemCount,
+        electrical_work_type: input.electrical_work_type,
+        creates_new_circuits: input.creates_new_circuits,
+        circuit_count: input.circuit_details?.length || 0
       },
       schema: 'urn:jobbuilda:events:job.created:1'
     });

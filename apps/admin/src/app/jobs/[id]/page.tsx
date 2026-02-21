@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import Link from 'next/link';
 import AppLayout from '@/components/AppLayout';
+import CreateTestModal from '@/components/CreateTestModal';
 import { api } from '@/lib/api';
 import { formatCurrency, formatDate, getStatusColor } from '@/lib/utils';
 
@@ -47,6 +48,17 @@ interface Variation {
   created_at: string;
 }
 
+interface Test {
+  id: string;
+  test_number: string;
+  test_type: string;
+  title: string;
+  status: string;
+  outcome?: string;
+  test_date?: string;
+  completion_date?: string;
+}
+
 interface Job {
   id: string;
   job_number: string;
@@ -66,6 +78,7 @@ interface Job {
   client_name?: string;
   site_name?: string;
   site_address?: string;
+  electrical_work_type?: string;
 }
 
 export default function JobDetailPage() {
@@ -77,8 +90,10 @@ export default function JobDetailPage() {
   const [timeEntries, setTimeEntries] = useState<TimeEntry[]>([]);
   const [materials, setMaterials] = useState<Material[]>([]);
   const [variations, setVariations] = useState<Variation[]>([]);
+  const [tests, setTests] = useState<Test[]>([]);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
+  const [showCreateTestModal, setShowCreateTestModal] = useState(false);
 
   // Timer state
   const [timerRunning, setTimerRunning] = useState(false);
@@ -182,6 +197,7 @@ export default function JobDetailPage() {
       Promise.all([
         loadMaterials(),
         loadVariations(),
+        loadTests(),
       ]);
     } catch (err) {
       console.error('Failed to load job:', err);
@@ -217,6 +233,16 @@ export default function JobDetailPage() {
       setVariations(variationList);
     } catch (err) {
       console.error('Failed to load variations:', err);
+    }
+  };
+
+  const loadTests = async () => {
+    try {
+      const data = await api.get(`/api/tests/job/${jobId}`) as any;
+      const testList = Array.isArray(data) ? data : (data.data || []);
+      setTests(testList);
+    } catch (err) {
+      console.error('Failed to load tests:', err);
     }
   };
 
@@ -1225,6 +1251,122 @@ export default function JobDetailPage() {
             </div>
           )}
         </div>
+
+        {/* Electrical Tests */}
+        <div className="bg-white shadow rounded-lg overflow-hidden">
+          <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
+            <h2 className="text-lg font-semibold text-gray-900">Electrical Tests & Certification</h2>
+            <div className="flex items-center gap-3">
+              <span className="text-sm text-gray-500">{Array.isArray(tests) ? tests.length : 0} tests</span>
+              {job.electrical_work_type && tests.length === 0 && (
+                <button
+                  onClick={() => setShowCreateTestModal(true)}
+                  className="px-3 py-1.5 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors text-sm font-medium"
+                >
+                  Create Test
+                </button>
+              )}
+            </div>
+          </div>
+          {!Array.isArray(tests) || tests.length === 0 ? (
+            <div className="p-6 text-center text-gray-500">
+              {job.electrical_work_type ? (
+                <div>
+                  <p className="mb-3">No electrical tests created yet for this job</p>
+                  <button
+                    onClick={() => setShowCreateTestModal(true)}
+                    className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors font-medium"
+                  >
+                    Create Electrical Test
+                  </button>
+                </div>
+              ) : (
+                'No electrical work specified for this job'
+              )}
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                      Test Number
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                      Type
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                      Status
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                      Outcome
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                      Date
+                    </th>
+                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">
+                      Actions
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {tests.map((test) => (
+                    <tr key={test.id}>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                        {test.test_number}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded-full text-xs font-medium">
+                          {test.test_type.toUpperCase()}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className={`px-2 py-1 text-xs font-medium rounded-full ${getStatusColor(test.status)}`}>
+                          {test.status.replace('_', ' ')}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        {test.outcome ? (
+                          <span className={`px-2 py-1 text-xs font-medium rounded-full ${
+                            test.outcome === 'satisfactory' ? 'bg-green-100 text-green-800' :
+                            test.outcome === 'unsatisfactory' ? 'bg-red-100 text-red-800' :
+                            'bg-yellow-100 text-yellow-800'
+                          }`}>
+                            {test.outcome.replace('_', ' ')}
+                          </span>
+                        ) : '-'}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                        {test.completion_date ? formatDate(test.completion_date) :
+                         test.test_date ? formatDate(test.test_date) : 'Not scheduled'}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                        <Link
+                          href={`/tests/${test.id}`}
+                          className="text-primary-600 hover:text-primary-900"
+                        >
+                          View Details
+                        </Link>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+
+        {/* Create Test Modal */}
+        {job.client_id && job.site_id && (
+          <CreateTestModal
+            isOpen={showCreateTestModal}
+            onClose={() => setShowCreateTestModal(false)}
+            jobId={jobId}
+            clientId={job.client_id}
+            siteId={job.site_id}
+            electricalWorkType={job.electrical_work_type}
+          />
+        )}
 
         {/* Related Links */}
         <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
