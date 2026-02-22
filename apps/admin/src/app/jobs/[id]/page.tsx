@@ -59,6 +59,14 @@ interface Test {
   completion_date?: string;
 }
 
+interface CircuitDetail {
+  circuit_reference: string;
+  location: string;
+  description?: string;
+  overcurrent_device_type: string;
+  overcurrent_device_rating: string;
+}
+
 interface Job {
   id: string;
   job_number: string;
@@ -79,6 +87,8 @@ interface Job {
   site_name?: string;
   site_address?: string;
   electrical_work_type?: string;
+  creates_new_circuits?: boolean;
+  circuit_details?: CircuitDetail[];
 }
 
 export default function JobDetailPage() {
@@ -648,6 +658,65 @@ export default function JobDetailPage() {
               )}
             </div>
           </div>
+
+          {/* Electrical Work Classification */}
+          {job.electrical_work_type && (
+            <div className="border-t pt-6">
+              <h3 className="text-sm font-semibold text-gray-900 mb-4">⚡ Electrical Work Classification</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <label className="text-sm font-medium text-gray-500">Work Type</label>
+                  <p className="mt-1 text-gray-900">
+                    {job.electrical_work_type === 'new_circuit' && 'New Circuit Installation'}
+                    {job.electrical_work_type === 'minor_works' && 'Minor Works'}
+                    {job.electrical_work_type === 'alteration' && 'Alteration'}
+                    {job.electrical_work_type === 'inspection_only' && 'Periodic Inspection'}
+                  </p>
+                  <p className="text-xs text-gray-500 mt-1">
+                    {job.electrical_work_type === 'new_circuit' && 'Requires Electrical Installation Certificate (EIC)'}
+                    {job.electrical_work_type === 'minor_works' && 'Requires Minor Works Certificate'}
+                    {job.electrical_work_type === 'alteration' && 'Requires appropriate certification'}
+                    {job.electrical_work_type === 'inspection_only' && 'Requires Electrical Installation Condition Report (EICR)'}
+                  </p>
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-gray-500">Creates New Circuits</label>
+                  <p className="mt-1 text-gray-900">{job.creates_new_circuits ? 'Yes' : 'No'}</p>
+                </div>
+              </div>
+
+              {/* Circuit Details */}
+              {job.circuit_details && job.circuit_details.length > 0 && (
+                <div className="mt-6">
+                  <label className="text-sm font-medium text-gray-700 mb-3 block">Circuit Details</label>
+                  <div className="bg-gray-50 border border-gray-200 rounded-lg overflow-hidden">
+                    <table className="min-w-full divide-y divide-gray-200">
+                      <thead className="bg-gray-100">
+                        <tr>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Reference</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Location</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Description</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Protection Device</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Rating</th>
+                        </tr>
+                      </thead>
+                      <tbody className="bg-white divide-y divide-gray-200">
+                        {job.circuit_details.map((circuit, idx) => (
+                          <tr key={idx}>
+                            <td className="px-4 py-3 text-sm font-medium text-gray-900">{circuit.circuit_reference}</td>
+                            <td className="px-4 py-3 text-sm text-gray-900">{circuit.location}</td>
+                            <td className="px-4 py-3 text-sm text-gray-600">{circuit.description || '-'}</td>
+                            <td className="px-4 py-3 text-sm text-gray-900">{circuit.overcurrent_device_type}</td>
+                            <td className="px-4 py-3 text-sm text-gray-900">{circuit.overcurrent_device_rating}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Stats Cards */}

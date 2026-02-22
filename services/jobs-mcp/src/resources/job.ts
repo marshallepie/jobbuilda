@@ -19,6 +19,9 @@ export interface Job {
   estimated_hours?: number;
   actual_hours: number;
   notes?: string;
+  electrical_work_type?: string;
+  creates_new_circuits?: boolean;
+  circuit_details?: any;
   created_by: string;
   created_at: string;
   updated_at: string;
@@ -70,7 +73,8 @@ export async function getJob(jobId: string, tenantId: string, includeDetails = t
     const result = await query<Job>(
       `SELECT id, tenant_id, job_number, quote_id, client_id, site_id, title, description,
               status, scheduled_start, scheduled_end, actual_start, actual_end, assigned_to,
-              estimated_hours, actual_hours, notes, created_by, created_at, updated_at
+              estimated_hours, actual_hours, notes, electrical_work_type, creates_new_circuits,
+              circuit_details, created_by, created_at, updated_at
        FROM jobs
        WHERE id = $1 AND tenant_id = $2`,
       [jobId, tenantId]
@@ -140,7 +144,8 @@ export async function listJobs(tenantId: string, status?: string, assignedTo?: s
     const result = await query<Job>(
       `SELECT id, tenant_id, job_number, quote_id, client_id, site_id, title, description,
               status, scheduled_start, scheduled_end, actual_start, actual_end, assigned_to,
-              estimated_hours, actual_hours, notes, created_by, created_at, updated_at
+              estimated_hours, actual_hours, notes, electrical_work_type, creates_new_circuits,
+              circuit_details, created_by, created_at, updated_at
        FROM jobs
        ${whereClause}
        ORDER BY scheduled_start DESC NULLS LAST, created_at DESC`,
@@ -167,7 +172,8 @@ export async function listJobsByClient(clientId: string, tenantId: string): Prom
     const result = await query<Job>(
       `SELECT id, tenant_id, job_number, quote_id, client_id, site_id, title, description,
               status, scheduled_start, scheduled_end, actual_start, actual_end, assigned_to,
-              estimated_hours, actual_hours, notes, created_by, created_at, updated_at
+              estimated_hours, actual_hours, notes, electrical_work_type, creates_new_circuits,
+              circuit_details, created_by, created_at, updated_at
        FROM jobs
        WHERE client_id = $1 AND tenant_id = $2
        ORDER BY scheduled_start DESC NULLS LAST, created_at DESC`,
