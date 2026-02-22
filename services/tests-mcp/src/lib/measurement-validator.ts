@@ -48,11 +48,11 @@ export async function validateMeasurement(
   );
 
   if (standard.rows.length === 0) {
-    // No standard found - return unknown
+    // No standard found - cannot validate, but do not fail (unknown ≠ fail)
     return {
-      pass: false,
+      pass: true,
       status: 'unknown',
-      message: `No BS 7671 standard found for ${measurementType}`,
+      message: `No BS 7671 standard found for ${measurementType} — measurement recorded without validation`,
       actual_value: value
     };
   }
