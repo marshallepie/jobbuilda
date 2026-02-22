@@ -5,6 +5,8 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import AppLayout from '@/components/AppLayout';
 import CircuitDetailsForm, { CircuitDetail } from '@/components/CircuitDetailsForm';
+import CreateClientModal from '@/components/CreateClientModal';
+import CreateSiteModal from '@/components/CreateSiteModal';
 import { api } from '@/lib/api';
 
 interface Client {
@@ -26,6 +28,8 @@ export default function NewJobPage() {
   const [clients, setClients] = useState<Client[]>([]);
   const [sites, setSites] = useState<Site[]>([]);
   const [selectedClientId, setSelectedClientId] = useState('');
+  const [showClientModal, setShowClientModal] = useState(false);
+  const [showSiteModal, setShowSiteModal] = useState(false);
 
   const [formData, setFormData] = useState({
     client_id: '',
@@ -80,6 +84,21 @@ export default function NewJobPage() {
       console.error('Failed to load sites:', err);
       setSites([]);
     }
+  };
+
+  const handleClientCreated = (newClient: { id: string; name: string }) => {
+    // Add new client to list
+    setClients(prev => [...prev, newClient]);
+    // Auto-select the new client
+    setFormData(prev => ({ ...prev, client_id: newClient.id }));
+    setSelectedClientId(newClient.id);
+  };
+
+  const handleSiteCreated = (newSite: { id: string; name: string }) => {
+    // Add new site to list
+    setSites(prev => [...prev, newSite]);
+    // Auto-select the new site
+    setFormData(prev => ({ ...prev, site_id: newSite.id }));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -156,9 +175,21 @@ export default function NewJobPage() {
         <form onSubmit={handleSubmit} className="bg-white shadow rounded-lg p-6 space-y-6">
           {/* Client Selection */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Client <span className="text-red-500">*</span>
-            </label>
+            <div className="flex items-center justify-between mb-2">
+              <label className="block text-sm font-medium text-gray-700">
+                Client <span className="text-red-500">*</span>
+              </label>
+              <button
+                type="button"
+                onClick={() => setShowClientModal(true)}
+                className="text-sm text-primary-600 hover:text-primary-700 font-medium flex items-center gap-1"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                </svg>
+                New Client
+              </button>
+            </div>
             <select
               value={formData.client_id}
               onChange={(e) => {
@@ -177,18 +208,31 @@ export default function NewJobPage() {
 
           {/* Site Selection */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Site <span className="text-red-500">*</span>
-            </label>
+            <div className="flex items-center justify-between mb-2">
+              <label className="block text-sm font-medium text-gray-700">
+                Site <span className="text-red-500">*</span>
+              </label>
+              <button
+                type="button"
+                onClick={() => setShowSiteModal(true)}
+                disabled={!selectedClientId}
+                className="text-sm text-primary-600 hover:text-primary-700 font-medium flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                </svg>
+                New Site
+              </button>
+            </div>
             <select
               value={formData.site_id}
               onChange={(e) => setFormData({ ...formData, site_id: e.target.value })}
               required
-              disabled={!selectedClientId || sites.length === 0}
+              disabled={!selectedClientId}
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 disabled:bg-gray-100"
             >
               <option value="">
-                {!selectedClientId ? 'Select a client first...' : sites.length === 0 ? 'No sites available' : 'Select a site...'}
+                {!selectedClientId ? 'Select a client first...' : sites.length === 0 ? 'No sites available - click "New Site" to add one' : 'Select a site...'}
               </option>
               {sites.map(site => (
                 <option key={site.id} value={site.id}>
@@ -391,6 +435,20 @@ export default function NewJobPage() {
           </div>
         </form>
       </div>
+
+      {/* Modals */}
+      <CreateClientModal
+        isOpen={showClientModal}
+        onClose={() => setShowClientModal(false)}
+        onClientCreated={handleClientCreated}
+      />
+      <CreateSiteModal
+        isOpen={showSiteModal}
+        onClose={() => setShowSiteModal(false)}
+        clientId={selectedClientId}
+        clientName={clients.find(c => c.id === selectedClientId)?.name}
+        onSiteCreated={handleSiteCreated}
+      />
     </AppLayout>
   );
 }
