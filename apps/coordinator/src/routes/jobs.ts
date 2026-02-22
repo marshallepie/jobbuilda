@@ -46,22 +46,24 @@ export async function jobsRoutes(fastify: FastifyInstance) {
     }
   );
 
-  // POST /api/jobs - Create job from quote
+  // POST /api/jobs - Create job (with or without quote)
   fastify.post<{ Body: Record<string, unknown> }>(
     '/api/jobs',
     async (request, reply) => {
       const context = extractAuthContext(request);
       try {
-        // Step 1: Create the job
+        const { quote_id } = request.body as { quote_id?: string };
+
+        // Step 1: Create the job using appropriate tool
+        const toolName = quote_id ? 'create_job_from_quote' : 'create_job';
         const result = await fastify.mcp.jobs.callTool(
-          'create_job_from_quote',
+          toolName,
           request.body,
           context
         );
         const job = JSON.parse(result.content[0]?.text || '{}');
 
-        // Step 2: Update the quote with the job_id
-        const { quote_id } = request.body as { quote_id: string };
+        // Step 2: Update the quote with the job_id (only if quote_id provided)
         if (quote_id && job.id) {
           try {
             await fastify.mcp.quoting.callTool(
