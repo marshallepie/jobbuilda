@@ -138,17 +138,18 @@ export async function generateCertificate(
       };
 
       // Transform circuits to test results format
+      // Note: numeric columns come back as strings from pg driver — coerce to number
       const circuitTestResults = circuits.map((circuit: any) => ({
         circuitReference: circuit.circuit_reference,
         location: circuit.location || '',
         deviceType: circuit.overcurrent_device_type || '',
         deviceRating: circuit.overcurrent_device_rating || '',
         conductorCSA: circuit.conductor_csa,
-        continuityR1R2: circuit.continuity_r1_r2,
-        insulationResistance: circuit.insulation_resistance,
-        earthLoopImpedance: circuit.earth_loop_impedance,
+        continuityR1R2: circuit.continuity_r1_r2 != null ? parseFloat(circuit.continuity_r1_r2) : undefined,
+        insulationResistance: circuit.insulation_resistance != null ? parseFloat(circuit.insulation_resistance) : undefined,
+        earthLoopImpedance: circuit.earth_loop_impedance != null ? parseFloat(circuit.earth_loop_impedance) : undefined,
         polarityCorrect: circuit.polarity_correct,
-        rcdTripTime: undefined, // RCD tests are typically per-board not per-circuit
+        rcdTripTime: undefined,
         result: circuit.test_result || 'satisfactory'
       }));
 
@@ -187,13 +188,14 @@ export async function generateCertificate(
 
       } else if (input.certificate_type === 'minor_works') {
         // For minor works, typically only one circuit
-        const testResults = circuits[0] ? {
-          circuitReference: circuits[0].circuit_reference,
-          location: circuits[0].location || '',
-          continuityR1R2: circuits[0].continuity_r1_r2,
-          insulationResistance: circuits[0].insulation_resistance,
-          earthLoopImpedance: circuits[0].earth_loop_impedance,
-          polarityCorrect: circuits[0].polarity_correct !== false,
+        const c0 = circuits[0];
+        const testResults = c0 ? {
+          circuitReference: c0.circuit_reference,
+          location: c0.location || '',
+          continuityR1R2: c0.continuity_r1_r2 != null ? parseFloat(c0.continuity_r1_r2) : undefined,
+          insulationResistance: c0.insulation_resistance != null ? parseFloat(c0.insulation_resistance) : undefined,
+          earthLoopImpedance: c0.earth_loop_impedance != null ? parseFloat(c0.earth_loop_impedance) : undefined,
+          polarityCorrect: c0.polarity_correct !== false,
           rcdTripTime: undefined
         } : {
           circuitReference: 'Not specified',
