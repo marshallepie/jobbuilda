@@ -147,6 +147,27 @@ export async function testsRoutes(fastify: FastifyInstance) {
     }
   );
 
+  // GET /api/tests/:id/certificates/:certId/download - Get signed download URL
+  fastify.get<{ Params: { id: string; certId: string } }>(
+    '/api/tests/:id/certificates/:certId/download',
+    async (request, reply) => {
+      const context = extractAuthContext(request);
+      const { certId } = request.params;
+      try {
+        const args: Record<string, unknown> = { certificate_id: certId };
+        const result = await fastify.mcp.tests.callTool(
+          'get_certificate_download_url',
+          args,
+          context
+        );
+        const data = JSON.parse(result.content[0]?.text || '{}');
+        return data;
+      } catch (error: any) {
+        reply.status(500).send({ error: 'Failed to get download URL', message: error.message });
+      }
+    }
+  );
+
   // POST /api/tests/:id/circuits - Create circuit
   fastify.post<{ Params: { id: string }; Body: Record<string, unknown> }>(
     '/api/tests/:id/circuits',

@@ -12,6 +12,7 @@ import { updateCircuitMeasurements } from './update-circuit-measurements.js';
 import { bulkCreateCircuitsFromJob } from './bulk-create-circuits-from-job.js';
 import { addInspectionItem } from './add-inspection-item.js';
 import { getMeasurementStandards } from './get-measurement-standards.js';
+import { getCertificateDownloadUrlTool } from './get-certificate-download-url.js';
 import type { AuthContext } from '@jobbuilda/contracts';
 
 export function registerTools(server: Server) {
@@ -182,6 +183,17 @@ export function registerTools(server: Server) {
         },
       },
       {
+        name: 'get_certificate_download_url',
+        description: 'Get a signed download URL for a certificate PDF',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            certificate_id: { type: 'string', description: 'Certificate UUID' },
+          },
+          required: ['certificate_id'],
+        },
+      },
+      {
         name: 'get_measurement_standards',
         description: 'Get BS 7671 measurement standards for validation',
         inputSchema: {
@@ -232,6 +244,9 @@ export function registerTools(server: Server) {
         break;
       case 'add_inspection_item':
         result = await addInspectionItem(args as any, context);
+        break;
+      case 'get_certificate_download_url':
+        result = await getCertificateDownloadUrlTool(args as any, context);
         break;
       case 'get_measurement_standards':
         result = await getMeasurementStandards(args as any, context);
