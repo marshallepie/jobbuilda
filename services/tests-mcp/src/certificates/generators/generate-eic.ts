@@ -47,6 +47,7 @@ export async function generateEICPDF(data: EICData): Promise<Buffer> {
       const doc = new PDFDocument({
         size: 'A4',
         margin: 50,
+        bufferPages: true,
         info: {
           Title: `Electrical Installation Certificate - ${data.certificateNumber}`,
           Author: data.businessName,

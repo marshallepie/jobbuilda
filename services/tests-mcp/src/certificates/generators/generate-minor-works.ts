@@ -55,6 +55,7 @@ export async function generateMinorWorksPDF(data: MinorWorksData): Promise<Buffe
       const doc = new PDFDocument({
         size: 'A4',
         margin: 50,
+        bufferPages: true,
         info: {
           Title: `Minor Works Certificate - ${data.certificateNumber}`,
           Author: data.businessName,
