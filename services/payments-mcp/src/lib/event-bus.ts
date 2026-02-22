@@ -19,7 +19,6 @@ export async function initEventBus() {
   } catch (error) {
     span.recordException(error as Error);
     span.setStatus({ code: 2, message: (error as Error).message });
-    throw error;
   } finally {
     span.end();
   }
@@ -61,7 +60,6 @@ export async function publish(event: {
   } catch (error) {
     span.recordException(error as Error);
     span.setStatus({ code: 2, message: (error as Error).message });
-    throw error;
   } finally {
     span.end();
   }
