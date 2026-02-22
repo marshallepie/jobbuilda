@@ -54,20 +54,26 @@ export default function CreateTestModal({
       api.setAuth(mockAuth);
 
       // Create test
-      const test = await api.post('/api/tests', {
-        job_id: jobId,
-        client_id: clientId,
-        site_id: siteId,
-        test_type: formData.test_type,
-        title: formData.title,
-        test_date: formData.test_date,
+      const test: any = await api.request('/api/tests', {
+        method: 'POST',
+        body: JSON.stringify({
+          job_id: jobId,
+          client_id: clientId,
+          site_id: siteId,
+          test_type: formData.test_type,
+          title: formData.title,
+          test_date: formData.test_date,
+        }),
       });
 
       // Bulk create circuits from job if available
       if (test.id) {
         try {
-          await api.post(`/api/tests/${test.id}/circuits/bulk`, {
-            job_id: jobId,
+          await api.request(`/api/tests/${test.id}/circuits/bulk`, {
+            method: 'POST',
+            body: JSON.stringify({
+              job_id: jobId,
+            }),
           });
         } catch (bulkError) {
           console.warn('Failed to bulk create circuits:', bulkError);
