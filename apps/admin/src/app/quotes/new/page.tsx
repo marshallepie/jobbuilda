@@ -648,7 +648,7 @@ export default function NewQuotePage() {
                 </div>
               ) : (
                 <div className="space-y-3">
-                  {items.map((item, index) => (
+                  {items.map((item) => (
                     <div key={item.id} className="border border-gray-200 rounded-lg p-4">
                       <div className="flex items-start justify-between">
                         <div className="flex-1">
