@@ -87,8 +87,12 @@ export async function createQuote(
       ]
     );
 
-    // Add line items
+    // Add line items, accumulating totals as we go
     let sortOrder = 0;
+    let subtotalExVat = 0;
+    let totalVatAmount = 0;
+    let totalIncVat = 0;
+
     for (const item of input.items) {
       const itemId = randomUUID();
       const markup = item.markup_percent || 0;
@@ -97,6 +101,10 @@ export async function createQuote(
       const lineTotalExVat = Math.round(item.quantity * item.unit_price_ex_vat * (1 + markup / 100) * 100) / 100;
       const lineVatAmount = Math.round(lineTotalExVat * (vatRate / 100) * 100) / 100;
       const lineTotalIncVat = lineTotalExVat + lineVatAmount;
+
+      subtotalExVat += lineTotalExVat;
+      totalVatAmount += lineVatAmount;
+      totalIncVat += lineTotalIncVat;
 
       await query(
         `INSERT INTO quote_items (id, quote_id, item_type, product_id, sku, description,
@@ -126,15 +134,18 @@ export async function createQuote(
       );
     }
 
-    // Get updated quote with totals (calculated by trigger)
-    const quoteResult = await query(
-      `SELECT subtotal_ex_vat, vat_amount, total_inc_vat
-       FROM quotes
-       WHERE id = $1`,
-      [quoteId]
+    // Update quote totals directly (production DB may not have the recalculate trigger)
+    subtotalExVat = Math.round(subtotalExVat * 100) / 100;
+    totalVatAmount = Math.round(totalVatAmount * 100) / 100;
+    totalIncVat = Math.round(totalIncVat * 100) / 100;
+
+    await query(
+      `UPDATE quotes SET subtotal_ex_vat = $1, vat_amount = $2, total_inc_vat = $3, updated_at = NOW()
+       WHERE id = $4`,
+      [subtotalExVat, totalVatAmount, totalIncVat, quoteId]
     );
 
-    const quote = quoteResult.rows[0];
+    const quote = { subtotal_ex_vat: subtotalExVat, vat_amount: totalVatAmount, total_inc_vat: totalIncVat };
 
     // Publish event
     await publishEvent({
