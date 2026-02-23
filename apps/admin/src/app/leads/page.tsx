@@ -2,13 +2,14 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import AppLayout from '@/components/AppLayout';
 import { api, ApiError } from '@/lib/api';
 import { formatDate, getStatusColor } from '@/lib/utils';
 
 interface Lead {
   id: string;
-  client_name: string;
+  name: string;
   email: string;
   phone: string;
   status: string;
@@ -18,6 +19,7 @@ interface Lead {
 }
 
 export default function LeadsPage() {
+  const router = useRouter();
   const [leads, setLeads] = useState<Lead[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -126,7 +128,7 @@ export default function LeadsPage() {
                   <tr key={lead.id} className="hover:bg-gray-50">
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="text-sm font-medium text-gray-900">
-                        {lead.client_name}
+                        {lead.name}
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
@@ -168,14 +170,7 @@ export default function LeadsPage() {
     </AppLayout>
   );
 
-  async function handleConvertToQuote(leadId: string) {
-    try {
-      await api.convertLeadToQuote(leadId);
-      // TODO: Show success message and redirect to new quote
-      alert('Lead converted to quote!');
-      loadLeads();
-    } catch (err) {
-      alert('Failed to convert lead to quote');
-    }
+  function handleConvertToQuote(leadId: string) {
+    router.push(`/quotes/new?lead_id=${leadId}`);
   }
 }

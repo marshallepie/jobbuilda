@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import AppLayout from '@/components/AppLayout';
 import { api } from '@/lib/api';
 import { formatCurrency } from '@/lib/utils';
@@ -46,10 +46,14 @@ interface QuoteItem {
 
 export default function NewQuotePage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const leadId = searchParams.get('lead_id');
+
   const [clients, setClients] = useState<Client[]>([]);
   const [sites, setSites] = useState<Site[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [leadBanner, setLeadBanner] = useState<string | null>(null);
 
   // Quote details
   const [selectedClientId, setSelectedClientId] = useState('');
@@ -116,6 +120,17 @@ export default function NewQuotePage() {
       const defaultDate = new Date();
       defaultDate.setDate(defaultDate.getDate() + 30);
       setValidUntil(defaultDate.toISOString().split('T')[0]);
+
+      // If converting from a lead, pre-populate the form
+      if (leadId) {
+        const lead = await api.getLead(leadId) as any;
+        if (lead) {
+          setTitle(lead.description || lead.name || '');
+          setDescription(lead.description || '');
+          setNotes(lead.notes || '');
+          setLeadBanner(`Converting lead: ${lead.name}`);
+        }
+      }
     } catch (err) {
       console.error('Failed to load data:', err);
     } finally {
@@ -260,6 +275,7 @@ export default function NewQuotePage() {
       const quoteData = {
         client_id: selectedClientId,
         site_id: selectedSiteId,
+        ...(leadId ? { lead_id: leadId } : {}),
         title,
         description,
         valid_until: validUntil,
@@ -334,6 +350,12 @@ export default function NewQuotePage() {
             Cancel
           </button>
         </div>
+
+        {leadBanner && (
+          <div className="bg-blue-50 border border-blue-200 rounded-lg px-4 py-3 text-sm text-blue-900">
+            <strong>Lead conversion:</strong> {leadBanner}
+          </div>
+        )}
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Main Form */}
