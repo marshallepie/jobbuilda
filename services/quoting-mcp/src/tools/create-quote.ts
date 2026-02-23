@@ -95,13 +95,14 @@ export async function createQuote(
       const vatRate = item.vat_rate || 20.0;
 
       const lineTotalExVat = Math.round(item.quantity * item.unit_price_ex_vat * (1 + markup / 100) * 100) / 100;
-      const lineTotalIncVat = Math.round(lineTotalExVat * (1 + vatRate / 100) * 100) / 100;
+      const lineVatAmount = Math.round(lineTotalExVat * (vatRate / 100) * 100) / 100;
+      const lineTotalIncVat = lineTotalExVat + lineVatAmount;
 
       await query(
         `INSERT INTO quote_items (id, quote_id, item_type, product_id, sku, description,
                                   quantity, unit, unit_price_ex_vat, markup_percent, line_total_ex_vat,
-                                  vat_rate, line_total_inc_vat, sort_order, notes, created_at, updated_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)`,
+                                  vat_rate, line_vat_amount, line_total_inc_vat, sort_order, notes, created_at, updated_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)`,
         [
           itemId,
           quoteId,
@@ -115,6 +116,7 @@ export async function createQuote(
           markup,
           lineTotalExVat,
           vatRate,
+          lineVatAmount,
           lineTotalIncVat,
           sortOrder++,
           item.notes || null,
