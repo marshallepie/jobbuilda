@@ -11,7 +11,7 @@ export default function NewLeadPage() {
   const [loading, setLoading] = useState(false);
 
   const [formData, setFormData] = useState({
-    client_name: '',
+    name: '',
     email: '',
     phone: '',
     address: '',
@@ -24,7 +24,7 @@ export default function NewLeadPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!formData.client_name || !formData.description) {
+    if (!formData.name || !formData.description) {
       alert('Please fill in client name and description');
       return;
     }
@@ -39,20 +39,19 @@ export default function NewLeadPage() {
       api.setAuth(mockAuth);
 
       const leadData = {
-        client_name: formData.client_name,
+        name: formData.name,
         email: formData.email || undefined,
         phone: formData.phone || undefined,
         address: formData.address || undefined,
         description: formData.description,
         source: formData.source || undefined,
-        urgency: formData.urgency,
         notes: formData.notes || undefined,
       };
 
       const response = await api.createLead(leadData) as any;
       const lead = response.data || response;
 
-      alert(`Lead for "${lead.client_name}" created successfully!`);
+      alert(`Lead for "${lead.name}" created successfully!`);
       router.push('/leads');
     } catch (err: any) {
       console.error('Failed to create lead:', err);
@@ -97,8 +96,8 @@ export default function NewLeadPage() {
                 </label>
                 <input
                   type="text"
-                  value={formData.client_name}
-                  onChange={(e) => setFormData({ ...formData, client_name: e.target.value })}
+                  value={formData.name}
+                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                   required
                   placeholder="e.g., John Smith"
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"

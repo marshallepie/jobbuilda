@@ -30,7 +30,6 @@ export interface Quote {
 
 export interface QuoteItem {
   id: string;
-  tenant_id: string;
   quote_id: string;
   item_type: string;
   product_id?: string;
@@ -75,13 +74,13 @@ export async function getQuote(quoteId: string, tenantId: string, includeItems =
 
     if (includeItems) {
       const itemsResult = await query<QuoteItem>(
-        `SELECT id, tenant_id, quote_id, item_type, product_id, sku, description,
+        `SELECT id, quote_id, item_type, product_id, sku, description,
                 quantity, unit, unit_price_ex_vat, markup_percent, line_total_ex_vat,
                 vat_rate, line_total_inc_vat, sort_order, notes, created_at, updated_at
          FROM quote_items
-         WHERE quote_id = $1 AND tenant_id = $2
+         WHERE quote_id = $1
          ORDER BY sort_order ASC, created_at ASC`,
-        [quoteId, tenantId]
+        [quoteId]
       );
       quote.items = itemsResult.rows;
     }
