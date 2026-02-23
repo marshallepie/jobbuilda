@@ -170,9 +170,9 @@ export async function createQuote(
       quote_number: quoteNumber,
       title: input.title,
       status: 'draft',
-      subtotal_ex_vat: parseFloat(quote.subtotal_ex_vat),
-      vat_amount: parseFloat(quote.vat_amount),
-      total_inc_vat: parseFloat(quote.total_inc_vat),
+      subtotal_ex_vat: quote.subtotal_ex_vat,
+      vat_amount: quote.vat_amount,
+      total_inc_vat: quote.total_inc_vat,
       created_at: now
     };
   } catch (error) {
