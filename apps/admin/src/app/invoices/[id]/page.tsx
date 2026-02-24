@@ -379,10 +379,14 @@ export default function InvoiceDetailPage() {
       `}</style>
       <div className="space-y-6 max-w-5xl print-content">
         {/* Header - Screen Only */}
-        <div className="flex items-center justify-between no-print">
+        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 no-print">
           <div>
-            <div className="flex items-center gap-3 mb-2">
-              <h1 className="text-3xl font-bold text-gray-900">{invoice.invoice_number}</h1>
+            <Link href="/invoices" className="text-rose-600 hover:text-rose-700 text-sm mb-2 inline-block">
+              ← Back to Invoices
+            </Link>
+            <p className="text-xs font-semibold text-rose-600 uppercase tracking-wider mb-1">{invoice.invoice_number}</p>
+            <div className="flex flex-wrap items-center gap-2">
+              <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Invoice</h1>
               <span className={`px-3 py-1 text-sm font-medium rounded-full ${getStatusColor(invoice.status)}`}>
                 {invoice.status}
               </span>
@@ -390,16 +394,10 @@ export default function InvoiceDetailPage() {
                 {invoice.invoice_type}
               </span>
             </div>
-            <p className="text-lg text-gray-600">
-              Invoice Date: {formatDate(invoice.invoice_date)} • Due: {formatDate(invoice.due_date)}
+            <p className="text-gray-500 text-sm mt-1">
+              Issued {formatDate(invoice.invoice_date)} · Due {formatDate(invoice.due_date)}
             </p>
           </div>
-          <Link
-            href="/invoices"
-            className="px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
-          >
-            Back to Invoices
-          </Link>
         </div>
 
         {/* Header - Print Only */}
@@ -434,13 +432,13 @@ export default function InvoiceDetailPage() {
 
         {/* Actions Bar */}
         <div className="bg-white shadow rounded-lg p-4 no-print">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             <div className="text-sm text-gray-600">
               Created {formatDate(invoice.created_at)}
               {invoice.sent_at && ` • Sent ${formatDate(invoice.sent_at)}`}
               {invoice.paid_at && ` • Paid ${formatDate(invoice.paid_at)}`}
             </div>
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
               {invoice.status === 'draft' && (
                 <button
                   onClick={sendInvoice}
@@ -594,7 +592,7 @@ export default function InvoiceDetailPage() {
         )}
 
         {/* Client & Site Info */}
-        <div className="grid grid-cols-2 gap-6 invoice-section">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 invoice-section">
           <div className="bg-white shadow rounded-lg p-6">
             <h2 className="text-lg font-semibold text-gray-900 mb-4">Client Details</h2>
             <div className="space-y-2 text-sm">

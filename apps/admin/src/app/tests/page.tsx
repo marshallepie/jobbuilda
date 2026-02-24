@@ -103,15 +103,15 @@ export default function TestsPage() {
     <AppLayout>
       <div className="space-y-6">
         {/* Header */}
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900">Electrical Tests</h1>
-            <p className="mt-2 text-gray-600">BS 7671 compliance testing and certification</p>
+            <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Electrical Tests</h1>
+            <p className="mt-1 text-sm text-gray-600">BS 7671 compliance testing and certification</p>
           </div>
         </div>
 
         {/* Summary Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-4">
           <div className="bg-white p-4 rounded-lg shadow">
             <div className="text-sm font-medium text-gray-600">Total Tests</div>
             <div className="text-2xl font-bold text-gray-900 mt-1">{stats.total}</div>
@@ -135,14 +135,14 @@ export default function TestsPage() {
         </div>
 
         {/* Filters */}
-        <div className="flex flex-wrap gap-4">
-          <div className="flex space-x-2">
-            <span className="text-sm font-medium text-gray-700 self-center">Status:</span>
+        <div className="flex flex-col sm:flex-row flex-wrap gap-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-sm font-medium text-gray-700">Status:</span>
             {['all', 'draft', 'scheduled', 'in_progress', 'completed'].map((status) => (
               <button
                 key={status}
                 onClick={() => setFilter(status)}
-                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                className={`px-3 py-1.5 rounded-lg text-xs sm:text-sm font-medium transition-colors ${
                   filter === status
                     ? 'bg-primary-600 text-white'
                     : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-200'
@@ -152,13 +152,13 @@ export default function TestsPage() {
               </button>
             ))}
           </div>
-          <div className="flex space-x-2">
-            <span className="text-sm font-medium text-gray-700 self-center">Type:</span>
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-sm font-medium text-gray-700">Type:</span>
             {['all', 'eicr', 'eic', 'minor_works'].map((type) => (
               <button
                 key={type}
                 onClick={() => setTypeFilter(type)}
-                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                className={`px-3 py-1.5 rounded-lg text-xs sm:text-sm font-medium transition-colors ${
                   typeFilter === type
                     ? 'bg-primary-600 text-white'
                     : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-200'
@@ -188,89 +188,120 @@ export default function TestsPage() {
             </Link>
           </div>
         ) : (
-          <div className="bg-white shadow rounded-lg overflow-hidden">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Test Number
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Type
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Client / Site
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Date
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Status
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Outcome
-                  </th>
-                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Actions
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {filteredTests.map((test) => (
-                  <tr key={test.id} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <Link
-                        href={`/tests/${test.id}`}
-                        className="text-primary-600 hover:text-primary-900 font-medium"
-                      >
-                        {test.test_number}
-                      </Link>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
+          <>
+            {/* Mobile cards */}
+            <div className="md:hidden space-y-3">
+              {filteredTests.map((test) => (
+                <div key={test.id} className="bg-white shadow rounded-lg p-4">
+                  <div className="flex items-start justify-between mb-2">
+                    <div>
+                      <p className="text-xs font-semibold text-emerald-600 uppercase tracking-wider">{test.test_number}</p>
+                      <p className="text-sm font-medium text-gray-900 mt-0.5">{test.client_name || 'Unknown Client'}</p>
+                      <p className="text-xs text-gray-500">{test.site_name || 'Unknown Site'}</p>
+                    </div>
+                    <div className="flex flex-col items-end gap-1 ml-2 flex-shrink-0">
                       <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded-full text-xs font-medium">
                         {getTestTypeLabel(test.test_type)}
                       </span>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="text-sm font-medium text-gray-900">{test.client_name || 'Unknown Client'}</div>
-                      <div className="text-sm text-gray-500">{test.site_name || 'Unknown Site'}</div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {test.completion_date
-                        ? formatDate(test.completion_date)
-                        : test.test_date
-                        ? formatDate(test.test_date)
-                        : 'Not scheduled'}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
                       <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(test.status)}`}>
                         {test.status.replace('_', ' ')}
                       </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between mt-3 pt-3 border-t border-gray-100">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-gray-400">
+                        {test.completion_date ? formatDate(test.completion_date) : test.test_date ? formatDate(test.test_date) : 'Not scheduled'}
+                      </span>
                       {getOutcomeBadge(test.outcome)}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                      <Link
-                        href={`/tests/${test.id}`}
-                        className="text-primary-600 hover:text-primary-900 mr-4"
-                      >
+                    </div>
+                    <div className="flex gap-3">
+                      <Link href={`/tests/${test.id}`} className="text-sm text-primary-600 hover:text-primary-700 font-medium">
                         View
                       </Link>
                       {test.status !== 'completed' && (
-                        <Link
-                          href={`/tests/${test.id}/record`}
-                          className="text-green-600 hover:text-green-900"
-                        >
+                        <Link href={`/tests/${test.id}/record`} className="text-sm text-green-600 hover:text-green-700 font-medium">
                           Record
                         </Link>
                       )}
-                    </td>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Desktop table */}
+            <div className="hidden md:block bg-white shadow rounded-lg overflow-hidden">
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Test Number
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Type
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Client / Site
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Date
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Status
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Outcome
+                    </th>
+                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Actions
+                    </th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {filteredTests.map((test) => (
+                    <tr key={test.id} className="hover:bg-gray-50">
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <Link href={`/tests/${test.id}`} className="text-primary-600 hover:text-primary-900 font-medium">
+                          {test.test_number}
+                        </Link>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded-full text-xs font-medium">
+                          {getTestTypeLabel(test.test_type)}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="text-sm font-medium text-gray-900">{test.client_name || 'Unknown Client'}</div>
+                        <div className="text-sm text-gray-500">{test.site_name || 'Unknown Site'}</div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        {test.completion_date ? formatDate(test.completion_date) : test.test_date ? formatDate(test.test_date) : 'Not scheduled'}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(test.status)}`}>
+                          {test.status.replace('_', ' ')}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        {getOutcomeBadge(test.outcome)}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                        <Link href={`/tests/${test.id}`} className="text-primary-600 hover:text-primary-900 mr-4">
+                          View
+                        </Link>
+                        {test.status !== 'completed' && (
+                          <Link href={`/tests/${test.id}/record`} className="text-green-600 hover:text-green-900">
+                            Record
+                          </Link>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
         )}
       </div>
     </AppLayout>

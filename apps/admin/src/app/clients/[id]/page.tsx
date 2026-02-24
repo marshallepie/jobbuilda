@@ -254,16 +254,14 @@ Type "${client.name}" to confirm deletion:`;
     <AppLayout>
       <div className="space-y-6 max-w-5xl">
         {/* Header */}
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
           <div>
-            <div className="flex items-center space-x-3">
-              <Link
-                href="/clients"
-                className="text-gray-400 hover:text-gray-600"
-              >
-                ← Back
-              </Link>
-              <h1 className="text-3xl font-bold text-gray-900">{client.name}</h1>
+            <Link href="/clients" className="text-sky-600 hover:text-sky-700 text-sm mb-2 inline-block">
+              ← Back to Clients
+            </Link>
+            <p className="text-xs font-semibold text-sky-600 uppercase tracking-wider mb-1">Client</p>
+            <div className="flex flex-wrap items-center gap-2">
+              <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">{client.name}</h1>
               <span className={`px-3 py-1 text-sm font-medium rounded-full ${
                 client.gdpr_consent
                   ? 'bg-green-100 text-green-800'
@@ -273,11 +271,10 @@ Type "${client.name}" to confirm deletion:`;
               </span>
             </div>
             {client.company && (
-              <p className="text-gray-600 mt-1">{client.company}</p>
+              <p className="text-gray-500 text-sm mt-1">{client.company}</p>
             )}
           </div>
-
-          <div className="flex items-center space-x-3">
+          <div className="flex flex-wrap gap-2 sm:flex-shrink-0">
             <Link
               href={`/clients/${clientId}/edit`}
               className="px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"

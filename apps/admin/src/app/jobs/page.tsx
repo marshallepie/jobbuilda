@@ -62,21 +62,21 @@ export default function JobsPage() {
     <AppLayout>
       <div className="space-y-6">
         {/* Header */}
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900">Jobs</h1>
-            <p className="mt-2 text-gray-600">Manage your electrical jobs</p>
+            <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Jobs</h1>
+            <p className="mt-1 text-sm text-gray-600">Manage your electrical jobs</p>
           </div>
           <Link
             href="/jobs/new"
-            className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors font-medium"
+            className="inline-flex items-center justify-center px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors font-medium"
           >
             + New Job
           </Link>
         </div>
 
         {/* Filters */}
-        <div className="flex space-x-2">
+        <div className="flex flex-wrap gap-2">
           {['all', 'scheduled', 'in_progress', 'completed'].map((status) => (
             <button
               key={status}

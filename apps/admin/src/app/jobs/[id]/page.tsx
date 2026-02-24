@@ -559,24 +559,21 @@ export default function JobDetailPage() {
     <AppLayout>
       <div className="space-y-6 max-w-5xl">
         {/* Header */}
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
           <div>
-            <div className="flex items-center space-x-3">
-              <Link
-                href="/jobs"
-                className="text-gray-400 hover:text-gray-600"
-              >
-                ← Back
-              </Link>
-              <h1 className="text-3xl font-bold text-gray-900">{job.job_number}</h1>
+            <Link href="/jobs" className="text-amber-600 hover:text-amber-700 text-sm mb-2 inline-block">
+              ← Back to Jobs
+            </Link>
+            <p className="text-xs font-semibold text-amber-600 uppercase tracking-wider mb-1">{job.job_number}</p>
+            <div className="flex flex-wrap items-center gap-2">
+              <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">{job.title}</h1>
               <span className={`px-3 py-1 text-sm font-medium rounded-full ${getStatusColor(job.status)}`}>
                 {job.status.replace('_', ' ')}
               </span>
             </div>
-            <p className="text-gray-600 mt-1">{job.title}</p>
+            <p className="text-gray-500 text-sm mt-1">Created {formatDate(job.created_at)}</p>
           </div>
-
-          <div className="flex items-center space-x-3">
+          <div className="flex flex-wrap gap-2 sm:flex-shrink-0">
             {job.status === 'scheduled' && (
               <button
                 onClick={handleStartJob}
@@ -689,7 +686,7 @@ export default function JobDetailPage() {
               {job.circuit_details && job.circuit_details.length > 0 && (
                 <div className="mt-6">
                   <label className="text-sm font-medium text-gray-700 mb-3 block">Circuit Details</label>
-                  <div className="bg-gray-50 border border-gray-200 rounded-lg overflow-hidden">
+                  <div className="bg-gray-50 border border-gray-200 rounded-lg overflow-x-auto">
                     <table className="min-w-full divide-y divide-gray-200">
                       <thead className="bg-gray-100">
                         <tr>
@@ -756,7 +753,7 @@ export default function JobDetailPage() {
 
           {/* Timer */}
           <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-lg p-6 mb-4">
-            <div className="flex items-center justify-between mb-4">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
               <div>
                 <h3 className="text-sm font-semibold text-gray-900 mb-1">Live Timer</h3>
                 <p className="text-xs text-gray-600">Track time in real-time</p>
@@ -807,7 +804,7 @@ export default function JobDetailPage() {
             <form onSubmit={handleSubmitManualEntry} className="mt-4 bg-gray-50 border border-gray-200 rounded-lg p-4 space-y-4">
               <h3 className="text-sm font-semibold text-gray-900">Manual Time Entry</h3>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-medium text-gray-700 mb-1">
                     Start Time <span className="text-red-500">*</span>
@@ -859,7 +856,7 @@ export default function JobDetailPage() {
 
         {/* Materials Logging Section */}
         <div className="bg-white shadow rounded-lg p-6">
-          <div className="flex items-center justify-between mb-4">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
             <div>
               <h2 className="text-lg font-semibold text-gray-900">📦 Log Materials Used</h2>
               <p className="text-xs text-gray-600 mt-1">Record materials used on this job</p>
@@ -1036,7 +1033,7 @@ export default function JobDetailPage() {
               )}
 
               {/* Common Fields (Quantity, Unit, Price) */}
-              <div className="grid grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div>
                   <label className="block text-xs font-medium text-gray-700 mb-1">
                     Quantity <span className="text-red-500">*</span>
@@ -1440,7 +1437,7 @@ export default function JobDetailPage() {
         {/* Related Links */}
         <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
           <h3 className="text-sm font-semibold text-gray-900 mb-2">Related</h3>
-          <div className="flex gap-3">
+          <div className="flex flex-wrap gap-3">
             {job.quote_id && (
               <Link
                 href={`/quotes/${job.quote_id}`}

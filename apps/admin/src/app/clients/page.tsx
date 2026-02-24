@@ -81,72 +81,94 @@ export default function ClientsPage() {
             </p>
           </div>
         ) : (
-          <div className="bg-white shadow rounded-lg overflow-hidden">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Name
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Company
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Contact
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    GDPR
-                  </th>
-                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Actions
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {clients.map((client) => (
-                  <tr key={client.id} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm font-medium text-gray-900">
-                        {client.name}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-500">
-                        {client.company || '-'}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="text-sm text-gray-900">{client.email || '-'}</div>
-                      <div className="text-sm text-gray-500">{client.phone || '-'}</div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`px-2 py-1 text-xs font-medium rounded-full ${
-                        client.gdpr_consent
-                          ? 'bg-green-100 text-green-800'
-                          : 'bg-gray-100 text-gray-800'
-                      }`}>
-                        {client.gdpr_consent ? 'Consented' : 'No consent'}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                      <Link
-                        href={`/clients/${client.id}`}
-                        className="text-primary-600 hover:text-primary-900 mr-4"
-                      >
-                        View
-                      </Link>
-                      <Link
-                        href={`/clients/${client.id}/sites`}
-                        className="text-primary-600 hover:text-primary-900"
-                      >
-                        Sites
-                      </Link>
-                    </td>
+          <>
+            {/* Mobile cards */}
+            <div className="md:hidden space-y-3">
+              {clients.map((client) => (
+                <div key={client.id} className="bg-white shadow rounded-lg p-4">
+                  <div className="flex items-start justify-between mb-1">
+                    <div>
+                      <div className="text-sm font-medium text-gray-900">{client.name}</div>
+                      {client.company && (
+                        <div className="text-xs text-gray-500">{client.company}</div>
+                      )}
+                    </div>
+                    <span className={`ml-2 flex-shrink-0 px-2 py-1 text-xs font-medium rounded-full ${
+                      client.gdpr_consent ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
+                    }`}>
+                      {client.gdpr_consent ? 'GDPR' : 'No GDPR'}
+                    </span>
+                  </div>
+                  {client.email && <div className="text-sm text-gray-600 truncate">{client.email}</div>}
+                  {client.phone && <div className="text-sm text-gray-500">{client.phone}</div>}
+                  <div className="flex gap-4 mt-3 pt-3 border-t border-gray-100">
+                    <Link href={`/clients/${client.id}`} className="text-sm text-primary-600 hover:text-primary-700 font-medium">
+                      View
+                    </Link>
+                    <Link href={`/clients/${client.id}/sites`} className="text-sm text-primary-600 hover:text-primary-700 font-medium">
+                      Sites
+                    </Link>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Desktop table */}
+            <div className="hidden md:block bg-white shadow rounded-lg overflow-hidden">
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Name
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Company
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Contact
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      GDPR
+                    </th>
+                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Actions
+                    </th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {clients.map((client) => (
+                    <tr key={client.id} className="hover:bg-gray-50">
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="text-sm font-medium text-gray-900">{client.name}</div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="text-sm text-gray-500">{client.company || '-'}</div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="text-sm text-gray-900">{client.email || '-'}</div>
+                        <div className="text-sm text-gray-500">{client.phone || '-'}</div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className={`px-2 py-1 text-xs font-medium rounded-full ${
+                          client.gdpr_consent ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
+                        }`}>
+                          {client.gdpr_consent ? 'Consented' : 'No consent'}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                        <Link href={`/clients/${client.id}`} className="text-primary-600 hover:text-primary-900 mr-4">
+                          View
+                        </Link>
+                        <Link href={`/clients/${client.id}/sites`} className="text-primary-600 hover:text-primary-900">
+                          Sites
+                        </Link>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
         )}
       </div>
     </AppLayout>

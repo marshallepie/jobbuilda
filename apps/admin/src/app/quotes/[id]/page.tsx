@@ -288,33 +288,30 @@ export default function QuoteDetailPage() {
     <AppLayout>
       <div className="space-y-6 max-w-5xl">
         {/* Header */}
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
           <div>
-            <div className="flex items-center gap-3 mb-2">
-              <h1 className="text-3xl font-bold text-gray-900">{quote.quote_number}</h1>
+            <Link href="/quotes" className="text-indigo-600 hover:text-indigo-700 text-sm mb-2 inline-block">
+              ← Back to Quotes
+            </Link>
+            <p className="text-xs font-semibold text-indigo-600 uppercase tracking-wider mb-1">{quote.quote_number}</p>
+            <div className="flex flex-wrap items-center gap-2">
+              <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">{quote.title}</h1>
               <span className={`px-3 py-1 text-sm font-medium rounded-full ${getStatusColor(quote.status)}`}>
                 {quote.status}
               </span>
             </div>
-            <p className="text-lg text-gray-600">{quote.title}</p>
+            <p className="text-gray-500 text-sm mt-1">Created {formatDate(quote.created_at)}</p>
           </div>
-          <Link
-            href="/quotes"
-            className="px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
-          >
-            Back to Quotes
-          </Link>
         </div>
 
         {/* Actions Bar */}
         <div className="bg-white shadow rounded-lg p-4">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             <div className="text-sm text-gray-600">
-              Created {formatDate(quote.created_at)}
-              {quote.sent_at && ` • Sent ${formatDate(quote.sent_at)}`}
+              {quote.sent_at && `Sent ${formatDate(quote.sent_at)}`}
               {quote.approved_at && ` • Approved ${formatDate(quote.approved_at)}`}
             </div>
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
               {/* Preview & PDF buttons - available for all statuses */}
               <button
                 onClick={previewQuote}
@@ -407,7 +404,7 @@ export default function QuoteDetailPage() {
         </div>
 
         {/* Client & Site Info */}
-        <div className="grid grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
           <div className="bg-white shadow rounded-lg p-6">
             <h2 className="text-lg font-semibold text-gray-900 mb-4">Client Details</h2>
             <div className="space-y-2 text-sm">

@@ -75,23 +75,21 @@ export default function LeadDetailPage() {
     <AppLayout>
       <div className="space-y-6 max-w-3xl">
         {/* Header */}
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
           <div>
-            <div className="flex items-center gap-3 mb-1">
-              <h1 className="text-3xl font-bold text-gray-900">{lead.name}</h1>
+            <Link href="/leads" className="text-teal-600 hover:text-teal-700 text-sm mb-2 inline-block">
+              ← Back to Leads
+            </Link>
+            <p className="text-xs font-semibold text-teal-600 uppercase tracking-wider mb-1">Lead</p>
+            <div className="flex flex-wrap items-center gap-2">
+              <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">{lead.name}</h1>
               <span className={`px-2 py-1 text-xs font-medium rounded-full ${getStatusColor(lead.status)}`}>
                 {lead.status}
               </span>
             </div>
-            <p className="text-gray-500 text-sm">Created {formatDate(lead.created_at)}</p>
+            <p className="text-gray-500 text-sm mt-1">Created {formatDate(lead.created_at)}</p>
           </div>
-          <div className="flex gap-3">
-            <Link
-              href="/leads"
-              className="px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
-            >
-              Back to Leads
-            </Link>
+          <div className="flex flex-wrap gap-2 sm:flex-shrink-0">
             <button
               onClick={() => router.push(`/quotes/new?lead_id=${lead.id}`)}
               className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 font-medium"
@@ -104,7 +102,7 @@ export default function LeadDetailPage() {
         {/* Contact Details */}
         <div className="bg-white shadow rounded-lg p-6">
           <h2 className="text-lg font-semibold text-gray-900 mb-4">Contact Details</h2>
-          <dl className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <dl className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
             {lead.email && (
               <div>
                 <dt className="text-sm font-medium text-gray-500">Email</dt>
