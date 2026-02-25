@@ -1,6 +1,6 @@
 # 🚀 JobBuilda Deployment Status
 
-**Last Updated:** 2026-02-20
+**Last Updated:** 2026-02-25
 **Status:** ✅ **LIVE AND OPERATIONAL**
 
 ---
@@ -98,6 +98,17 @@ All database schema fixes have been applied:
 ✅ **FIX_SCHEMA_2.sql** - Added leads email, created_by columns
 ✅ **Jobs Table Fix** - Added all missing job columns (job_number, status, assigned_to, etc.)
 ✅ **Leads Table Fix** - Added phone, address, description, source, status columns
+✅ **`services/invoicing-mcp/migrations/002_alter_invoicing_schema.sql`** - Patched invoices table to v2 schema (see Migration History below)
+
+### Invoicing Migration History
+
+The invoices table was originally created by an early `1_init.sql` migration (now deleted). This caused problems because the table existed when later migrations tried to create it with `CREATE TABLE IF NOT EXISTS`. The full history:
+
+| Migration | Status | Notes |
+|-----------|--------|-------|
+| `1_init.sql` | ❌ Deleted | Original schema — had `job_id NOT NULL`, `site_id NOT NULL`, no `invoice_type`. Caused downstream errors. |
+| `001_create_invoicing_tables.sql` | ✅ Canonical | Correct from-scratch schema. Use this for any fresh DB. |
+| `002_alter_invoicing_schema.sql` | ✅ Applied to production | Defensive ALTER TABLE patch — safe to run on any DB regardless of which prior migration was applied. Run this in Supabase if the invoices table was created by the old `1_init.sql`. |
 
 ### Current Tables Status
 
@@ -109,7 +120,9 @@ All database schema fixes have been applied:
 | leads | ✅ Complete | All columns present |
 | quotes | ✅ Complete | All columns present |
 | jobs | ✅ Complete | All columns present |
-| invoices | ✅ Complete | All columns present |
+| invoices | ✅ Complete | v2 schema via migration 002 |
+| invoice_items | ✅ Complete | |
+| invoice_payments | ✅ Complete | Created by migration 002 |
 
 ---
 
@@ -149,6 +162,32 @@ All database schema fixes have been applied:
 
 **Issue:** Portal was pointing to `api.jobbuilder.co.uk` (incorrect domain)
 **Resolution:** Updated `.env.production` to use `api.jobbuilda.co.uk`
+
+### ✅ Fixed: Vercel Admin Build — Webpack 5.90.0 ESM Serialization (2026-02-25)
+
+**Issue:** Every push to `main` failed on Vercel with `Unexpected end of JSON input` during webpack compilation. Root cause: webpack 5.90.0 cannot serialize the large `@supabase/supabase-js` ESM bundle (`dist/index.mjs + 36 modules`) to its filesystem cache.
+
+**Resolution:** `apps/admin/next.config.js` now aliases all `@supabase/*` packages to their CJS builds (`require.resolve()` follows `exports[require]` → `dist/index.cjs`) for **both** server and client webpack bundles. Server bundle also externalizes them as belt-and-suspenders. Dynamic `ssr:false` imports were added for heavy components in `jobs/`, `tests/`, `AppLayout`, and `layout.tsx` to further shrink the SSR bundle.
+
+**Key files changed:** `next.config.js`, `AppLayout.tsx`, `layout.tsx`, `Providers.tsx` (new), `UserMenu.tsx` (new), `jobs/[id]/page.tsx`, `jobs/new/page.tsx`, `tests/[id]/page.tsx`, `tests/[id]/record/page.tsx`
+
+### ✅ Fixed: Vercel Admin — Root Directory Not Set (2026-02-25)
+
+**Issue:** Vercel was building from the monorepo root instead of `apps/admin`, failing immediately with "No Next.js version detected."
+
+**Resolution:** Set `rootDirectory: "apps/admin"` on the Vercel project (`prj_greAvjcRG699qTZiOiGYgd6SktZ8`) via the Vercel API. Future pushes to `main` will auto-deploy correctly. If this ever resets, run:
+```bash
+VERCEL_TOKEN=$(cat "/Users/marshallepie/Library/Application Support/com.vercel.cli/auth.json" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('token',''))")
+curl -X PATCH "https://api.vercel.com/v9/projects/prj_greAvjcRG699qTZiOiGYgd6SktZ8?teamId=team_vIuhoecolnCNR6LEs0UVz3Ui" \
+  -H "Authorization: Bearer $VERCEL_TOKEN" -H "Content-Type: application/json" \
+  -d '{"rootDirectory": "apps/admin"}'
+```
+
+### ✅ Fixed: Invoice Generation — MCP Error -32603 `function generate_invoice_number(unknown)` (2026-02-25)
+
+**Issue:** "Generate Deposit Invoice from Quote" threw MCP error -32603. PostgreSQL received `$1` as the `unknown` type when the tenant_id string was passed to a function expecting `UUID`.
+
+**Resolution:** Changed `SELECT generate_invoice_number($1)` to `SELECT generate_invoice_number($1::uuid)` in `services/invoicing-mcp/src/tools/create-invoice.ts`.
 
 ---
 
