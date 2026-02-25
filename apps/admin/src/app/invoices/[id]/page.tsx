@@ -7,6 +7,17 @@ import AppLayout from '@/components/AppLayout';
 import { api } from '@/lib/api';
 import { formatCurrency, formatDate, getStatusColor } from '@/lib/utils';
 
+interface BusinessProfile {
+  name: string;
+  trading_name?: string;
+  address_line1?: string;
+  address_line2?: string;
+  city?: string;
+  postcode?: string;
+  phone?: string;
+  email?: string;
+}
+
 interface InvoiceItem {
   id: string;
   item_type: string;
@@ -51,6 +62,7 @@ export default function InvoiceDetailPage() {
   const invoiceId = params?.id as string;
 
   const [invoice, setInvoice] = useState<Invoice | null>(null);
+  const [businessProfile, setBusinessProfile] = useState<BusinessProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
   const [showPaymentForm, setShowPaymentForm] = useState(false);
@@ -108,6 +120,14 @@ export default function InvoiceDetailPage() {
       }
 
       setInvoice(data);
+
+      // Fetch business profile for print header
+      try {
+        const profileData = await api.request('/api/identity/profile') as any;
+        setBusinessProfile(profileData.data || profileData);
+      } catch (err) {
+        console.error('Failed to load business profile:', err);
+      }
     } catch (err) {
       console.error('Failed to load invoice:', err);
     } finally {
@@ -411,11 +431,26 @@ export default function InvoiceDetailPage() {
               </p>
             </div>
             <div className="text-right">
-              <p className="font-bold text-lg mb-2">JobBuilda Ltd</p>
-              <p className="text-sm text-gray-600">123 Business Street</p>
-              <p className="text-sm text-gray-600">London, UK</p>
-              <p className="text-sm text-gray-600 mt-2">Email: info@jobbuilda.com</p>
-              <p className="text-sm text-gray-600">Tel: +44 123 456 7890</p>
+              <p className="font-bold text-lg mb-2">
+                {businessProfile?.trading_name || businessProfile?.name || 'Your Business'}
+              </p>
+              {businessProfile?.address_line1 && (
+                <p className="text-sm text-gray-600">{businessProfile.address_line1}</p>
+              )}
+              {businessProfile?.address_line2 && (
+                <p className="text-sm text-gray-600">{businessProfile.address_line2}</p>
+              )}
+              {(businessProfile?.city || businessProfile?.postcode) && (
+                <p className="text-sm text-gray-600">
+                  {[businessProfile.city, businessProfile.postcode].filter(Boolean).join(', ')}
+                </p>
+              )}
+              {businessProfile?.email && (
+                <p className="text-sm text-gray-600 mt-2">Email: {businessProfile.email}</p>
+              )}
+              {businessProfile?.phone && (
+                <p className="text-sm text-gray-600">Tel: {businessProfile.phone}</p>
+              )}
             </div>
           </div>
           <div className="grid grid-cols-2 gap-4 mt-6 mb-6">
