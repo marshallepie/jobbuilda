@@ -99,6 +99,7 @@ All database schema fixes have been applied:
 ✅ **Jobs Table Fix** - Added all missing job columns (job_number, status, assigned_to, etc.)
 ✅ **Leads Table Fix** - Added phone, address, description, source, status columns
 ✅ **`services/invoicing-mcp/migrations/002_alter_invoicing_schema.sql`** - Patched invoices table to v2 schema (see Migration History below)
+✅ **`services/invoicing-mcp/migrations/003_rename_issue_date.sql`** - Renamed `issue_date` → `invoice_date` (original table used wrong column name)
 
 ### Invoicing Migration History
 
@@ -109,6 +110,7 @@ The invoices table was originally created by an early `1_init.sql` migration (no
 | `1_init.sql` | ❌ Deleted | Original schema — had `job_id NOT NULL`, `site_id NOT NULL`, no `invoice_type`. Caused downstream errors. |
 | `001_create_invoicing_tables.sql` | ✅ Canonical | Correct from-scratch schema. Use this for any fresh DB. |
 | `002_alter_invoicing_schema.sql` | ✅ Applied to production | Defensive ALTER TABLE patch — safe to run on any DB regardless of which prior migration was applied. Run this in Supabase if the invoices table was created by the old `1_init.sql`. |
+| `003_rename_issue_date.sql` | ✅ Applied to production | Renames `issue_date` → `invoice_date`. The original table used the wrong column name; all MCP code references `invoice_date`. |
 
 ### Current Tables Status
 
