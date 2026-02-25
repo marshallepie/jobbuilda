@@ -1,6 +1,12 @@
 import type { Metadata } from 'next';
 import './globals.css';
-import { AuthProvider } from '@/contexts/AuthContext';
+import dynamic from 'next/dynamic';
+
+// ssr:false keeps @supabase/supabase-js out of the SSR server bundle.
+// AuthProvider uses client-side auth (localStorage/cookies) so it doesn't
+// need to be server-rendered; ProtectedRoute already handles auth redirects
+// on the client side.
+const Providers = dynamic(() => import('./Providers'), { ssr: false });
 
 export const metadata: Metadata = {
   title: 'JobBuilda Admin',
@@ -15,7 +21,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body>
-        <AuthProvider>{children}</AuthProvider>
+        <Providers>{children}</Providers>
       </body>
     </html>
   );

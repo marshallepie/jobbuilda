@@ -4,10 +4,13 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import AppLayout from '@/components/AppLayout';
-import CircuitDetailsForm, { CircuitDetail } from '@/components/CircuitDetailsForm';
-import CreateClientModal from '@/components/CreateClientModal';
-import CreateSiteModal from '@/components/CreateSiteModal';
+import dynamic from 'next/dynamic';
 import { api } from '@/lib/api';
+import type { CircuitDetail } from '@/components/CircuitDetailsForm';
+
+const CircuitDetailsForm = dynamic(() => import('@/components/CircuitDetailsForm'), { ssr: false });
+const CreateClientModal = dynamic(() => import('@/components/CreateClientModal'), { ssr: false });
+const CreateSiteModal = dynamic(() => import('@/components/CreateSiteModal'), { ssr: false });
 
 interface Client {
   id: string;

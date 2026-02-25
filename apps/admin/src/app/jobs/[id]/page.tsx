@@ -4,8 +4,10 @@ import { useState, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import Link from 'next/link';
 import AppLayout from '@/components/AppLayout';
-import CreateTestModal from '@/components/CreateTestModal';
+import dynamic from 'next/dynamic';
 import { api } from '@/lib/api';
+
+const CreateTestModal = dynamic(() => import('@/components/CreateTestModal'), { ssr: false });
 import { formatCurrency, formatDate, getStatusColor } from '@/lib/utils';
 
 interface TimeEntry {

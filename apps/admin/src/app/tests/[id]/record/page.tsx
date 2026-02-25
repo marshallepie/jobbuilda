@@ -4,9 +4,11 @@ import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import AppLayout from '@/components/AppLayout';
-import CircuitMeasurementForm from '@/components/CircuitMeasurementForm';
-import InspectionChecklist from '@/components/InspectionChecklist';
+import dynamic from 'next/dynamic';
 import { api } from '@/lib/api';
+
+const CircuitMeasurementForm = dynamic(() => import('@/components/CircuitMeasurementForm'), { ssr: false });
+const InspectionChecklist = dynamic(() => import('@/components/InspectionChecklist'), { ssr: false });
 
 interface Test {
   id: string;

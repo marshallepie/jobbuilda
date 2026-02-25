@@ -4,9 +4,11 @@ import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import AppLayout from '@/components/AppLayout';
-import CertificateCard from '@/components/CertificateCard';
-import GenerateCertificateModal from '@/components/GenerateCertificateModal';
+import dynamic from 'next/dynamic';
 import { api } from '@/lib/api';
+
+const CertificateCard = dynamic(() => import('@/components/CertificateCard'), { ssr: false });
+const GenerateCertificateModal = dynamic(() => import('@/components/GenerateCertificateModal'), { ssr: false });
 import { formatDate, getStatusColor } from '@/lib/utils';
 
 interface Test {
