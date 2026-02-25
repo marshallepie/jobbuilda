@@ -89,18 +89,11 @@ export default function InvoicesPage() {
             <p className="mt-1 text-sm text-gray-600">Manage and track all invoices</p>
           </div>
           <Link
-            href="/quotes"
+            href="/invoices/new"
             className="inline-flex items-center px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 whitespace-nowrap"
           >
-            <span className="mr-2">+</span> Create Invoice from Quote
+            <span className="mr-2">+</span> New Invoice
           </Link>
-        </div>
-
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-          <p className="text-sm text-blue-900">
-            <strong>Creating Invoices:</strong> Invoices are generated from approved quotes.
-            Go to the Quotes page, approve a quote, then click "Generate Deposit Invoice" to create an invoice.
-          </p>
         </div>
 
         {/* Stats Cards */}
@@ -167,7 +160,7 @@ export default function InvoicesPage() {
             <p className="text-gray-600">
               {statusFilter !== 'all' || typeFilter !== 'all'
                 ? 'Try adjusting your filters'
-                : 'Create your first invoice from an approved quote'}
+                : 'Create your first invoice using the New Invoice button above'}
             </p>
           </div>
         ) : (

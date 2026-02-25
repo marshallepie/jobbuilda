@@ -18,9 +18,9 @@ interface InvoiceItem {
 }
 
 interface CreateInvoiceInput {
-  job_id: string;
+  job_id?: string;
   client_id: string;
-  site_id: string;
+  site_id?: string;
   invoice_type?: 'deposit' | 'progress' | 'final' | 'credit_note';
   invoice_date?: string;
   payment_terms_days?: number;
@@ -43,7 +43,7 @@ export async function createInvoice(
 
       // Generate invoice number
       const numberResult = await query(
-        `SELECT generate_invoice_number($1) as number`,
+        `SELECT generate_invoice_number($1::uuid) as number`,
         [context.tenant_id]
       );
       const invoiceNumber = numberResult.rows[0].number;
@@ -64,9 +64,9 @@ export async function createInvoice(
           invoiceId,
           context.tenant_id,
           invoiceNumber,
-          input.job_id,
+          input.job_id || null,
           input.client_id,
-          input.site_id,
+          input.site_id || null,
           input.invoice_type || 'final',
           invoiceDate,
           dueDate.toISOString().split('T')[0],

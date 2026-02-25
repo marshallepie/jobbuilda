@@ -19,9 +19,14 @@ export function registerTools(server: Server) {
         inputSchema: {
           type: 'object',
           properties: {
-            job_id: { type: 'string', description: 'Job UUID' },
+            job_id: { type: 'string', description: 'Job UUID (optional for standalone invoices)' },
             client_id: { type: 'string', description: 'Client UUID' },
-            site_id: { type: 'string', description: 'Site UUID' },
+            site_id: { type: 'string', description: 'Site UUID (optional for standalone invoices)' },
+            invoice_type: {
+              type: 'string',
+              enum: ['deposit', 'progress', 'final', 'credit_note'],
+              description: 'Invoice type (default: final)',
+            },
             invoice_date: { type: 'string', description: 'Invoice date (ISO 8601)' },
             payment_terms_days: { type: 'number', description: 'Payment terms in days (default 30)' },
             items: {
@@ -48,7 +53,7 @@ export function registerTools(server: Server) {
             },
             notes: { type: 'string', description: 'Invoice notes' },
           },
-          required: ['job_id', 'client_id', 'site_id', 'items'],
+          required: ['client_id', 'items'],
         },
       },
       {

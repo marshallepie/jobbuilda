@@ -277,10 +277,10 @@ class ApiClient {
     return this.request(`/api/invoices/${id}`);
   }
 
-  async generateInvoice(jobId: string) {
-    return this.request(`/api/invoices/generate/${jobId}`, {
+  async createInvoice(data: any) {
+    return this.request('/api/invoices', {
       method: 'POST',
-      body: JSON.stringify({}),
+      body: JSON.stringify(data),
     });
   }
 
