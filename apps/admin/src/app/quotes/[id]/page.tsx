@@ -273,7 +273,7 @@ export default function QuoteDetailPage() {
 
   const previewQuote = () => {
     if (!quote) return;
-    const url = `${apiBase}/api/preview/quote?tenant_id=550e8400-e29b-41d4-a716-446655440000`;
+    const url = `${apiBase}/api/preview/quote?quote_id=${quoteId}&tenant_id=550e8400-e29b-41d4-a716-446655440000`;
     window.open(url, '_blank');
   };
 
