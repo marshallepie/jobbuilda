@@ -391,3 +391,72 @@ Foundation is complete when:
 - ✅ Developer can run `pnpm dev` and immediately start building next MCP server
 
 This foundation provides the patterns for scaling to all 11 MCP servers in the JobBuilda architecture.
+
+---
+
+## Phase: Subscription Monetization (February 2026)
+
+### Overview
+
+Adds a subscription model to monetize the platform: 14-day free trial (card required upfront), then £29/month. Additional team members £9/month each. Includes public marketing site, multi-step signup with Stripe card collection, and API-level subscription enforcement.
+
+### Components
+
+| Component | Description |
+|-----------|-------------|
+| DB migration | `services/identity-mcp/migrations/4_add_subscription_fields.sql` |
+| Stripe client | `apps/coordinator/src/lib/stripe.ts` |
+| Subscription routes | `apps/coordinator/src/routes/subscription.ts` |
+| Server gating | `apps/coordinator/src/server.ts` — 402 hook for lapsed subscriptions |
+| Admin 402 page | `apps/admin/src/app/subscription-required/page.tsx` |
+| Marketing + signup | `apps/web/` — Next.js app at `jobbuilda.co.uk` |
+
+### Stripe Configuration (Manual)
+
+1. Create product **"JobBuilda Standard"** → £29/month → `STRIPE_PRICE_ID`
+2. Create product **"Additional Seat"** → £9/month → `STRIPE_SEAT_PRICE_ID`
+3. Webhook: `https://jobbuilda-production.up.railway.app/api/subscription/webhook`
+   - Events: `customer.subscription.updated`, `customer.subscription.deleted`, `invoice.payment_failed`, `invoice.payment_succeeded`
+   - Secret → `STRIPE_WEBHOOK_SECRET`
+
+### Railway Env Vars Required
+
+```
+STRIPE_SECRET_KEY=sk_live_...
+STRIPE_WEBHOOK_SECRET=whsec_...
+STRIPE_PRICE_ID=price_...
+STRIPE_SEAT_PRICE_ID=price_...
+SUPABASE_URL=https://jnwxueomquywrqcgbgfd.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=eyJ...
+```
+
+### Vercel Env Vars for apps/web
+
+```
+NEXT_PUBLIC_API_URL=https://jobbuilda-production.up.railway.app
+NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=pk_live_...
+NEXT_PUBLIC_SUPABASE_URL=https://jnwxueomquywrqcgbgfd.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJ...
+```
+
+### Supabase Auth Configuration
+
+- Site URL: `https://jobbuilda.co.uk`
+- Redirect URL: `https://jobbuilda.co.uk/onboarding`
+
+### Signup Flow
+
+1. `/signup` → POST /api/auth/register → returns SetupIntent client secret
+2. `/verify` → holding page, email link redirects to `/onboarding?token_hash=...`
+3. `/onboarding` → Stripe CardElement → POST /api/auth/confirm-subscription
+4. `/welcome` → success, link to admin dashboard
+
+### Verification Checklist
+
+- [ ] Run `4_add_subscription_fields.sql` in Supabase SQL editor
+- [ ] Set Stripe env vars in Railway + redeploy coordinator
+- [ ] Create Vercel project for `apps/web`, set domain `jobbuilda.co.uk`
+- [ ] Visit landing page → complete full signup flow
+- [ ] Verify Stripe dashboard: customer, SetupIntent, subscription with trial
+- [ ] Trigger `invoice.payment_failed` webhook → confirm 402 in admin
+- [ ] Confirm Stripe portal session redirects correctly

@@ -77,6 +77,14 @@ class ApiClient {
       headers,
     });
 
+    if (response.status === 402) {
+      if (typeof window !== 'undefined') {
+        window.location.href = '/subscription-required';
+      }
+      const error = await response.json().catch(() => ({}));
+      throw new ApiError('Subscription required', 402, error);
+    }
+
     if (!response.ok) {
       const error = await response.json().catch(() => ({}));
       throw new ApiError(

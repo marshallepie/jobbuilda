@@ -16,6 +16,8 @@ import { reportingRoutes } from './routes/reporting.js';
 import { previewRoutes } from './routes/preview.js';
 import { pdfRoutes } from './routes/pdf.js';
 import { emailRoutes } from './routes/email.js';
+import { subscriptionRoutes } from './routes/subscription.js';
+import { getPool } from './lib/db.js';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
@@ -298,6 +300,34 @@ export async function createServer() {
     fastify.log.info('Disconnected from all MCP servers');
   });
 
+  // Subscription gating: return 402 for past_due/canceled tenants on all
+  // authenticated routes except /api/subscription/* and /api/auth/*
+  fastify.addHook('onRequest', async (request, reply) => {
+    const tenantId = request.headers['x-tenant-id'] as string | undefined;
+    if (!tenantId) return;
+
+    const url = request.url.split('?')[0];
+    if (url.startsWith('/api/subscription') || url.startsWith('/api/auth')) return;
+
+    try {
+      const db = getPool();
+      const result = await db.query(
+        'SELECT subscription_status FROM tenants WHERE id = $1',
+        [tenantId]
+      );
+      const status = result.rows[0]?.subscription_status;
+      if (status === 'past_due' || status === 'canceled') {
+        return reply.status(402).send({
+          error: 'Subscription required',
+          subscription_status: status,
+        });
+      }
+    } catch (err) {
+      fastify.log.error({ err }, 'Subscription gating check failed');
+      // On DB error, allow the request through rather than blocking all traffic
+    }
+  });
+
   // Register routes
   await fastify.register(healthRoutes);
   await fastify.register(identityRoutes);
@@ -314,6 +344,7 @@ export async function createServer() {
   await fastify.register(previewRoutes);
   await fastify.register(pdfRoutes);
   await fastify.register(emailRoutes);
+  await fastify.register(subscriptionRoutes);
 
   return fastify;
 }
