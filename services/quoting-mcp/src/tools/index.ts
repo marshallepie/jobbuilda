@@ -5,6 +5,9 @@ import { sendQuote, SendQuoteInput, SendQuoteOutput } from './send-quote.js';
 import { approveQuote, ApproveQuoteInput, ApproveQuoteOutput } from './approve-quote.js';
 import { rejectQuote, RejectQuoteInput, RejectQuoteOutput } from './reject-quote.js';
 import { updateQuote, UpdateQuoteInput, UpdateQuoteOutput } from './update-quote.js';
+import { deleteQuote, DeleteQuoteInput } from './delete-quote.js';
+import { addQuoteItem, AddQuoteItemInput } from './add-quote-item.js';
+import { removeQuoteItem, RemoveQuoteItemInput } from './remove-quote-item.js';
 
 export const tools = [
   {
@@ -99,6 +102,50 @@ export const tools = [
     }
   },
   {
+    name: 'delete_quote',
+    description: 'Delete a quote (not allowed for approved quotes)',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        quote_id: { type: 'string', description: 'Quote UUID' },
+      },
+      required: ['quote_id'],
+    }
+  },
+  {
+    name: 'add_quote_item',
+    description: 'Add a line item to an existing quote',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        quote_id: { type: 'string' },
+        item_type: { type: 'string', enum: ['material', 'labor', 'other'] },
+        description: { type: 'string' },
+        quantity: { type: 'number' },
+        unit: { type: 'string' },
+        unit_price_ex_vat: { type: 'number' },
+        markup_percent: { type: 'number' },
+        estimated_hours: { type: 'number' },
+        labor_rate: { type: 'number' },
+        vat_rate: { type: 'number' },
+        notes: { type: 'string' },
+      },
+      required: ['quote_id', 'item_type', 'description', 'quantity'],
+    }
+  },
+  {
+    name: 'remove_quote_item',
+    description: 'Remove a line item from a quote',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        quote_id: { type: 'string' },
+        item_id: { type: 'string' },
+      },
+      required: ['quote_id', 'item_id'],
+    }
+  },
+  {
     name: 'update_quote',
     description: 'Update a quote with new values',
     inputSchema: {
@@ -146,6 +193,15 @@ export async function handleToolCall(name: string, args: any): Promise<any> {
 
     case 'update_quote':
       return await updateQuote(args as UpdateQuoteInput, context);
+
+    case 'delete_quote':
+      return await deleteQuote(args as DeleteQuoteInput, context);
+
+    case 'add_quote_item':
+      return await addQuoteItem(args as AddQuoteItemInput, context);
+
+    case 'remove_quote_item':
+      return await removeQuoteItem(args as RemoveQuoteItemInput, context);
 
     default:
       throw new Error(`Unknown tool: ${name}`);

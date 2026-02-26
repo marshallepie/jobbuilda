@@ -177,6 +177,66 @@ export async function quotingRoutes(fastify: FastifyInstance) {
     }
   );
 
+  // PUT /api/quotes/:id - Update quote header fields
+  fastify.put<{ Params: { id: string }; Body: Record<string, unknown> }>(
+    '/api/quotes/:id',
+    async (request, reply) => {
+      const context = extractAuthContext(request);
+      const { id } = request.params;
+      try {
+        const result = await fastify.mcp.quoting.callTool(
+          'update_quote',
+          { quote_id: id, ...request.body },
+          context
+        );
+        const data = JSON.parse(result.content[0]?.text || '{}');
+        return data;
+      } catch (error: any) {
+        reply.status(500).send({ error: 'Failed to update quote', message: error.message });
+      }
+    }
+  );
+
+  // POST /api/quotes/:id/items - Add item to quote
+  fastify.post<{ Params: { id: string }; Body: Record<string, unknown> }>(
+    '/api/quotes/:id/items',
+    async (request, reply) => {
+      const context = extractAuthContext(request);
+      const { id } = request.params;
+      try {
+        const result = await fastify.mcp.quoting.callTool(
+          'add_quote_item',
+          { quote_id: id, ...request.body },
+          context
+        );
+        const data = JSON.parse(result.content[0]?.text || '{}');
+        return data;
+      } catch (error: any) {
+        reply.status(500).send({ error: 'Failed to add quote item', message: error.message });
+      }
+    }
+  );
+
+  // DELETE /api/quotes/:id/items/:itemId - Remove item from quote
+  fastify.delete<{ Params: { id: string; itemId: string } }>(
+    '/api/quotes/:id/items/:itemId',
+    async (request, reply) => {
+      const context = extractAuthContext(request);
+      const { id, itemId } = request.params;
+      try {
+        const result = await fastify.mcp.quoting.callTool(
+          'remove_quote_item',
+          { quote_id: id, item_id: itemId },
+          context
+        );
+        const data = JSON.parse(result.content[0]?.text || '{}');
+        return data;
+      } catch (error: any) {
+        reply.status(500).send({ error: 'Failed to remove quote item', message: error.message });
+      }
+    }
+  );
+
   // DELETE /api/quotes/:id - Delete quote
   fastify.delete<{ Params: { id: string } }>(
     '/api/quotes/:id',

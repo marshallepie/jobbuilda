@@ -7,6 +7,8 @@ import { createInvoice } from './create-invoice.js';
 import { sendInvoice } from './send-invoice.js';
 import { recordPayment } from './record-payment.js';
 import { cancelInvoice } from './cancel-invoice.js';
+import { updateInvoice } from './update-invoice.js';
+import { deleteInvoice } from './delete-invoice.js';
 import type { AuthContext } from '@jobbuilda/contracts';
 
 export function registerTools(server: Server) {
@@ -84,6 +86,32 @@ export function registerTools(server: Server) {
         },
       },
       {
+        name: 'update_invoice',
+        description: 'Update a draft invoice (header fields and/or line items)',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            invoice_id: { type: 'string' },
+            invoice_date: { type: 'string' },
+            payment_terms_days: { type: 'number' },
+            notes: { type: 'string' },
+            items: { type: 'array' },
+          },
+          required: ['invoice_id'],
+        },
+      },
+      {
+        name: 'delete_invoice',
+        description: 'Delete a draft or sent invoice (not allowed if payments recorded)',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            invoice_id: { type: 'string' },
+          },
+          required: ['invoice_id'],
+        },
+      },
+      {
         name: 'cancel_invoice',
         description: 'Cancel an invoice',
         inputSchema: {
@@ -121,6 +149,12 @@ export function registerTools(server: Server) {
         break;
       case 'cancel_invoice':
         result = await cancelInvoice(args as any, context);
+        break;
+      case 'update_invoice':
+        result = await updateInvoice(args as any, context);
+        break;
+      case 'delete_invoice':
+        result = await deleteInvoice(args as any, context);
         break;
       default:
         throw new Error(`Unknown tool: ${name}`);

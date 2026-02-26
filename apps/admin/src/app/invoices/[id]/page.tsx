@@ -135,6 +135,20 @@ export default function InvoiceDetailPage() {
     }
   };
 
+  const deleteInvoice = async () => {
+    if (!invoice) return;
+    if (!confirm(`Delete invoice ${invoice.invoice_number}? This cannot be undone.`)) return;
+    setActionLoading(true);
+    try {
+      await api.request(`/api/invoices/${invoiceId}`, { method: 'DELETE' });
+      router.push('/invoices');
+    } catch (err: any) {
+      alert(err.message || 'Failed to delete invoice. Please try again.');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
   const sendInvoice = async () => {
     if (!invoice) return;
 
@@ -489,6 +503,23 @@ export default function InvoiceDetailPage() {
                   className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 text-sm font-medium"
                 >
                   {showPaymentForm ? '✕ Cancel' : '💰 Record Payment'}
+                </button>
+              )}
+              {invoice.status === 'draft' && (
+                <button
+                  onClick={() => router.push(`/invoices/${invoiceId}/edit`)}
+                  className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 text-sm font-medium"
+                >
+                  Edit
+                </button>
+              )}
+              {(invoice.status === 'draft' || invoice.status === 'sent' || invoice.status === 'viewed' || invoice.status === 'overdue') && (
+                <button
+                  onClick={deleteInvoice}
+                  disabled={actionLoading}
+                  className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 disabled:opacity-50 text-sm font-medium"
+                >
+                  {actionLoading ? 'Deleting...' : 'Delete'}
                 </button>
               )}
               <button

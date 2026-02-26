@@ -106,6 +106,46 @@ export async function invoicingRoutes(fastify: FastifyInstance) {
     }
   );
 
+  // PUT /api/invoices/:id - Update draft invoice
+  fastify.put<{ Params: { id: string }; Body: Record<string, unknown> }>(
+    '/api/invoices/:id',
+    async (request, reply) => {
+      const context = extractAuthContext(request);
+      const { id } = request.params;
+      try {
+        const result = await fastify.mcp.invoicing.callTool(
+          'update_invoice',
+          { invoice_id: id, ...request.body },
+          context
+        );
+        const data = JSON.parse(result.content[0]?.text || '{}');
+        return data;
+      } catch (error: any) {
+        reply.status(500).send({ error: 'Failed to update invoice', message: error.message });
+      }
+    }
+  );
+
+  // DELETE /api/invoices/:id - Delete invoice
+  fastify.delete<{ Params: { id: string } }>(
+    '/api/invoices/:id',
+    async (request, reply) => {
+      const context = extractAuthContext(request);
+      const { id } = request.params;
+      try {
+        const result = await fastify.mcp.invoicing.callTool(
+          'delete_invoice',
+          { invoice_id: id },
+          context
+        );
+        const data = JSON.parse(result.content[0]?.text || '{}');
+        return data;
+      } catch (error: any) {
+        reply.status(500).send({ error: 'Failed to delete invoice', message: error.message });
+      }
+    }
+  );
+
   // POST /api/invoices/:id/cancel - Cancel invoice
   fastify.post<{ Params: { id: string }; Body: Record<string, unknown> }>(
     '/api/invoices/:id/cancel',
