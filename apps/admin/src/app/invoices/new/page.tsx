@@ -35,13 +35,13 @@ interface LineItem {
   vat_rate: string;
 }
 
-const blankItem = (): LineItem => ({
+const blankItem = (vatRate = 20): LineItem => ({
   item_type: 'labor',
   description: '',
   quantity: '1',
   unit: 'unit',
   unit_price_ex_vat: '0',
-  vat_rate: '20',
+  vat_rate: String(vatRate),
 });
 
 export default function NewInvoicePage() {
@@ -67,6 +67,7 @@ export default function NewInvoicePage() {
   const [notes, setNotes] = useState('');
   const [lineItems, setLineItems] = useState<LineItem[]>([blankItem()]);
 
+  const [defaultVatRate, setDefaultVatRate] = useState(20);
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState('');
@@ -100,8 +101,17 @@ export default function NewInvoicePage() {
 
   const loadClients = async () => {
     try {
-      const data = await api.getClients() as any;
-      setClients(Array.isArray(data) ? data : (data.data || []));
+      const [clientsData, profileData] = await Promise.all([
+        api.getClients() as any,
+        api.request('/api/identity/profile').catch(() => null) as any,
+      ]);
+      setClients(Array.isArray(clientsData) ? clientsData : (clientsData.data || []));
+      const profile = profileData?.data || profileData;
+      if (profile?.default_vat_rate != null) {
+        const rate = Number(profile.default_vat_rate);
+        setDefaultVatRate(rate);
+        setLineItems([blankItem(rate)]);
+      }
     } catch (err) {
       console.error('Failed to load clients:', err);
     } finally {
@@ -165,7 +175,7 @@ export default function NewInvoicePage() {
 
   // ─── Standalone invoice creation ─────────────────────────────────────────
 
-  const addItem = () => setLineItems(prev => [...prev, blankItem()]);
+  const addItem = () => setLineItems(prev => [...prev, blankItem(defaultVatRate)]);
 
   const removeItem = (idx: number) =>
     setLineItems(prev => prev.filter((_, i) => i !== idx));

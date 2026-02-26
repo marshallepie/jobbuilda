@@ -116,6 +116,17 @@ export default function NewQuotePage() {
       const clientsData = await api.request('/api/clients/clients') as Client[];
       setClients(clientsData);
 
+      // Load tenant profile to get default VAT rate
+      try {
+        const profile = await api.request('/api/identity/profile') as any;
+        const profileData = profile.data || profile;
+        if (profileData.default_vat_rate != null) {
+          setNewItemVatRate(String(profileData.default_vat_rate));
+        }
+      } catch (err) {
+        console.error('Failed to load profile:', err);
+      }
+
       // Set default valid until date (30 days from now)
       const defaultDate = new Date();
       defaultDate.setDate(defaultDate.getDate() + 30);
