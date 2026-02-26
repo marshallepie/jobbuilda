@@ -7,6 +7,17 @@ import AppLayout from '@/components/AppLayout';
 import { api } from '@/lib/api';
 import { formatCurrency, formatDate, getStatusColor } from '@/lib/utils';
 
+interface BusinessProfile {
+  name: string;
+  trading_name?: string;
+  address_line1?: string;
+  address_line2?: string;
+  city?: string;
+  postcode?: string;
+  phone?: string;
+  email?: string;
+}
+
 interface QuoteItem {
   id: string;
   item_type: string;
@@ -55,6 +66,7 @@ export default function QuoteDetailPage() {
   const quoteId = params?.id as string;
 
   const [quote, setQuote] = useState<Quote | null>(null);
+  const [businessProfile, setBusinessProfile] = useState<BusinessProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
 
@@ -103,6 +115,14 @@ export default function QuoteDetailPage() {
       }
 
       setQuote(data);
+
+      // Fetch business profile for print header
+      try {
+        const profileData = await api.request('/api/identity/profile') as any;
+        setBusinessProfile(profileData.data || profileData);
+      } catch (err) {
+        console.error('Failed to load business profile:', err);
+      }
     } catch (err) {
       console.error('Failed to load quote:', err);
     } finally {
@@ -286,9 +306,80 @@ export default function QuoteDetailPage() {
 
   return (
     <AppLayout>
-      <div className="space-y-6 max-w-5xl">
-        {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+      <style jsx global>{`
+        @media print {
+          aside, nav, header, .no-print,
+          button, .hamburger-menu,
+          [class*="menu"], [class*="nav"],
+          img[alt*="logo"], .logo {
+            display: none !important;
+          }
+          @page { margin: 10mm; }
+          body { margin: 0; padding: 0; }
+          html, body { width: 210mm; }
+          .print-content {
+            max-width: 100% !important;
+            width: 100% !important;
+            margin: 0 !important;
+            padding: 10mm !important;
+          }
+          .shadow, .rounded-lg { box-shadow: none !important; }
+          [style*="position: fixed"], [style*="position: absolute"],
+          .fixed, .absolute { display: none !important; }
+          table { border-collapse: collapse; width: 100%; }
+          th, td { border: 1px solid #ddd; padding: 4px 6px !important; font-size: 0.875rem; }
+          th { background-color: #f3f4f6 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+          * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+        }
+      `}</style>
+      <div className="space-y-6 max-w-5xl print-content">
+        {/* Header - Print Only */}
+        <div className="hidden print:block mb-8">
+          <div className="flex justify-between items-start border-b-2 border-gray-800 pb-4">
+            <div>
+              <h1 className="text-4xl font-bold text-gray-900 mb-2">QUOTE</h1>
+              <p className="text-xl font-semibold">{quote.quote_number}</p>
+              <p className="text-lg font-medium text-gray-700 mt-1">{quote.title}</p>
+            </div>
+            <div className="text-right">
+              <p className="font-bold text-lg mb-2">
+                {businessProfile?.trading_name || businessProfile?.name || 'Your Business'}
+              </p>
+              {businessProfile?.address_line1 && (
+                <p className="text-sm text-gray-600">{businessProfile.address_line1}</p>
+              )}
+              {businessProfile?.address_line2 && (
+                <p className="text-sm text-gray-600">{businessProfile.address_line2}</p>
+              )}
+              {(businessProfile?.city || businessProfile?.postcode) && (
+                <p className="text-sm text-gray-600">
+                  {[businessProfile.city, businessProfile.postcode].filter(Boolean).join(', ')}
+                </p>
+              )}
+              {businessProfile?.email && (
+                <p className="text-sm text-gray-600 mt-2">Email: {businessProfile.email}</p>
+              )}
+              {businessProfile?.phone && (
+                <p className="text-sm text-gray-600">Tel: {businessProfile.phone}</p>
+              )}
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-4 mt-4 mb-4">
+            <div>
+              <p className="text-sm font-semibold text-gray-700 mb-1">Date:</p>
+              <p className="text-base">{formatDate(quote.created_at)}</p>
+            </div>
+            {quote.valid_until && (
+              <div>
+                <p className="text-sm font-semibold text-gray-700 mb-1">Valid Until:</p>
+                <p className="text-base">{formatDate(quote.valid_until)}</p>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Header - Screen Only */}
+        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 no-print">
           <div>
             <Link href="/quotes" className="text-indigo-600 hover:text-indigo-700 text-sm mb-2 inline-block">
               ← Back to Quotes
@@ -305,7 +396,7 @@ export default function QuoteDetailPage() {
         </div>
 
         {/* Actions Bar */}
-        <div className="bg-white shadow rounded-lg p-4">
+        <div className="bg-white shadow rounded-lg p-4 no-print">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             <div className="text-sm text-gray-600">
               {quote.sent_at && `Sent ${formatDate(quote.sent_at)}`}
