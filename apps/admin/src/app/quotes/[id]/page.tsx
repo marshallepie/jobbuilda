@@ -257,12 +257,13 @@ export default function QuoteDetailPage() {
     }
   };
 
+  const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
+
   const downloadPDF = async () => {
     if (!quote) return;
 
     try {
-      // Open PDF in new window/tab (browser will handle download)
-      const url = `http://localhost:3000/api/pdf/quote/${quoteId}`;
+      const url = `${apiBase}/api/pdf/quote/${quoteId}`;
       window.open(url, '_blank');
     } catch (err) {
       console.error('Failed to download PDF:', err);
@@ -272,8 +273,7 @@ export default function QuoteDetailPage() {
 
   const previewQuote = () => {
     if (!quote) return;
-    // Open preview in new tab
-    const url = `http://localhost:3000/api/preview/quote?tenant_id=550e8400-e29b-41d4-a716-446655440000`;
+    const url = `${apiBase}/api/preview/quote?tenant_id=550e8400-e29b-41d4-a716-446655440000`;
     window.open(url, '_blank');
   };
 
