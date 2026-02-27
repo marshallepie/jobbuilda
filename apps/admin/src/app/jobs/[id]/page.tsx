@@ -594,6 +594,14 @@ export default function JobDetailPage() {
                 Complete Job
               </button>
             )}
+            {job.status === 'completed' && (
+              <Link
+                href={`/invoices/new?job_id=${jobId}`}
+                className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+              >
+                Create Invoice
+              </Link>
+            )}
           </div>
         </div>
 

@@ -48,10 +48,15 @@ export default function NewInvoicePage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const quoteId = searchParams?.get('quote_id');
+  const jobId = searchParams?.get('job_id');
 
   // Quote-based flow
   const [quote, setQuote] = useState<Quote | null>(null);
   const [depositPercent, setDepositPercent] = useState(30);
+
+  // Job-based flow
+  const [jobTitle, setJobTitle] = useState('');
+  const [jobNumber, setJobNumber] = useState('');
 
   // Standalone flow
   const [clientMode, setClientMode] = useState<'existing' | 'new'>('new');
@@ -82,10 +87,12 @@ export default function NewInvoicePage() {
 
     if (quoteId) {
       loadQuote();
+    } else if (jobId) {
+      loadJob();
     } else {
       loadClients();
     }
-  }, [quoteId]);
+  }, [quoteId, jobId]);
 
   const loadQuote = async () => {
     try {
@@ -114,6 +121,86 @@ export default function NewInvoicePage() {
       }
     } catch (err) {
       console.error('Failed to load clients:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadJob = async () => {
+    try {
+      const [jobData, profileData] = await Promise.all([
+        api.request(`/api/jobs/${jobId}`) as any,
+        api.request('/api/identity/profile').catch(() => null) as any,
+      ]);
+
+      const profile = profileData?.data || profileData;
+      const vatRate = profile?.default_vat_rate != null ? Number(profile.default_vat_rate) : 20;
+      setDefaultVatRate(vatRate);
+
+      setJobTitle(jobData.title || '');
+      setJobNumber(jobData.job_number || '');
+
+      if (jobData.client_id) {
+        setClientMode('existing');
+        setSelectedClientId(jobData.client_id);
+      }
+
+      setInvoiceType('final');
+
+      // Load time entries, materials, and approved variations in parallel
+      const [timeEntries, materials, variations] = await Promise.all([
+        api.getJobTimeEntries(jobId!).catch(() => []) as any,
+        api.getJobMaterials(jobId!).catch(() => []) as any,
+        api.getJobVariations(jobId!).catch(() => []) as any,
+      ]);
+
+      const items: LineItem[] = [];
+
+      const timeArr: any[] = Array.isArray(timeEntries) ? timeEntries : (timeEntries?.data || []);
+      for (const entry of timeArr) {
+        const hours = parseFloat(entry.hours) || 0;
+        if (hours <= 0) continue;
+        items.push({
+          item_type: 'labor',
+          description: entry.description || entry.notes || `Labour – ${entry.date || ''}`.trim(),
+          quantity: String(hours),
+          unit: 'hrs',
+          unit_price_ex_vat: '0',
+          vat_rate: String(vatRate),
+        });
+      }
+
+      const matArr: any[] = Array.isArray(materials) ? materials : (materials?.data || []);
+      for (const mat of matArr) {
+        const qty = parseFloat(mat.quantity_used ?? mat.quantity) || 0;
+        if (qty <= 0) continue;
+        items.push({
+          item_type: 'material',
+          description: mat.name || mat.description || 'Material',
+          quantity: String(qty),
+          unit: mat.unit || 'unit',
+          unit_price_ex_vat: String(parseFloat(mat.unit_cost ?? mat.unit_price_ex_vat) || 0),
+          vat_rate: String(vatRate),
+        });
+      }
+
+      const varArr: any[] = Array.isArray(variations) ? variations : (variations?.data || []);
+      for (const variation of varArr) {
+        if (variation.status !== 'approved') continue;
+        items.push({
+          item_type: 'variation',
+          description: `Variation ${variation.variation_number}: ${variation.description}`,
+          quantity: '1',
+          unit: 'job',
+          unit_price_ex_vat: String(parseFloat(variation.amount_ex_vat) || 0),
+          vat_rate: String(vatRate),
+        });
+      }
+
+      setLineItems(items.length > 0 ? items : [blankItem(vatRate)]);
+    } catch (err) {
+      console.error('Failed to load job:', err);
+      setError('Failed to load job details. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -258,6 +345,7 @@ export default function NewInvoicePage() {
         method: 'POST',
         body: JSON.stringify({
           client_id: clientId,
+          job_id: jobId || undefined,
           invoice_type: invoiceType,
           invoice_date: invoiceDate,
           payment_terms_days: paymentTermsDays,
@@ -435,14 +523,18 @@ export default function NewInvoicePage() {
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">New Invoice</h1>
-            <p className="text-gray-600 mt-1">Create a standalone invoice</p>
+            <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">
+              {jobId ? 'Create Invoice' : 'New Invoice'}
+            </h1>
+            <p className="text-gray-600 mt-1">
+              {jobId ? `From job ${jobNumber || jobId}${jobTitle ? ` – ${jobTitle}` : ''}` : 'Create a standalone invoice'}
+            </p>
           </div>
           <Link
-            href="/invoices"
+            href={jobId ? `/jobs/${jobId}` : '/invoices'}
             className="px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
           >
-            Cancel
+            {jobId ? 'Back to Job' : 'Cancel'}
           </Link>
         </div>
 
