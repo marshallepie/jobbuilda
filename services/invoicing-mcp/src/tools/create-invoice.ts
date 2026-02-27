@@ -82,7 +82,7 @@ export async function createInvoice(
       // Insert invoice items with VAT calculations
       const items = [];
       for (const item of input.items) {
-        const vatRate = item.vat_rate || 20.00;
+        const vatRate = item.vat_rate ?? 20.00;
         const lineTotal = item.quantity * item.unit_price_ex_vat;
         const lineVat = Math.round(lineTotal * (vatRate / 100) * 100) / 100;
         const lineTotalIncVat = lineTotal + lineVat;
