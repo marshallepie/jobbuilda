@@ -389,8 +389,8 @@ export default function SettingsPage() {
                     <input
                       type="number"
                       step="0.01"
-                      value={profile.default_vat_rate || ''}
-                      onChange={(e) => updateField('default_vat_rate', parseFloat(e.target.value))}
+                      value={profile.default_vat_rate ?? ''}
+                      onChange={(e) => updateField('default_vat_rate', e.target.value === '' ? null : parseFloat(e.target.value))}
                       className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
                     />
                   </div>

@@ -241,7 +241,7 @@ export default function NewInvoicePage() {
         quantity: parseFloat(item.quantity) * depositMultiplier,
         unit: item.unit,
         unit_price_ex_vat: parseFloat(item.unit_price_ex_vat),
-        vat_rate: parseFloat(item.vat_rate || '20'),
+        vat_rate: parseFloat(item.vat_rate) || 0,
       })) || [];
 
       // Step 3: Create deposit invoice
@@ -344,7 +344,7 @@ export default function NewInvoicePage() {
         quantity: parseFloat(item.quantity),
         unit: item.unit.trim() || 'unit',
         unit_price_ex_vat: parseFloat(item.unit_price_ex_vat),
-        vat_rate: parseFloat(item.vat_rate) || 20,
+        vat_rate: parseFloat(item.vat_rate) || 0,
       }));
 
       const invoice = await api.request('/api/invoices', {
