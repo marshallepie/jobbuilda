@@ -150,22 +150,22 @@ export default function NewInvoicePage() {
 
       setInvoiceType('final');
 
-      // Load time entries, materials, and approved variations in parallel
-      const [timeEntries, materials, variations] = await Promise.all([
-        api.getJobTimeEntries(jobId!).catch(() => []) as any,
-        api.getJobMaterials(jobId!).catch(() => []) as any,
-        api.getJobVariations(jobId!).catch(() => []) as any,
+      // Load materials and variations separately — time entries are already on jobData
+      const [materialsResp, variationsResp] = await Promise.all([
+        api.getJobMaterials(jobId!).catch(() => null) as any,
+        api.getJobVariations(jobId!).catch(() => null) as any,
       ]);
 
       const items: LineItem[] = [];
 
-      const timeArr: any[] = Array.isArray(timeEntries) ? timeEntries : (timeEntries?.data || []);
+      // Time entries — included in job GET response as time_entries[]
+      const timeArr: any[] = Array.isArray(jobData.time_entries) ? jobData.time_entries : [];
       for (const entry of timeArr) {
         const hours = parseFloat(entry.hours) || 0;
         if (hours <= 0) continue;
         items.push({
           item_type: 'labor',
-          description: entry.description || entry.notes || `Labour – ${entry.date || ''}`.trim(),
+          description: entry.notes || entry.description || 'Labour',
           quantity: String(hours),
           unit: 'hrs',
           unit_price_ex_vat: '0',
@@ -173,7 +173,8 @@ export default function NewInvoicePage() {
         });
       }
 
-      const matArr: any[] = Array.isArray(materials) ? materials : (materials?.data || []);
+      // Materials — response shape: { materials: [...], summary: {...} }
+      const matArr: any[] = materialsResp?.materials || [];
       for (const mat of matArr) {
         const qty = parseFloat(mat.quantity_used ?? mat.quantity) || 0;
         if (qty <= 0) continue;
@@ -187,15 +188,17 @@ export default function NewInvoicePage() {
         });
       }
 
-      const varArr: any[] = Array.isArray(variations) ? variations : (variations?.data || []);
+      // Variations — response shape: { variations: [...], summary: {...} }
+      // Include approved and completed variations; field is total_ex_vat
+      const varArr: any[] = variationsResp?.variations || [];
       for (const variation of varArr) {
-        if (variation.status !== 'approved') continue;
+        if (variation.status !== 'approved' && variation.status !== 'completed') continue;
         items.push({
           item_type: 'variation',
-          description: `Variation ${variation.variation_number}: ${variation.description}`,
+          description: variation.title || variation.description || 'Variation',
           quantity: '1',
           unit: 'job',
-          unit_price_ex_vat: String(parseFloat(variation.amount_ex_vat) || 0),
+          unit_price_ex_vat: String(parseFloat(variation.total_ex_vat) || 0),
           vat_rate: String(vatRate),
         });
       }
