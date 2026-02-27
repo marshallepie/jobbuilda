@@ -422,8 +422,13 @@ export default function JobDetailPage() {
       };
       api.setAuth(mockAuth);
 
+      const endTime = new Date();
+      const startTime = new Date(endTime.getTime() - totalHours * 60 * 60 * 1000);
+
       await api.logTime(jobId, {
-        date: new Date().toISOString().split('T')[0],
+        date: startTime.toISOString().split('T')[0],
+        start_time: startTime.toISOString(),
+        end_time: endTime.toISOString(),
         hours: parseFloat(totalHours.toFixed(2)),
         notes: manualEntry.notes || undefined,
       });
