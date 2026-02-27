@@ -128,10 +128,13 @@ export default function NewInvoicePage() {
 
   const loadJob = async () => {
     try {
-      const [jobData, profileData] = await Promise.all([
+      const [jobData, profileData, clientsData] = await Promise.all([
         api.request(`/api/jobs/${jobId}`) as any,
         api.request('/api/identity/profile').catch(() => null) as any,
+        api.getClients().catch(() => []) as any,
       ]);
+
+      setClients(Array.isArray(clientsData) ? clientsData : (clientsData?.data || []));
 
       const profile = profileData?.data || profileData;
       const vatRate = profile?.default_vat_rate != null ? Number(profile.default_vat_rate) : 20;

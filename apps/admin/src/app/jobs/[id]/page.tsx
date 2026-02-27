@@ -116,8 +116,8 @@ export default function JobDetailPage() {
   // Manual time entry state
   const [showManualEntry, setShowManualEntry] = useState(false);
   const [manualEntry, setManualEntry] = useState({
-    start_time: '',
-    end_time: '',
+    hours: '',
+    minutes: '',
     notes: '',
   });
 
@@ -405,17 +405,12 @@ export default function JobDetailPage() {
   const handleSubmitManualEntry = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!manualEntry.start_time || !manualEntry.end_time) {
-      alert('Please enter both start and end times');
-      return;
-    }
+    const h = parseInt(manualEntry.hours) || 0;
+    const m = parseInt(manualEntry.minutes) || 0;
+    const totalHours = h + m / 60;
 
-    const startTime = new Date(manualEntry.start_time);
-    const endTime = new Date(manualEntry.end_time);
-    const durationHours = (endTime.getTime() - startTime.getTime()) / (1000 * 60 * 60);
-
-    if (durationHours <= 0) {
-      alert('End time must be after start time');
+    if (totalHours <= 0) {
+      alert('Please enter a duration greater than 0');
       return;
     }
 
@@ -428,16 +423,14 @@ export default function JobDetailPage() {
       api.setAuth(mockAuth);
 
       await api.logTime(jobId, {
-        date: startTime.toISOString().split('T')[0], // YYYY-MM-DD format
-        start_time: startTime.toISOString(),
-        end_time: endTime.toISOString(),
-        hours: parseFloat(durationHours.toFixed(2)),
+        date: new Date().toISOString().split('T')[0],
+        hours: parseFloat(totalHours.toFixed(2)),
         notes: manualEntry.notes || undefined,
       });
 
-      setManualEntry({ start_time: '', end_time: '', notes: '' });
+      setManualEntry({ hours: '', minutes: '', notes: '' });
       setShowManualEntry(false);
-      await loadJobDetails(); // Reload job details which includes time entries
+      await loadJobDetails();
       alert('Time logged successfully!');
     } catch (err: any) {
       console.error('Failed to log time:', err);
@@ -814,28 +807,30 @@ export default function JobDetailPage() {
             <form onSubmit={handleSubmitManualEntry} className="mt-4 bg-gray-50 border border-gray-200 rounded-lg p-4 space-y-4">
               <h3 className="text-sm font-semibold text-gray-900">Manual Time Entry</h3>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-medium text-gray-700 mb-1">
-                    Start Time <span className="text-red-500">*</span>
+                    Hours <span className="text-red-500">*</span>
                   </label>
                   <input
-                    type="datetime-local"
-                    value={manualEntry.start_time}
-                    onChange={(e) => setManualEntry({ ...manualEntry, start_time: e.target.value })}
-                    required
+                    type="number"
+                    min="0"
+                    max="24"
+                    value={manualEntry.hours}
+                    onChange={(e) => setManualEntry({ ...manualEntry, hours: e.target.value })}
+                    placeholder="0"
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">
-                    End Time <span className="text-red-500">*</span>
-                  </label>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">Minutes</label>
                   <input
-                    type="datetime-local"
-                    value={manualEntry.end_time}
-                    onChange={(e) => setManualEntry({ ...manualEntry, end_time: e.target.value })}
-                    required
+                    type="number"
+                    min="0"
+                    max="59"
+                    value={manualEntry.minutes}
+                    onChange={(e) => setManualEntry({ ...manualEntry, minutes: e.target.value })}
+                    placeholder="0"
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
                   />
                 </div>
