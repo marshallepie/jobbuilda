@@ -1,23 +1,40 @@
 import { FastifyInstance } from 'fastify';
+import { Readable } from 'stream';
 import { stripe } from '../lib/stripe.js';
 import { getPool } from '../lib/db.js';
 
 /**
- * Webhook route registered as its own top-level plugin so that
- * addContentTypeParser only affects this one route and nothing else.
+ * Stripe webhook route.
+ *
+ * Fastify v5 no longer scopes addContentTypeParser per plugin, so we cannot
+ * override the JSON parser here without breaking every other route. Instead we
+ * use a preParsing hook to capture the exact raw bytes into request.rawBody
+ * before the JSON parser consumes them, then re-emit those same bytes so the
+ * JSON parser still runs normally. The webhook handler reads request.rawBody
+ * for Stripe signature verification.
  */
 export async function subscriptionWebhookRoutes(fastify: FastifyInstance) {
-  // Return raw Buffer instead of parsed JSON — required for Stripe signature verification
-  fastify.addContentTypeParser('application/json', { parseAs: 'buffer' }, (_req, body, done) => {
-    done(null, body);
+  // Capture raw body bytes before the JSON parser reads the stream
+  fastify.addHook('preParsing', async (request, _reply, payload) => {
+    const chunks: Buffer[] = [];
+    for await (const chunk of payload) {
+      chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk as string));
+    }
+    const raw = Buffer.concat(chunks);
+    (request as any).rawBody = raw;
+    // Return a new Readable so the JSON parser still works
+    return Readable.from(raw);
   });
 
   fastify.post('/api/subscription/webhook', async (request, reply) => {
     const sig = request.headers['stripe-signature'] as string;
-    const rawBody = request.body as Buffer;
+    const rawBody = (request as any).rawBody as Buffer;
 
     if (!sig) {
       return reply.status(400).send({ error: 'Missing stripe-signature header' });
+    }
+    if (!rawBody) {
+      return reply.status(400).send({ error: 'Missing raw body' });
     }
 
     let event: any;
@@ -88,7 +105,6 @@ export async function subscriptionWebhookRoutes(fastify: FastifyInstance) {
       }
     } catch (err: any) {
       fastify.log.error({ err, event: event.type }, 'Failed to process webhook event');
-      // Return 200 so Stripe doesn't retry for transient DB errors
     }
 
     return { received: true };
