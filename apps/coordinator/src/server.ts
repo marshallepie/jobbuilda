@@ -17,6 +17,7 @@ import { previewRoutes } from './routes/preview.js';
 import { pdfRoutes } from './routes/pdf.js';
 import { emailRoutes } from './routes/email.js';
 import { subscriptionRoutes } from './routes/subscription.js';
+import { subscriptionWebhookRoutes } from './routes/subscription-webhook.js';
 import { getPool } from './lib/db.js';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -345,6 +346,7 @@ export async function createServer() {
   await fastify.register(pdfRoutes);
   await fastify.register(emailRoutes);
   await fastify.register(subscriptionRoutes);
+  await fastify.register(subscriptionWebhookRoutes);
 
   return fastify;
 }
