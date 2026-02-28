@@ -293,7 +293,7 @@ class ApiClient {
   }
 
   async sendInvoice(id: string) {
-    return this.request(`/api/invoices/${id}/send`, {
+    return this.request(`/api/email/invoice/${id}/send`, {
       method: 'POST',
       body: JSON.stringify({}),
     });
