@@ -37,19 +37,15 @@ export async function sendInvoice(
         throw new Error(`Cannot send invoice with status: ${invoice.status}`);
       }
 
-      // In production, this would trigger PDF generation and email sending
-      const storageUrl = `https://storage.jobbuilda.com/invoices/${context.tenant_id}/${invoice.invoice_number}.pdf`;
-
-      // Update invoice status
+      // Update invoice status to sent
       const result = await query(
         `UPDATE invoices
         SET status = 'sent',
             sent_at = NOW(),
-            storage_url = $1,
             updated_at = NOW()
-        WHERE id = $2 AND tenant_id = $3
+        WHERE id = $1 AND tenant_id = $2
         RETURNING *`,
-        [storageUrl, input.invoice_id, context.tenant_id]
+        [input.invoice_id, context.tenant_id]
       );
 
       // Publish event
