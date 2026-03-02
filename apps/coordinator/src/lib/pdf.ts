@@ -1,12 +1,62 @@
 import puppeteer, { Browser, Page } from 'puppeteer';
+import { access } from 'fs/promises';
+import { execFile } from 'child_process';
+import { promisify } from 'util';
+import { fileURLToPath } from 'url';
+import { resolve, dirname } from 'path';
+
+const execFileAsync = promisify(execFile);
+const __dirname = dirname(fileURLToPath(import.meta.url));
 
 let browser: Browser | null = null;
+let chromeEnsured = false;
 
 /**
- * Get or create a Puppeteer browser instance
- * Reuses the same browser instance for better performance
+ * On Railway the build caches node_modules between deploys, so Puppeteer's
+ * postinstall (which downloads Chrome) may not run on every deploy.
+ * This function checks whether Chrome is present and installs it if not.
+ */
+async function ensureChrome(): Promise<void> {
+  if (chromeEnsured) return;
+
+  const execPath = puppeteer.executablePath();
+  try {
+    await access(execPath);
+    chromeEnsured = true;
+    return;
+  } catch {
+    console.log(`[pdf] Chrome not found at ${execPath} — downloading now (first run only)…`);
+  }
+
+  // The puppeteer CLI bin — located in the coordinator's node_modules.
+  // __dirname is dist/lib in the compiled output; the bin is two levels up.
+  const coordRoot = resolve(__dirname, '..', '..');
+  const puppeteerBin = resolve(coordRoot, 'node_modules', '.bin', 'puppeteer');
+
+  try {
+    // Download Chrome to the same location puppeteer.launch() will look for it
+    // (uses the default PUPPETEER_CACHE_DIR = /root/.cache/puppeteer unless
+    //  overridden by env, which makes launch() find it automatically)
+    await execFileAsync(
+      puppeteerBin,
+      ['browsers', 'install', 'chrome'],
+      { timeout: 300_000 } // 5 min — first download is ~170 MB
+    );
+    console.log('[pdf] Chrome installed successfully');
+    chromeEnsured = true;
+  } catch (err: any) {
+    console.error('[pdf] Chrome install failed:', err.message);
+    // Continue anyway — launch() will surface a clear error if still missing
+  }
+}
+
+/**
+ * Get or create a Puppeteer browser instance.
+ * Reuses the same browser instance for better performance.
  */
 async function getBrowser(): Promise<Browser> {
+  await ensureChrome();
+
   if (!browser || !browser.connected) {
     browser = await puppeteer.launch({
       headless: true,
@@ -15,6 +65,7 @@ async function getBrowser(): Promise<Browser> {
         '--disable-setuid-sandbox',
         '--disable-dev-shm-usage',
         '--disable-gpu',
+        '--disable-software-rasterizer',
       ],
     });
   }
@@ -36,13 +87,11 @@ export async function generatePDFFromHTML(html: string, options: {
   const page: Page = await browserInstance.newPage();
 
   try {
-    // Set content and wait for it to load
     await page.setContent(html, {
       waitUntil: 'networkidle0',
       timeout: 30000,
     });
 
-    // Generate PDF
     const pdf = await page.pdf({
       format: options.format || 'A4',
       margin: options.margin || {
@@ -76,20 +125,17 @@ export async function generatePDFFromURL(url: string, options: {
   const page: Page = await browserInstance.newPage();
 
   try {
-    // Navigate to URL
     await page.goto(url, {
       waitUntil: 'networkidle0',
       timeout: options.timeout || 30000,
     });
 
-    // Wait for specific selector if provided
     if (options.waitForSelector) {
       await page.waitForSelector(options.waitForSelector, {
         timeout: options.timeout || 30000,
       });
     }
 
-    // Generate PDF
     const pdf = await page.pdf({
       format: options.format || 'A4',
       margin: options.margin || {
