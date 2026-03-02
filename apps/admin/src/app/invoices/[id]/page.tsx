@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import Link from 'next/link';
 import AppLayout from '@/components/AppLayout';
@@ -66,6 +66,10 @@ export default function InvoiceDetailPage() {
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
   const [showPaymentForm, setShowPaymentForm] = useState(false);
+  const [showPdfPreview, setShowPdfPreview] = useState(false);
+  const [pdfBlobUrl, setPdfBlobUrl] = useState<string | null>(null);
+  const [pdfLoading, setPdfLoading] = useState(false);
+  const iframeRef = useRef<HTMLIFrameElement>(null);
   const [paymentForm, setPaymentForm] = useState({
     amount: '',
     payment_date: new Date().toISOString().split('T')[0],
@@ -165,6 +169,53 @@ export default function InvoiceDetailPage() {
         setActionLoading(false);
       }
     }
+  };
+
+  const openPdfPreview = async () => {
+    setPdfLoading(true);
+    setShowPdfPreview(true);
+    try {
+      const auth = api.loadAuth();
+      const headers: Record<string, string> = {};
+      if (auth) {
+        headers['Authorization'] = `Bearer ${auth.token}`;
+        headers['x-tenant-id'] = auth.tenant_id;
+        headers['x-user-id'] = auth.user_id;
+      }
+      const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
+      const res = await fetch(`${API_BASE_URL}/api/pdf/invoice/${invoiceId}`, { headers });
+      if (!res.ok) throw new Error(`PDF fetch failed: ${res.status}`);
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      // Revoke previous blob URL if any
+      if (pdfBlobUrl) URL.revokeObjectURL(pdfBlobUrl);
+      setPdfBlobUrl(url);
+    } catch (err) {
+      console.error('Failed to load PDF preview:', err);
+      alert('Failed to load PDF preview. Please try again.');
+      setShowPdfPreview(false);
+    } finally {
+      setPdfLoading(false);
+    }
+  };
+
+  const closePdfPreview = () => {
+    setShowPdfPreview(false);
+    if (pdfBlobUrl) {
+      URL.revokeObjectURL(pdfBlobUrl);
+      setPdfBlobUrl(null);
+    }
+  };
+
+  const handlePdfPrint = () => {
+    if (iframeRef.current?.contentWindow) {
+      iframeRef.current.contentWindow.print();
+    }
+  };
+
+  const handleEmailFromPreview = async () => {
+    closePdfPreview();
+    await sendInvoice();
   };
 
   const handleRecordPayment = async (e: React.FormEvent) => {
@@ -523,10 +574,10 @@ export default function InvoiceDetailPage() {
                 </button>
               )}
               <button
-                onClick={() => window.print()}
+                onClick={openPdfPreview}
                 className="px-4 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 text-sm font-medium"
               >
-                Print / PDF
+                Preview PDF
               </button>
             </div>
           </div>
@@ -764,6 +815,60 @@ export default function InvoiceDetailPage() {
           </div>
         )}
       </div>
+
+      {/* PDF Preview Modal */}
+      {showPdfPreview && (
+        <div className="fixed inset-0 z-50 flex flex-col bg-gray-900">
+          {/* Modal Header */}
+          <div className="flex items-center justify-between px-4 py-3 bg-gray-800 text-white shrink-0">
+            <span className="font-semibold text-sm">{invoice?.invoice_number} — PDF Preview</span>
+            <div className="flex items-center gap-2">
+              {invoice?.status === 'draft' && (
+                <button
+                  onClick={handleEmailFromPreview}
+                  disabled={actionLoading}
+                  className="px-3 py-1.5 bg-primary-600 hover:bg-primary-700 text-white text-sm font-medium rounded disabled:opacity-50"
+                >
+                  {actionLoading ? 'Sending...' : 'Email to Client'}
+                </button>
+              )}
+              <button
+                onClick={handlePdfPrint}
+                disabled={pdfLoading}
+                className="px-3 py-1.5 bg-gray-600 hover:bg-gray-500 text-white text-sm font-medium rounded disabled:opacity-50"
+              >
+                Print
+              </button>
+              <button
+                onClick={closePdfPreview}
+                className="px-3 py-1.5 bg-gray-700 hover:bg-gray-600 text-white text-sm font-medium rounded"
+              >
+                ✕ Close
+              </button>
+            </div>
+          </div>
+
+          {/* PDF Viewer */}
+          <div className="flex-1 relative">
+            {pdfLoading && (
+              <div className="absolute inset-0 flex items-center justify-center bg-gray-900">
+                <div className="text-center text-white">
+                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white mx-auto mb-3"></div>
+                  <p className="text-sm">Generating PDF...</p>
+                </div>
+              </div>
+            )}
+            {pdfBlobUrl && (
+              <iframe
+                ref={iframeRef}
+                src={pdfBlobUrl}
+                className="w-full h-full border-0"
+                title="Invoice PDF Preview"
+              />
+            )}
+          </div>
+        </div>
+      )}
     </AppLayout>
   );
 }
