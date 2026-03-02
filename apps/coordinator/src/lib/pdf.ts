@@ -28,19 +28,20 @@ async function ensureChrome(): Promise<void> {
     console.log(`[pdf] Chrome not found at ${execPath} — downloading now (first run only)…`);
   }
 
-  // The puppeteer CLI bin — located in the coordinator's node_modules.
-  // __dirname is dist/lib in the compiled output; the bin is two levels up.
+  // Locate the puppeteer CLI JS file relative to the puppeteer package itself.
+  // The .bin/puppeteer shim has hardcoded local dev paths, so call it directly.
+  // __dirname = …/dist/lib at runtime; coordRoot = apps/coordinator root.
   const coordRoot = resolve(__dirname, '..', '..');
-  const puppeteerBin = resolve(coordRoot, 'node_modules', '.bin', 'puppeteer');
+  const puppeteerCli = resolve(
+    coordRoot,
+    'node_modules', 'puppeteer', 'lib', 'cjs', 'puppeteer', 'node', 'cli.js'
+  );
 
   try {
-    // Download Chrome to the same location puppeteer.launch() will look for it
-    // (uses the default PUPPETEER_CACHE_DIR = /root/.cache/puppeteer unless
-    //  overridden by env, which makes launch() find it automatically)
     await execFileAsync(
-      puppeteerBin,
-      ['browsers', 'install', 'chrome'],
-      { timeout: 300_000 } // 5 min — first download is ~170 MB
+      process.execPath,           // use the same node binary that's running now
+      [puppeteerCli, 'browsers', 'install', 'chrome'],
+      { timeout: 300_000 }        // 5 min — first download is ~170 MB
     );
     console.log('[pdf] Chrome installed successfully');
     chromeEnsured = true;
