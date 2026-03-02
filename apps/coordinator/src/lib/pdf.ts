@@ -154,6 +154,16 @@ export async function generatePDFFromURL(url: string, options: {
 }
 
 /**
+ * Trigger Chrome download + browser launch at server startup so the first
+ * real PDF request doesn't have to wait for the download.
+ */
+export async function warmUpBrowser(): Promise<void> {
+  console.log('[pdf] Warming up browser…');
+  await getBrowser();
+  console.log('[pdf] Browser ready');
+}
+
+/**
  * Close the browser instance (call on server shutdown)
  */
 export async function closeBrowser(): Promise<void> {

@@ -15,6 +15,7 @@ import { paymentsRoutes } from './routes/payments.js';
 import { reportingRoutes } from './routes/reporting.js';
 import { previewRoutes } from './routes/preview.js';
 import { pdfRoutes } from './routes/pdf.js';
+import { warmUpBrowser } from './lib/pdf.js';
 import { emailRoutes } from './routes/email.js';
 import { subscriptionRoutes } from './routes/subscription.js';
 import { subscriptionWebhookRoutes } from './routes/subscription-webhook.js';
@@ -359,6 +360,12 @@ export async function startServer() {
   try {
     await fastify.listen({ port, host });
     console.log(`Coordinator listening on http://${host}:${port}`);
+
+    // Warm up Chrome in the background — downloads ~170 MB on first deploy
+    // so PDF requests don't time out on first use
+    warmUpBrowser().catch((err) =>
+      console.warn('[pdf] Background browser warm-up failed:', err.message)
+    );
   } catch (err) {
     fastify.log.error(err);
     process.exit(1);
