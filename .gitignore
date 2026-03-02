@@ -39,6 +39,9 @@ tmp/
 temp/
 *.tmp
 
+# Puppeteer Chrome binary (downloaded at build time, not committed to git)
+.cache/puppeteer/
+
 # Database
 *.db
 *.sqlite
