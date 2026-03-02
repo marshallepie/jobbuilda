@@ -105,6 +105,28 @@ export async function pdfRoutes(fastify: FastifyInstance) {
 
       const profile = profileResource.data as any;
 
+      // Fetch client details if available
+      if (invoice.client_id) {
+        try {
+          const clientResource = await fastify.mcp.clients.readResource(
+            `res://clients/clients/${invoice.client_id}`,
+            context
+          );
+          const client = clientResource.data as any;
+          invoice.client_name = client.name;
+          invoice.client_email = client.email;
+          invoice.client_phone = client.phone;
+          invoice.client_address = [
+            client.address_line1,
+            client.address_line2,
+            client.city,
+            client.postcode,
+          ].filter(Boolean).join(', ');
+        } catch (e) {
+          // Client fetch failed — continue without it
+        }
+      }
+
       // Generate HTML for the invoice
       const html = generateInvoiceHTML(invoice, profile);
 
@@ -298,10 +320,188 @@ function generateQuoteHTML(quote: any, profile: any): string {
 
 /**
  * Generate HTML for invoice PDF
- * Similar structure to quote, adapted for invoices
  */
 function generateInvoiceHTML(invoice: any, profile: any): string {
-  // Implementation similar to generateQuoteHTML but for invoices
-  // This would be similar logic, just adapted for invoice data structure
-  return generateQuoteHTML(invoice, profile).replace('QUOTATION', 'INVOICE');
+  const primaryColor = profile.primary_color || '#dc2626'; // red for invoices
+  const templateFont = profile.template_font || 'Inter';
+
+  const invoiceDate = invoice.invoice_date
+    ? new Date(invoice.invoice_date).toLocaleDateString('en-GB')
+    : 'N/A';
+  const dueDate = invoice.due_date
+    ? new Date(invoice.due_date).toLocaleDateString('en-GB')
+    : 'N/A';
+
+  const subtotal = parseFloat(invoice.subtotal_ex_vat) || 0;
+  const vatAmount = parseFloat(invoice.vat_amount) || 0;
+  const total = parseFloat(invoice.total_inc_vat) || 0;
+  const amountPaid = parseFloat(invoice.amount_paid) || 0;
+  const amountDue = parseFloat(invoice.amount_due ?? invoice.total_inc_vat) || 0;
+
+  const lineItemsHTML = (invoice.items || []).map((item: any) => {
+    const qty = parseFloat(item.quantity) || 0;
+    const unitPrice = parseFloat(item.unit_price_ex_vat) || 0;
+    const vatRate = parseFloat(item.vat_rate) ?? 0;
+    const lineTotal = parseFloat(item.line_total_inc_vat) || 0;
+    return `
+      <tr>
+        <td>
+          <div><strong>${item.description || ''}</strong></div>
+          ${item.item_type ? `<div class="item-type">${item.item_type}</div>` : ''}
+        </td>
+        <td class="text-right">${qty} ${item.unit || ''}</td>
+        <td class="text-right">£${unitPrice.toFixed(2)}</td>
+        <td class="text-right">${vatRate}%</td>
+        <td class="text-right">£${lineTotal.toFixed(2)}</td>
+      </tr>
+    `;
+  }).join('');
+
+  const invoiceTypeLabel = (invoice.invoice_type || 'final').replace('_', ' ').replace(/\b\w/g, (c: string) => c.toUpperCase());
+
+  return `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Invoice ${invoice.invoice_number || ''}</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: ${templateFont}, -apple-system, sans-serif;
+      line-height: 1.6;
+      color: #1f2937;
+      padding: 20px;
+    }
+    .container { max-width: 850px; margin: 0 auto; }
+    .header {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 30px;
+      padding-bottom: 15px;
+      border-bottom: 2px solid ${primaryColor};
+    }
+    .company-name { font-size: 20px; font-weight: bold; color: ${primaryColor}; margin-bottom: 5px; }
+    .company-info { text-align: right; font-size: 12px; color: #4b5563; }
+    .document-title { font-size: 28px; font-weight: bold; color: ${primaryColor}; margin-bottom: 4px; }
+    .document-subtitle { font-size: 13px; color: #6b7280; margin-bottom: 20px; }
+    .details-section { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 30px; }
+    .detail-block h3 { font-size: 11px; text-transform: uppercase; color: #6b7280; margin-bottom: 5px; letter-spacing: 0.05em; }
+    .detail-block p { font-size: 13px; margin-bottom: 2px; }
+    table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+    thead { background: ${primaryColor}; color: white; }
+    th { padding: 10px; text-align: left; font-size: 12px; font-weight: 600; }
+    td { padding: 9px 10px; border-bottom: 1px solid #e5e7eb; font-size: 13px; vertical-align: top; }
+    .item-type { color: #6b7280; font-size: 11px; text-transform: capitalize; margin-top: 2px; }
+    .text-right { text-align: right; }
+    .totals { margin-left: auto; width: 300px; border: 1px solid #e5e7eb; border-radius: 6px; overflow: hidden; }
+    .totals table { margin-bottom: 0; }
+    .totals td { border-bottom: 1px solid #f3f4f6; padding: 8px 12px; }
+    .totals tr:last-child td { border-bottom: none; }
+    .grand-total td { background: ${primaryColor}; color: white; font-size: 15px; font-weight: bold; }
+    .amount-due td { background: #fef2f2; color: #b91c1c; font-weight: bold; font-size: 14px; }
+    .payment-info { background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 6px; padding: 12px 16px; margin-bottom: 20px; font-size: 13px; color: #166534; }
+    .notes { margin-top: 20px; padding: 12px 16px; background: #f9fafb; border-left: 4px solid ${primaryColor}; font-size: 13px; }
+    .notes h3 { font-size: 11px; text-transform: uppercase; color: #6b7280; margin-bottom: 6px; }
+    .footer { margin-top: 30px; padding-top: 15px; border-top: 1px solid #e5e7eb; text-align: center; font-size: 11px; color: #6b7280; white-space: pre-line; }
+    .status-badge { display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; background: #fef3c7; color: #92400e; }
+    .status-badge.paid { background: #d1fae5; color: #065f46; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <div>
+        ${profile.logo_url
+          ? `<img src="${profile.logo_url}" alt="Logo" style="max-height:60px;">`
+          : `<div class="company-name">${profile.trading_name || profile.name || 'Your Company'}</div>`}
+      </div>
+      <div class="company-info">
+        <div style="font-weight:600;font-size:14px;margin-bottom:4px;">${profile.trading_name || profile.name || ''}</div>
+        ${profile.address_line1 ? `<div>${profile.address_line1}</div>` : ''}
+        ${profile.address_line2 ? `<div>${profile.address_line2}</div>` : ''}
+        ${(profile.city || profile.postcode) ? `<div>${[profile.city, profile.postcode].filter(Boolean).join(', ')}</div>` : ''}
+        ${profile.phone ? `<div>Tel: ${profile.phone}</div>` : ''}
+        ${profile.email ? `<div>${profile.email}</div>` : ''}
+        ${profile.vat_number ? `<div>VAT No: ${profile.vat_number}</div>` : ''}
+      </div>
+    </div>
+
+    <div style="margin-bottom:24px;">
+      <div class="document-title">INVOICE</div>
+      <div class="document-subtitle">
+        ${invoice.invoice_number || ''}
+        &nbsp;·&nbsp; ${invoiceTypeLabel}
+        &nbsp;·&nbsp; <span class="status-badge ${invoice.status === 'paid' ? 'paid' : ''}">${(invoice.status || '').toUpperCase()}</span>
+      </div>
+    </div>
+
+    <div class="details-section">
+      <div class="detail-block">
+        <h3>Billed To</h3>
+        <p><strong>${invoice.client_name || 'Client'}</strong></p>
+        ${invoice.client_address ? `<p style="color:#6b7280;">${invoice.client_address}</p>` : ''}
+        ${invoice.client_email ? `<p style="color:#6b7280;">${invoice.client_email}</p>` : ''}
+      </div>
+      <div class="detail-block" style="text-align:right;">
+        <h3>Invoice Details</h3>
+        <p><strong>Invoice #:</strong> ${invoice.invoice_number || ''}</p>
+        <p><strong>Invoice Date:</strong> ${invoiceDate}</p>
+        <p><strong>Due Date:</strong> ${dueDate}</p>
+        ${invoice.payment_terms_days ? `<p><strong>Payment Terms:</strong> ${invoice.payment_terms_days} days</p>` : ''}
+      </div>
+    </div>
+
+    <table>
+      <thead>
+        <tr>
+          <th>Description</th>
+          <th class="text-right">Qty</th>
+          <th class="text-right">Unit Price</th>
+          <th class="text-right">VAT</th>
+          <th class="text-right">Total (inc VAT)</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${lineItemsHTML || '<tr><td colspan="5" style="text-align:center;color:#9ca3af;">No items</td></tr>'}
+      </tbody>
+    </table>
+
+    <div class="totals">
+      <table>
+        <tr>
+          <td>Subtotal (ex VAT)</td>
+          <td class="text-right">£${subtotal.toFixed(2)}</td>
+        </tr>
+        <tr>
+          <td>VAT</td>
+          <td class="text-right">£${vatAmount.toFixed(2)}</td>
+        </tr>
+        <tr class="grand-total">
+          <td>Total</td>
+          <td class="text-right">£${total.toFixed(2)}</td>
+        </tr>
+        ${amountPaid > 0 ? `
+        <tr>
+          <td style="color:#166534;">Amount Paid</td>
+          <td class="text-right" style="color:#166534;">−£${amountPaid.toFixed(2)}</td>
+        </tr>
+        <tr class="amount-due">
+          <td>Amount Due</td>
+          <td class="text-right">£${amountDue.toFixed(2)}</td>
+        </tr>
+        ` : ''}
+      </table>
+    </div>
+
+    ${invoice.notes ? `
+    <div class="notes">
+      <h3>Notes</h3>
+      <p>${invoice.notes}</p>
+    </div>
+    ` : ''}
+
+    ${profile.footer_text ? `<div class="footer">${profile.footer_text}</div>` : ''}
+  </div>
+</body>
+</html>`;
 }

@@ -184,15 +184,18 @@ export default function InvoiceDetailPage() {
       }
       const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
       const res = await fetch(`${API_BASE_URL}/api/pdf/invoice/${invoiceId}`, { headers });
-      if (!res.ok) throw new Error(`PDF fetch failed: ${res.status}`);
+      if (!res.ok) {
+        const errBody = await res.json().catch(() => ({})) as any;
+        throw new Error(errBody.message || `Server error ${res.status}`);
+      }
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
       // Revoke previous blob URL if any
       if (pdfBlobUrl) URL.revokeObjectURL(pdfBlobUrl);
       setPdfBlobUrl(url);
-    } catch (err) {
+    } catch (err: any) {
       console.error('Failed to load PDF preview:', err);
-      alert('Failed to load PDF preview. Please try again.');
+      alert(`Failed to load PDF preview: ${err.message || 'Please try again.'}`);
       setShowPdfPreview(false);
     } finally {
       setPdfLoading(false);
