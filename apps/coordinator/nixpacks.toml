@@ -7,8 +7,5 @@ cmds = ["cd ../.. && pnpm install --frozen-lockfile"]
 [phases.build]
 cmds = ["pnpm build"]
 
-[variables]
-PUPPETEER_SKIP_DOWNLOAD = "true"
-
 [start]
 cmd = "node dist/index.js"
