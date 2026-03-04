@@ -1,25 +1,46 @@
 import puppeteer, { Browser, Page } from 'puppeteer';
 import { execSync } from 'child_process';
+import { existsSync } from 'fs';
 
 let browser: Browser | null = null;
 
 /**
  * Find the Chrome/Chromium executable.
- * Priority: PUPPETEER_EXECUTABLE_PATH env var → system Chromium (from nixpacks)
- * → puppeteer's own downloaded Chrome (local dev).
+ * Priority: PUPPETEER_EXECUTABLE_PATH env var → known fixed paths
+ * → PATH lookup → puppeteer's own Chrome (local dev).
  */
 function findExecutablePath(): string | undefined {
   if (process.env.PUPPETEER_EXECUTABLE_PATH) {
     return process.env.PUPPETEER_EXECUTABLE_PATH;
   }
-  // On Railway, Chromium is installed via nixpacks and available in PATH
-  for (const cmd of ['chromium', 'chromium-browser', 'google-chrome-stable', 'google-chrome']) {
+
+  // Check fixed paths first (apt-installed chromium has predictable paths)
+  const fixedPaths = [
+    '/usr/bin/chromium-browser',
+    '/usr/bin/chromium',
+    '/usr/bin/google-chrome-stable',
+    '/usr/bin/google-chrome',
+  ];
+  for (const p of fixedPaths) {
+    if (existsSync(p)) {
+      console.log(`[pdf] Using system Chrome at ${p}`);
+      return p;
+    }
+  }
+
+  // Fall back to PATH discovery
+  for (const cmd of ['chromium-browser', 'chromium', 'google-chrome-stable', 'google-chrome']) {
     try {
       const p = execSync(`which ${cmd}`, { encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'] }).trim();
-      if (p) return p;
+      if (p) {
+        console.log(`[pdf] Found Chrome via PATH: ${p}`);
+        return p;
+      }
     } catch { /* not found */ }
   }
-  // Fall back to puppeteer's own Chrome (local dev, after running browsers install)
+
+  // Fall back to puppeteer's own Chrome (local dev)
+  console.log('[pdf] No system Chrome found, using puppeteer default');
   return undefined;
 }
 
