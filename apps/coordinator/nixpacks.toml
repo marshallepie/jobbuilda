@@ -9,7 +9,6 @@ cmds = ["pnpm build"]
 
 [variables]
 PUPPETEER_SKIP_DOWNLOAD = "true"
-PUPPETEER_EXECUTABLE_PATH = "/nix/var/nix/profiles/default/bin/chromium"
 
 [start]
-cmd = "node dist/index.js"
+cmd = "sh -c 'export PUPPETEER_EXECUTABLE_PATH=$(command -v chromium || command -v chromium-browser || command -v google-chrome-stable); echo \"[start] chromium=$PUPPETEER_EXECUTABLE_PATH\"; exec node dist/index.js'"
