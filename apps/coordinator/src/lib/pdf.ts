@@ -1,15 +1,36 @@
 import puppeteer, { Browser, Page } from 'puppeteer';
+import { execSync } from 'child_process';
 
 let browser: Browser | null = null;
 
 /**
+ * Find the Chrome/Chromium executable.
+ * Priority: PUPPETEER_EXECUTABLE_PATH env var → system Chromium (from nixpacks)
+ * → puppeteer's own downloaded Chrome (local dev).
+ */
+function findExecutablePath(): string | undefined {
+  if (process.env.PUPPETEER_EXECUTABLE_PATH) {
+    return process.env.PUPPETEER_EXECUTABLE_PATH;
+  }
+  // On Railway, Chromium is installed via nixpacks and available in PATH
+  for (const cmd of ['chromium', 'chromium-browser', 'google-chrome-stable', 'google-chrome']) {
+    try {
+      const p = execSync(`which ${cmd}`, { encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'] }).trim();
+      if (p) return p;
+    } catch { /* not found */ }
+  }
+  // Fall back to puppeteer's own Chrome (local dev, after running browsers install)
+  return undefined;
+}
+
+/**
  * Get or create a Puppeteer browser instance.
- * Chrome is guaranteed to be present by the build phase (nixpacks.toml)
- * and the start.sh fallback check.
  */
 async function getBrowser(): Promise<Browser> {
   if (!browser || !browser.connected) {
+    const executablePath = findExecutablePath();
     browser = await puppeteer.launch({
+      executablePath,
       headless: true,
       args: [
         '--no-sandbox',

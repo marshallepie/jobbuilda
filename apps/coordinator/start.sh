@@ -1,16 +1,19 @@
 #!/bin/sh
-# Ensure Chrome is present before starting the server.
-# Normally Chrome is baked into the Docker image by the build phase.
-# This check is a fallback in case the Docker layer was cached without Chrome.
+echo "[start] PWD=$(pwd)"
+echo "[start] PUPPETEER_CACHE_DIR=$PUPPETEER_CACHE_DIR"
 
-CHROME_PATH=$(node -e "try { process.stdout.write(require('puppeteer').executablePath()) } catch(e) { process.exit(1) }" 2>/dev/null)
+# Check Chrome path
+CHROME_PATH=$(node -e "try { process.stdout.write(require('puppeteer').executablePath()) } catch(e) { process.stderr.write(e.message); process.exit(1) }" 2>/dev/null)
+EC=$?
 
-if [ $? -ne 0 ] || [ ! -f "$CHROME_PATH" ]; then
+echo "[start] Expected Chrome path: $CHROME_PATH"
+
+if [ $EC -ne 0 ] || [ ! -f "$CHROME_PATH" ]; then
   echo "[start] Chrome not found — downloading now (~170 MB, may take a few minutes)..."
   node node_modules/puppeteer/lib/cjs/puppeteer/node/cli.js browsers install chrome
-  echo "[start] Chrome installed."
+  echo "[start] Chrome install complete."
 else
-  echo "[start] Chrome ready at $CHROME_PATH"
+  echo "[start] Chrome ready."
 fi
 
 exec node dist/index.js
