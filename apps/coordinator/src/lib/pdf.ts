@@ -1,63 +1,13 @@
 import puppeteer, { Browser, Page } from 'puppeteer';
-import { access } from 'fs/promises';
-import { execFile } from 'child_process';
-import { promisify } from 'util';
-import { fileURLToPath } from 'url';
-import { resolve, dirname } from 'path';
-
-const execFileAsync = promisify(execFile);
-const __dirname = dirname(fileURLToPath(import.meta.url));
 
 let browser: Browser | null = null;
-let chromeEnsured = false;
-
-/**
- * On Railway the build caches node_modules between deploys, so Puppeteer's
- * postinstall (which downloads Chrome) may not run on every deploy.
- * This function checks whether Chrome is present and installs it if not.
- */
-async function ensureChrome(): Promise<void> {
-  if (chromeEnsured) return;
-
-  const execPath = puppeteer.executablePath();
-  try {
-    await access(execPath);
-    chromeEnsured = true;
-    return;
-  } catch {
-    console.log(`[pdf] Chrome not found at ${execPath} — downloading now (first run only)…`);
-  }
-
-  // Locate the puppeteer CLI JS file relative to the puppeteer package itself.
-  // The .bin/puppeteer shim has hardcoded local dev paths, so call it directly.
-  // __dirname = …/dist/lib at runtime; coordRoot = apps/coordinator root.
-  const coordRoot = resolve(__dirname, '..', '..');
-  const puppeteerCli = resolve(
-    coordRoot,
-    'node_modules', 'puppeteer', 'lib', 'cjs', 'puppeteer', 'node', 'cli.js'
-  );
-
-  try {
-    await execFileAsync(
-      process.execPath,           // use the same node binary that's running now
-      [puppeteerCli, 'browsers', 'install', 'chrome'],
-      { timeout: 300_000 }        // 5 min — first download is ~170 MB
-    );
-    console.log('[pdf] Chrome installed successfully');
-    chromeEnsured = true;
-  } catch (err: any) {
-    console.error('[pdf] Chrome install failed:', err.message);
-    // Continue anyway — launch() will surface a clear error if still missing
-  }
-}
 
 /**
  * Get or create a Puppeteer browser instance.
- * Reuses the same browser instance for better performance.
+ * Chrome is guaranteed to be present by the build phase (nixpacks.toml)
+ * and the start.sh fallback check.
  */
 async function getBrowser(): Promise<Browser> {
-  await ensureChrome();
-
   if (!browser || !browser.connected) {
     browser = await puppeteer.launch({
       headless: true,
@@ -71,6 +21,16 @@ async function getBrowser(): Promise<Browser> {
     });
   }
   return browser;
+}
+
+/**
+ * Trigger browser launch at server startup so the first PDF request
+ * doesn't pay the startup cost.
+ */
+export async function warmUpBrowser(): Promise<void> {
+  console.log('[pdf] Warming up browser…');
+  await getBrowser();
+  console.log('[pdf] Browser ready');
 }
 
 /**
@@ -152,16 +112,6 @@ export async function generatePDFFromURL(url: string, options: {
   } finally {
     await page.close();
   }
-}
-
-/**
- * Trigger Chrome download + browser launch at server startup so the first
- * real PDF request doesn't have to wait for the download.
- */
-export async function warmUpBrowser(): Promise<void> {
-  console.log('[pdf] Warming up browser…');
-  await getBrowser();
-  console.log('[pdf] Browser ready');
 }
 
 /**
