@@ -1,5 +1,5 @@
 [phases.setup]
-nixPkgs = ["nodejs_20", "pnpm", "chromium"]
+nixPkgs = ["nodejs_20", "pnpm"]
 
 [phases.install]
 cmds = ["cd ../.. && pnpm install --frozen-lockfile"]
@@ -11,4 +11,4 @@ cmds = ["pnpm build"]
 PUPPETEER_SKIP_DOWNLOAD = "true"
 
 [start]
-cmd = "sh -c 'export PUPPETEER_EXECUTABLE_PATH=$(command -v chromium || command -v chromium-browser || command -v google-chrome-stable); echo \"[start] chromium=$PUPPETEER_EXECUTABLE_PATH\"; exec node dist/index.js'"
+cmd = "node dist/index.js"
