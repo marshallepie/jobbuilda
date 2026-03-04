@@ -2,14 +2,12 @@
 nixPkgs = ["nodejs_20", "pnpm"]
 
 [phases.install]
-cmds = [
-  "cd ../.. && pnpm install --frozen-lockfile"
-]
+cmds = ["cd ../.. && pnpm install --frozen-lockfile"]
 
 [phases.build]
 cmds = [
-  "cd apps/coordinator && pnpm build",
-  "node apps/coordinator/node_modules/puppeteer/lib/cjs/puppeteer/node/cli.js browsers install chrome"
+  "pnpm build",
+  "node node_modules/puppeteer/lib/cjs/puppeteer/node/cli.js browsers install chrome"
 ]
 
 [start]
