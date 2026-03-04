@@ -88,12 +88,24 @@ export default function InvoicesPage() {
             <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Invoices</h1>
             <p className="mt-1 text-sm text-gray-600">Manage and track all invoices</p>
           </div>
-          <Link
-            href="/invoices/new"
-            className="inline-flex items-center px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 whitespace-nowrap"
-          >
-            <span className="mr-2">+</span> New Invoice
-          </Link>
+          <div className="flex gap-2">
+            <Link
+              href="/invoices/import"
+              className="inline-flex items-center px-4 py-2 bg-white text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 whitespace-nowrap"
+            >
+              <svg className="w-4 h-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                  d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+              </svg>
+              Import CSV
+            </Link>
+            <Link
+              href="/invoices/new"
+              className="inline-flex items-center px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 whitespace-nowrap"
+            >
+              <span className="mr-2">+</span> New Invoice
+            </Link>
+          </div>
         </div>
 
         {/* Stats Cards */}

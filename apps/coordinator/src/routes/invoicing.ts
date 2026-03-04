@@ -166,4 +166,49 @@ export async function invoicingRoutes(fastify: FastifyInstance) {
       }
     }
   );
+
+  // POST /api/invoices/import - Bulk import invoices from CSV
+  fastify.post<{ Body: { invoices: Record<string, unknown>[] } }>(
+    '/api/invoices/import',
+    async (request, reply) => {
+      const context = extractAuthContext(request);
+      const { invoices } = request.body;
+
+      if (!Array.isArray(invoices) || invoices.length === 0) {
+        return reply.status(400).send({ error: 'No invoices provided' });
+      }
+      if (invoices.length > 500) {
+        return reply.status(400).send({ error: 'Maximum 500 invoices per import' });
+      }
+
+      const results: Array<{
+        row: number;
+        success: boolean;
+        invoice_number?: string;
+        id?: string;
+        error?: string;
+      }> = [];
+
+      for (let i = 0; i < invoices.length; i++) {
+        try {
+          const result = await fastify.mcp.invoicing.callTool(
+            'create_invoice',
+            invoices[i],
+            context
+          );
+          const data = JSON.parse(result.content[0]?.text || '{}');
+          results.push({ row: i + 1, success: true, invoice_number: data.invoice_number, id: data.id });
+        } catch (error: any) {
+          results.push({ row: i + 1, success: false, error: error.message });
+        }
+      }
+
+      return {
+        total: invoices.length,
+        succeeded: results.filter(r => r.success).length,
+        failed: results.filter(r => !r.success).length,
+        results,
+      };
+    }
+  );
 }

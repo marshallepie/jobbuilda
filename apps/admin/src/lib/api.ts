@@ -299,6 +299,13 @@ class ApiClient {
     });
   }
 
+  async importInvoices(invoices: Record<string, unknown>[]) {
+    return this.request('/api/invoices/import', {
+      method: 'POST',
+      body: JSON.stringify({ invoices }),
+    });
+  }
+
   // ===== PAYMENTS =====
   async getPayments() {
     const response: any = await this.request('/api/payments');
