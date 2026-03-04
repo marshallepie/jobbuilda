@@ -10,12 +10,19 @@ let browser: Browser | null = null;
  * → PATH lookup → puppeteer's own Chrome (local dev).
  */
 function findExecutablePath(): string | undefined {
+  console.log(`[pdf] PUPPETEER_EXECUTABLE_PATH env = ${process.env.PUPPETEER_EXECUTABLE_PATH ?? '(unset)'}`);
+
   if (process.env.PUPPETEER_EXECUTABLE_PATH) {
-    return process.env.PUPPETEER_EXECUTABLE_PATH;
+    const p = process.env.PUPPETEER_EXECUTABLE_PATH;
+    const exists = existsSync(p);
+    console.log(`[pdf] Env path exists: ${exists} → ${p}`);
+    if (exists) return p;
+    console.warn(`[pdf] Env path does not exist: ${p} — continuing search`);
   }
 
-  // Check fixed paths first (apt-installed chromium has predictable paths)
+  // Check fixed paths (nix profile + apt-installed chromium)
   const fixedPaths = [
+    '/nix/var/nix/profiles/default/bin/chromium',
     '/usr/bin/chromium-browser',
     '/usr/bin/chromium',
     '/usr/bin/google-chrome-stable',
@@ -28,8 +35,8 @@ function findExecutablePath(): string | undefined {
     }
   }
 
-  // Fall back to PATH discovery
-  for (const cmd of ['chromium-browser', 'chromium', 'google-chrome-stable', 'google-chrome']) {
+  // Try to find via `which` (nix bins should be in PATH)
+  for (const cmd of ['chromium', 'chromium-browser', 'google-chrome-stable', 'google-chrome']) {
     try {
       const p = execSync(`which ${cmd}`, { encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'] }).trim();
       if (p) {
@@ -39,7 +46,19 @@ function findExecutablePath(): string | undefined {
     } catch { /* not found */ }
   }
 
-  // Fall back to puppeteer's own Chrome (local dev)
+  // Last resort: find chromium binary anywhere in /nix/store
+  try {
+    const p = execSync(
+      `find /nix/store -maxdepth 5 -name "chromium" -type f 2>/dev/null | head -1`,
+      { encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'] }
+    ).trim();
+    if (p) {
+      console.log(`[pdf] Found Chrome via nix store scan: ${p}`);
+      return p;
+    }
+  } catch { /* not found */ }
+
+  // Fall back to puppeteer's own Chrome (local dev only)
   console.log('[pdf] No system Chrome found, using puppeteer default');
   return undefined;
 }
