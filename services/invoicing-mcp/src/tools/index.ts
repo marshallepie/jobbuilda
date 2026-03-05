@@ -9,6 +9,7 @@ import { recordPayment } from './record-payment.js';
 import { cancelInvoice } from './cancel-invoice.js';
 import { updateInvoice } from './update-invoice.js';
 import { deleteInvoice } from './delete-invoice.js';
+import { voidPayment } from './void-payment.js';
 import type { AuthContext } from '@jobbuilda/contracts';
 
 export function registerTools(server: Server) {
@@ -123,6 +124,17 @@ export function registerTools(server: Server) {
           required: ['invoice_id'],
         },
       },
+      {
+        name: 'void_payment',
+        description: 'Void all payments on an invoice, resetting it to unpaid',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            invoice_id: { type: 'string', description: 'Invoice UUID' },
+          },
+          required: ['invoice_id'],
+        },
+      },
     ],
   }));
 
@@ -155,6 +167,9 @@ export function registerTools(server: Server) {
         break;
       case 'delete_invoice':
         result = await deleteInvoice(args as any, context);
+        break;
+      case 'void_payment':
+        result = await voidPayment(args as any, context);
         break;
       default:
         throw new Error(`Unknown tool: ${name}`);

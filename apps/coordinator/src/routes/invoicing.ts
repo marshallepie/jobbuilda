@@ -167,6 +167,26 @@ export async function invoicingRoutes(fastify: FastifyInstance) {
     }
   );
 
+  // POST /api/invoices/:id/void-payment - Void all payments on an invoice
+  fastify.post<{ Params: { id: string } }>(
+    '/api/invoices/:id/void-payment',
+    async (request, reply) => {
+      const context = extractAuthContext(request);
+      const { id } = request.params;
+      try {
+        const result = await fastify.mcp.invoicing.callTool(
+          'void_payment',
+          { invoice_id: id },
+          context
+        );
+        const data = JSON.parse(result.content[0]?.text || '{}');
+        return data;
+      } catch (error: any) {
+        reply.status(500).send({ error: 'Failed to void payment', message: error.message });
+      }
+    }
+  );
+
   // POST /api/invoices/import - Bulk import invoices from CSV
   fastify.post<{ Body: { invoices: Record<string, unknown>[] } }>(
     '/api/invoices/import',

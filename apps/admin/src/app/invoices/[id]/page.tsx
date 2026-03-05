@@ -221,6 +221,20 @@ export default function InvoiceDetailPage() {
     await sendInvoice();
   };
 
+  const voidPayment = async () => {
+    if (!invoice) return;
+    if (!confirm(`Void all payments on ${invoice.invoice_number}? This will reset the invoice to unpaid and cannot be undone.`)) return;
+    setActionLoading(true);
+    try {
+      await api.request(`/api/invoices/${invoiceId}/void-payment`, { method: 'POST' });
+      await loadInvoice();
+    } catch (err: any) {
+      alert(err.message || 'Failed to void payment. Please try again.');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
   const handleRecordPayment = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -557,6 +571,15 @@ export default function InvoiceDetailPage() {
                   className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 text-sm font-medium"
                 >
                   {showPaymentForm ? '✕ Cancel' : '💰 Record Payment'}
+                </button>
+              )}
+              {parseFloat(invoice.amount_paid as any) > 0 && (
+                <button
+                  onClick={voidPayment}
+                  disabled={actionLoading}
+                  className="px-4 py-2 bg-amber-600 text-white rounded-md hover:bg-amber-700 disabled:opacity-50 text-sm font-medium"
+                >
+                  {actionLoading ? 'Voiding...' : 'Void Payment'}
                 </button>
               )}
               {invoice.status === 'draft' && (
