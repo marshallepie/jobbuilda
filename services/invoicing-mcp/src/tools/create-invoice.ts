@@ -114,6 +114,12 @@ export async function createInvoice(
         items.push(itemResult.rows[0]);
       }
 
+      // Set amount_due = total_inc_vat - amount_paid (trigger sets totals but not amount_due)
+      await query(
+        `UPDATE invoices SET amount_due = total_inc_vat - COALESCE(amount_paid, 0) WHERE id = $1`,
+        [invoiceId]
+      );
+
       // Get updated invoice with totals
       const updatedResult = await query(
         `SELECT * FROM invoices WHERE id = $1`,
