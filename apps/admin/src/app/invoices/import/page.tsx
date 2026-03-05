@@ -222,6 +222,13 @@ export default function ImportInvoicesPage() {
     api.getClients().then((data: any) => {
       setClients(Array.isArray(data) ? data : (data?.data || []));
     }).catch(() => {});
+    // Load tenant default VAT rate from profile
+    api.request('/api/identity/profile').then((data: any) => {
+      const profile = data?.data || data;
+      if (profile?.default_vat_rate != null) {
+        setDefaultVatRate(Number(profile.default_vat_rate));
+      }
+    }).catch(() => {});
   }, []);
 
   // Re-parse rows whenever column mapping or options change
@@ -306,7 +313,8 @@ export default function ImportInvoicesPage() {
       // Build invoice payloads
       const invoices = validRows.map(row => {
         const rawAmt = parseFloat(row.amount.replace(/[£$€,\s]/g, '')) || 0;
-        const vatRate = row.vatRate ? parseFloat(row.vatRate) || defaultVatRate : defaultVatRate;
+        const parsedVat = row.vatRate.trim() !== '' ? parseFloat(row.vatRate) : NaN;
+        const vatRate = isNaN(parsedVat) ? defaultVatRate : parsedVat;
         // If VAT inclusive, back-calculate ex-VAT: price_ex = price_inc / (1 + vat/100)
         const unitPriceExVat = vatInclusive
           ? Math.round((rawAmt / (1 + vatRate / 100)) * 100) / 100
@@ -677,7 +685,8 @@ export default function ImportInvoicesPage() {
                   <tbody className="divide-y divide-gray-100">
                     {parsedRows.map(row => {
                       const rawAmt = parseFloat(row.amount.replace(/[£$€,\s]/g, '')) || 0;
-                      const vatRate = row.vatRate ? parseFloat(row.vatRate) || defaultVatRate : defaultVatRate;
+                      const parsedVat = row.vatRate.trim() !== '' ? parseFloat(row.vatRate) : NaN;
+        const vatRate = isNaN(parsedVat) ? defaultVatRate : parsedVat;
                       const exVat = vatInclusive
                         ? Math.round((rawAmt / (1 + vatRate / 100)) * 100) / 100
                         : rawAmt;
