@@ -28,6 +28,7 @@ export default function InvoicesPage() {
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState('all');
   const [typeFilter, setTypeFilter] = useState('all');
+  const [markingPaidId, setMarkingPaidId] = useState<string | null>(null);
 
   useEffect(() => {
     loadInvoices();
@@ -49,6 +50,35 @@ export default function InvoicesPage() {
       console.error('Failed to load invoices:', err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const markAsPaid = async (invoice: Invoice) => {
+    if (markingPaidId) return;
+    const amountDue = parseFloat(invoice.amount_due as any);
+    if (amountDue <= 0) return;
+    setMarkingPaidId(invoice.id);
+    try {
+      await api.request(`/api/invoices/${invoice.id}/payment`, {
+        method: 'POST',
+        body: JSON.stringify({
+          amount: amountDue,
+          payment_date: new Date().toISOString().split('T')[0],
+          payment_method: 'bank_transfer',
+        }),
+      });
+      setInvoices(prev =>
+        prev.map(inv =>
+          inv.id === invoice.id
+            ? { ...inv, status: 'paid', amount_paid: inv.total_inc_vat, amount_due: 0 as any }
+            : inv
+        )
+      );
+    } catch (err) {
+      console.error('Failed to mark as paid:', err);
+      alert('Failed to mark invoice as paid. Please try again.');
+    } finally {
+      setMarkingPaidId(null);
     }
   };
 
@@ -197,6 +227,9 @@ export default function InvoicesPage() {
                     <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Amount
                     </th>
+                    <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Paid
+                    </th>
                     <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Actions
                     </th>
@@ -233,6 +266,25 @@ export default function InvoicesPage() {
                           <div className="text-xs text-green-600">
                             Paid: {formatCurrency(invoice.amount_paid)}
                           </div>
+                        )}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-center">
+                        {invoice.status === 'paid' ? (
+                          <input type="checkbox" checked readOnly
+                            className="w-4 h-4 text-green-600 rounded cursor-default"
+                            title="Paid" />
+                        ) : !['cancelled', 'void'].includes(invoice.status) ? (
+                          <input
+                            type="checkbox"
+                            checked={false}
+                            disabled={markingPaidId === invoice.id}
+                            onChange={() => markAsPaid(invoice)}
+                            className="w-4 h-4 text-primary-600 rounded cursor-pointer disabled:opacity-50"
+                            title="Mark as paid"
+                          />
+                        ) : null}
+                        {markingPaidId === invoice.id && (
+                          <span className="ml-1 inline-block w-3 h-3 border-2 border-primary-600 border-t-transparent rounded-full animate-spin" />
                         )}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
@@ -277,15 +329,32 @@ export default function InvoicesPage() {
                     <div className="text-xs text-gray-600">
                       Due: {formatDate(invoice.due_date)}
                     </div>
-                    <div className="text-right">
-                      <div className="font-semibold text-gray-900">
-                        {formatCurrency(invoice.total_inc_vat)}
-                      </div>
-                      {parseFloat(invoice.amount_paid as any) > 0 && (
-                        <div className="text-xs text-green-600">
-                          Paid: {formatCurrency(invoice.amount_paid)}
-                        </div>
+                    <div className="flex items-center gap-3">
+                      {invoice.status !== 'paid' && !['cancelled', 'void'].includes(invoice.status) && (
+                        <label
+                          className="flex items-center gap-1.5 text-xs text-gray-600 cursor-pointer"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={false}
+                            disabled={markingPaidId === invoice.id}
+                            onChange={() => markAsPaid(invoice)}
+                            className="w-4 h-4 text-primary-600 rounded cursor-pointer disabled:opacity-50"
+                          />
+                          {markingPaidId === invoice.id ? 'Saving...' : 'Mark paid'}
+                        </label>
                       )}
+                      <div className="text-right">
+                        <div className="font-semibold text-gray-900">
+                          {formatCurrency(invoice.total_inc_vat)}
+                        </div>
+                        {parseFloat(invoice.amount_paid as any) > 0 && (
+                          <div className="text-xs text-green-600">
+                            Paid: {formatCurrency(invoice.amount_paid)}
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </div>
                 </div>
