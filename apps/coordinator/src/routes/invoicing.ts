@@ -189,11 +189,59 @@ export async function invoicingRoutes(fastify: FastifyInstance) {
         error?: string;
       }> = [];
 
+      // Cache client lookups/creations within this import batch to avoid duplicates
+      const clientCache: Record<string, string> = {};
+
+      // Pre-load existing clients once for name matching
+      let existingClients: Array<{ id: string; name: string }> = [];
+      try {
+        const clientsResult = await fastify.mcp.clients.readResource('res://clients/clients', context);
+        const clientsData = clientsResult.data as any;
+        existingClients = Array.isArray(clientsData) ? clientsData : (clientsData?.data || []);
+      } catch {
+        // Continue — we'll create clients as needed
+      }
+
       for (let i = 0; i < invoices.length; i++) {
         try {
+          const invoice = { ...invoices[i] };
+
+          // Resolve client_id from new_client_name if no client_id provided
+          if (!invoice.client_id && invoice.new_client_name) {
+            const clientName = (invoice.new_client_name as string).trim();
+            delete invoice.new_client_name;
+
+            if (clientCache[clientName]) {
+              invoice.client_id = clientCache[clientName];
+            } else {
+              // Try to match existing client by name (case-insensitive)
+              const match = existingClients.find(
+                c => c.name.toLowerCase() === clientName.toLowerCase()
+              );
+              if (match) {
+                invoice.client_id = match.id;
+                clientCache[clientName] = match.id;
+              } else {
+                // Create new client
+                const newClientResult = await fastify.mcp.clients.callTool(
+                  'create_client',
+                  { name: clientName },
+                  context
+                );
+                const newClient = JSON.parse(newClientResult.content[0]?.text || '{}');
+                const newClientId = newClient.id || newClient.client_id;
+                invoice.client_id = newClientId;
+                clientCache[clientName] = newClientId;
+                existingClients.push({ id: newClientId, name: clientName });
+              }
+            }
+          } else {
+            delete invoice.new_client_name;
+          }
+
           const result = await fastify.mcp.invoicing.callTool(
             'create_invoice',
-            invoices[i],
+            invoice,
             context
           );
           const data = JSON.parse(result.content[0]?.text || '{}');
