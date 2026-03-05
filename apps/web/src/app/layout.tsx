@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import './globals.css';
+import CookieBanner from '@/components/CookieBanner';
 
 export const metadata: Metadata = {
   title: 'JobBuilda — Software for Electrical Contractors',
@@ -18,7 +19,10 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
-      <body className="antialiased text-gray-900 bg-white">{children}</body>
+      <body className="antialiased text-gray-900 bg-white">
+        {children}
+        <CookieBanner />
+      </body>
     </html>
   );
 }
