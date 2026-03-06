@@ -132,6 +132,28 @@ export async function pdfRoutes(fastify: FastifyInstance) {
         }
       }
 
+      // Fetch site details if available
+      if (invoice.site_id) {
+        try {
+          const siteResource = await fastify.mcp.clients.readResource(
+            `res://clients/sites/${invoice.site_id}`,
+            context
+          );
+          const siteWrapper = siteResource.data as any;
+          const site = siteWrapper.data || siteWrapper;
+          invoice.site_name = site.name;
+          invoice.site_address = [
+            site.address_line1,
+            site.address_line2,
+            site.city,
+            site.county,
+            site.postcode,
+          ].filter(Boolean).join(', ');
+        } catch (e) {
+          // Site fetch failed — continue without it
+        }
+      }
+
       // Generate HTML for the invoice
       const html = generateInvoiceHTML(invoice, profile);
 
@@ -446,6 +468,12 @@ function generateInvoiceHTML(invoice: any, profile: any): string {
         <p><strong>${invoice.client_name || 'Client'}</strong></p>
         ${invoice.client_address ? `<p style="color:#6b7280;">${invoice.client_address}</p>` : ''}
         ${invoice.client_email ? `<p style="color:#6b7280;">${invoice.client_email}</p>` : ''}
+        ${invoice.site_name ? `
+        <div style="margin-top:10px;">
+          <span style="font-size:11px;text-transform:uppercase;color:#6b7280;letter-spacing:0.05em;">Site</span>
+          <p><strong>${invoice.site_name}</strong></p>
+          ${invoice.site_address ? `<p style="color:#6b7280;">${invoice.site_address}</p>` : ''}
+        </div>` : ''}
       </div>
       <div class="detail-block" style="text-align:right;">
         <h3>Invoice Details</h3>
