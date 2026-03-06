@@ -28,7 +28,8 @@ export async function pdfRoutes(fastify: FastifyInstance) {
         context
       );
 
-      const quote = quoteResource.data as any;
+      const quoteWrapper = quoteResource.data as any;
+      const quote = quoteWrapper.data || quoteWrapper;
 
       // Fetch business profile for template settings
       const profileResource = await fastify.mcp.identity.readResource(
@@ -36,7 +37,8 @@ export async function pdfRoutes(fastify: FastifyInstance) {
         context
       );
 
-      const profile = profileResource.data as any;
+      const profileWrapperQ = profileResource.data as any;
+      const profile = profileWrapperQ.data || profileWrapperQ;
 
       // Generate HTML for the quote
       const html = generateQuoteHTML(quote, profile);
@@ -95,7 +97,8 @@ export async function pdfRoutes(fastify: FastifyInstance) {
         context
       );
 
-      const invoice = invoiceResource.data as any;
+      const invoiceWrapper = invoiceResource.data as any;
+      const invoice = invoiceWrapper.data || invoiceWrapper;
 
       // Fetch business profile for template settings
       const profileResource = await fastify.mcp.identity.readResource(
@@ -103,7 +106,8 @@ export async function pdfRoutes(fastify: FastifyInstance) {
         context
       );
 
-      const profile = profileResource.data as any;
+      const profileWrapper = profileResource.data as any;
+      const profile = profileWrapper.data || profileWrapper;
 
       // Fetch client details if available
       if (invoice.client_id) {
@@ -112,7 +116,8 @@ export async function pdfRoutes(fastify: FastifyInstance) {
             `res://clients/clients/${invoice.client_id}`,
             context
           );
-          const client = clientResource.data as any;
+          const clientWrapper = clientResource.data as any;
+          const client = clientWrapper.data || clientWrapper;
           invoice.client_name = client.name;
           invoice.client_email = client.email;
           invoice.client_phone = client.phone;
