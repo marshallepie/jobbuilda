@@ -18,9 +18,11 @@ export async function handleInvoiceResource(
       // List all invoices: res://invoicing/invoices
       if (uri === 'res://invoicing/invoices') {
         const result = await query(
-          `SELECT * FROM invoices
-          WHERE tenant_id = $1
-          ORDER BY invoice_date DESC, created_at DESC`,
+          `SELECT i.*, c.name AS client_name
+          FROM invoices i
+          LEFT JOIN clients c ON c.id = i.client_id
+          WHERE i.tenant_id = $1
+          ORDER BY i.invoice_date DESC, i.created_at DESC`,
           [context.tenant_id]
         );
 

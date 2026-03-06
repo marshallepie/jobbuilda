@@ -12,6 +12,7 @@ interface Invoice {
   invoice_number: string;
   job_id: string;
   client_id: string;
+  client_name?: string;
   invoice_type: string;
   status: string;
   invoice_date: string;
@@ -241,7 +242,7 @@ export default function InvoicesPage() {
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="font-medium text-gray-900">{invoice.invoice_number}</div>
                         <div className="text-xs text-gray-500">
-                          Created {formatDate(invoice.created_at)}
+                          {invoice.client_name || '—'}
                         </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
@@ -312,7 +313,8 @@ export default function InvoicesPage() {
                   <div className="flex justify-between items-start mb-2">
                     <div>
                       <div className="font-semibold text-gray-900">{invoice.invoice_number}</div>
-                      <div className="text-xs text-gray-500 mt-1">
+                      <div className="text-xs text-gray-500 mt-0.5">{invoice.client_name || '—'}</div>
+                      <div className="text-xs text-gray-400 mt-0.5">
                         {formatDate(invoice.invoice_date)}
                       </div>
                     </div>
