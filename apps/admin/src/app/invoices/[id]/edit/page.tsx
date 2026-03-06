@@ -7,6 +7,12 @@ import AppLayout from '@/components/AppLayout';
 import { api } from '@/lib/api';
 import { formatCurrency } from '@/lib/utils';
 
+interface Site {
+  id: string;
+  name: string;
+  postcode?: string;
+}
+
 interface LineItem {
   item_type: 'labor' | 'material' | 'variation' | 'other';
   description: string;
@@ -32,6 +38,10 @@ export default function EditInvoicePage() {
 
   const [invoiceNumber, setInvoiceNumber] = useState('');
   const [invoiceStatus, setInvoiceStatus] = useState('');
+  const [clientId, setClientId] = useState('');
+  const [clientName, setClientName] = useState('');
+  const [siteId, setSiteId] = useState('');
+  const [sites, setSites] = useState<Site[]>([]);
   const [invoiceDate, setInvoiceDate] = useState(new Date().toISOString().split('T')[0]);
   const [paymentTermsDays, setPaymentTermsDays] = useState(30);
   const [notes, setNotes] = useState('');
@@ -63,9 +73,25 @@ export default function EditInvoicePage() {
       const data = invoiceData.data || invoiceData;
       setInvoiceNumber(data.invoice_number || '');
       setInvoiceStatus(data.status || '');
-      setInvoiceDate(data.invoice_date || new Date().toISOString().split('T')[0]);
+      setClientId(data.client_id || '');
+      setSiteId(data.site_id || '');
+      setInvoiceDate(data.invoice_date?.split('T')[0] || new Date().toISOString().split('T')[0]);
       setPaymentTermsDays(data.payment_terms_days || 30);
       setNotes(data.notes || '');
+
+      // Load sites for the client
+      if (data.client_id) {
+        try {
+          const clientData = await api.request(`/api/clients/clients/${data.client_id}`) as any;
+          setClientName(clientData.name || '');
+        } catch { /* ignore */ }
+        try {
+          const sitesData = await api.request(`/api/clients/clients/${data.client_id}/sites`) as any;
+          setSites(Array.isArray(sitesData) ? sitesData : (sitesData.data || []));
+        } catch {
+          setSites([]);
+        }
+      }
 
       const profile = profileData?.data || profileData;
       const vatRate = profile?.default_vat_rate ?? 20;
@@ -140,6 +166,7 @@ export default function EditInvoicePage() {
       await api.request(`/api/invoices/${invoiceId}`, {
         method: 'PUT',
         body: JSON.stringify({
+          site_id: siteId || null,
           invoice_date: invoiceDate,
           payment_terms_days: paymentTermsDays,
           notes: notes || undefined,
@@ -198,6 +225,28 @@ export default function EditInvoicePage() {
         )}
 
         <form onSubmit={handleSave} className="space-y-6">
+          {/* Site */}
+          {clientId && (
+            <div className="bg-white shadow rounded-lg p-6">
+              <h2 className="text-lg font-semibold text-gray-900 mb-4">Site{clientName ? ` — ${clientName}` : ''}</h2>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Site (optional)</label>
+                <select
+                  value={siteId}
+                  onChange={(e) => setSiteId(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+                >
+                  <option value="">{sites.length === 0 ? 'No sites for this client' : '-- No site --'}</option>
+                  {sites.map(s => (
+                    <option key={s.id} value={s.id}>
+                      {s.name}{s.postcode ? ` – ${s.postcode}` : ''}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          )}
+
           {/* Invoice Details */}
           <div className="bg-white shadow rounded-lg p-6">
             <h2 className="text-lg font-semibold text-gray-900 mb-4">Invoice Details</h2>

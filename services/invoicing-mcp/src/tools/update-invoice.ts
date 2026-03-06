@@ -13,6 +13,7 @@ interface InvoiceItem {
 
 export interface UpdateInvoiceInput {
   invoice_id: string;
+  site_id?: string;
   invoice_date?: string;
   payment_terms_days?: number;
   notes?: string;
@@ -43,6 +44,10 @@ export async function updateInvoice(
       const values: any[] = [];
       let p = 1;
 
+      if (input.site_id !== undefined) {
+        updates.push(`site_id = $${p++}`);
+        values.push(input.site_id || null);
+      }
       if (input.invoice_date !== undefined) {
         updates.push(`invoice_date = $${p++}`);
         values.push(input.invoice_date);

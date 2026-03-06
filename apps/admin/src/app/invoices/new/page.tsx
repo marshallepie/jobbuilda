@@ -26,6 +26,12 @@ interface Client {
   company?: string;
 }
 
+interface Site {
+  id: string;
+  name: string;
+  postcode?: string;
+}
+
 interface LineItem {
   item_type: 'labor' | 'material' | 'variation' | 'other';
   description: string;
@@ -62,6 +68,8 @@ export default function NewInvoicePage() {
   const [clientMode, setClientMode] = useState<'existing' | 'new'>('new');
   const [clients, setClients] = useState<Client[]>([]);
   const [selectedClientId, setSelectedClientId] = useState('');
+  const [sites, setSites] = useState<Site[]>([]);
+  const [selectedSiteId, setSelectedSiteId] = useState('');
   const [newClientName, setNewClientName] = useState('');
   const [newClientEmail, setNewClientEmail] = useState('');
   const [newClientPhone, setNewClientPhone] = useState('');
@@ -124,6 +132,17 @@ export default function NewInvoicePage() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const loadClientSites = async (clientId: string) => {
+    if (!clientId) { setSites([]); setSelectedSiteId(''); return; }
+    try {
+      const data = await api.request(`/api/clients/clients/${clientId}/sites`) as any;
+      setSites(Array.isArray(data) ? data : (data.data || []));
+    } catch {
+      setSites([]);
+    }
+    setSelectedSiteId('');
   };
 
   const loadJob = async () => {
@@ -351,6 +370,7 @@ export default function NewInvoicePage() {
         method: 'POST',
         body: JSON.stringify({
           client_id: clientId,
+          site_id: selectedSiteId || undefined,
           job_id: jobId || undefined,
           invoice_type: invoiceType,
           invoice_date: invoiceDate,
@@ -578,20 +598,39 @@ export default function NewInvoicePage() {
           </div>
 
           {clientMode === 'existing' ? (
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Select Client</label>
-              <select
-                value={selectedClientId}
-                onChange={(e) => setSelectedClientId(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
-              >
-                <option value="">-- Choose a client --</option>
-                {clients.map(c => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}{c.company ? ` (${c.company})` : ''}
-                  </option>
-                ))}
-              </select>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Select Client</label>
+                <select
+                  value={selectedClientId}
+                  onChange={(e) => { setSelectedClientId(e.target.value); loadClientSites(e.target.value); }}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                >
+                  <option value="">-- Choose a client --</option>
+                  {clients.map(c => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}{c.company ? ` (${c.company})` : ''}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              {selectedClientId && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Site (optional)</label>
+                  <select
+                    value={selectedSiteId}
+                    onChange={(e) => setSelectedSiteId(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  >
+                    <option value="">{sites.length === 0 ? 'No sites for this client' : '-- No site --'}</option>
+                    {sites.map(s => (
+                      <option key={s.id} value={s.id}>
+                        {s.name}{s.postcode ? ` – ${s.postcode}` : ''}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
