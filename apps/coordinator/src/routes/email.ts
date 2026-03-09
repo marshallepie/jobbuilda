@@ -237,15 +237,17 @@ export async function emailRoutes(fastify: FastifyInstance) {
         ],
       });
 
-      // Update invoice status to "sent"
-      await fastify.mcp.invoicing.callTool(
-        'update_invoice',
-        {
-          invoice_id: invoiceId,
-          status: 'sent',
-        },
-        context
-      );
+      // Only advance status to "sent" if the invoice is still a draft
+      if (invoice.status === 'draft') {
+        await fastify.mcp.invoicing.callTool(
+          'update_invoice',
+          {
+            invoice_id: invoiceId,
+            status: 'sent',
+          },
+          context
+        );
+      }
 
       fastify.log.info({ invoiceId, emailId: emailResult.id, clientEmail: client.email }, 'Invoice sent via email');
 
@@ -276,8 +278,8 @@ function generateQuoteHTMLForPDF(quote: any, profile: any): string {
     <tr>
       <td>${item.description}</td>
       <td>${item.quantity}</td>
-      <td>£${(item.unit_price_ex_vat || 0).toFixed(2)}</td>
-      <td>£${(item.line_total_inc_vat || 0).toFixed(2)}</td>
+      <td>£${parseFloat(item.unit_price_ex_vat || 0).toFixed(2)}</td>
+      <td>£${parseFloat(item.line_total_inc_vat || 0).toFixed(2)}</td>
     </tr>
   `).join('');
 
@@ -317,9 +319,9 @@ function generateQuoteHTMLForPDF(quote: any, profile: any): string {
   </table>
 
   <div class="total">
-    <p>Subtotal: £${(quote.subtotal_ex_vat || 0).toFixed(2)}</p>
-    <p>VAT: £${(quote.vat_amount || 0).toFixed(2)}</p>
-    <p>Total: £${(quote.total_inc_vat || 0).toFixed(2)}</p>
+    <p>Subtotal: £${parseFloat(quote.subtotal_ex_vat || 0).toFixed(2)}</p>
+    <p>VAT: £${parseFloat(quote.vat_amount || 0).toFixed(2)}</p>
+    <p>Total: £${parseFloat(quote.total_inc_vat || 0).toFixed(2)}</p>
   </div>
 </body>
 </html>
