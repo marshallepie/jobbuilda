@@ -97,7 +97,6 @@ export async function emailRoutes(fastify: FastifyInstance) {
       // Send email with PDF attachment
       const emailResult = await sendEmail({
         to: client.email,
-        from: profile.email || undefined,
         subject: `Quote ${quote.quote_number} from ${profile.name || 'Your Company'}`,
         html: emailHTML,
         text: emailText,
@@ -224,7 +223,6 @@ export async function emailRoutes(fastify: FastifyInstance) {
       // Send email with PDF attachment
       const emailResult = await sendEmail({
         to: client.email,
-        from: profile.email || undefined,
         subject: `Invoice ${invoice.invoice_number} from ${profile.name || 'Your Company'}`,
         html: emailHTML,
         replyTo: profile.email || undefined,
