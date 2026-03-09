@@ -156,7 +156,12 @@ export default function InvoiceDetailPage() {
   const sendInvoice = async () => {
     if (!invoice) return;
 
-    if (confirm(`Send invoice ${invoice.invoice_number} to client?`)) {
+    const isDraft = invoice.status === 'draft';
+    const confirmMsg = isDraft
+      ? `Send invoice ${invoice.invoice_number} to client?`
+      : `Resend invoice ${invoice.invoice_number} to client? They will receive another copy by email.`;
+
+    if (confirm(confirmMsg)) {
       setActionLoading(true);
       try {
         await api.sendInvoice(invoiceId);
@@ -556,15 +561,13 @@ export default function InvoiceDetailPage() {
               {invoice.paid_at && ` • Paid ${formatDate(invoice.paid_at)}`}
             </div>
             <div className="flex flex-wrap gap-2">
-              {invoice.status === 'draft' && (
-                <button
-                  onClick={sendInvoice}
-                  disabled={actionLoading}
-                  className="px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 disabled:opacity-50 text-sm font-medium"
-                >
-                  {actionLoading ? 'Sending...' : 'Send to Client'}
-                </button>
-              )}
+              <button
+                onClick={sendInvoice}
+                disabled={actionLoading}
+                className="px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 disabled:opacity-50 text-sm font-medium"
+              >
+                {actionLoading ? 'Sending...' : invoice.status === 'draft' ? 'Send to Client' : 'Resend to Client'}
+              </button>
               {(invoice.status === 'sent' || invoice.status === 'viewed' || invoice.status === 'partial' || invoice.status === 'overdue') && parseFloat(invoice.amount_due as any) > 0 && (
                 <button
                   onClick={() => setShowPaymentForm(!showPaymentForm)}
@@ -849,15 +852,13 @@ export default function InvoiceDetailPage() {
           <div className="flex items-center justify-between px-4 py-3 bg-gray-800 text-white shrink-0">
             <span className="font-semibold text-sm">{invoice?.invoice_number} — PDF Preview</span>
             <div className="flex items-center gap-2">
-              {invoice?.status === 'draft' && (
-                <button
-                  onClick={handleEmailFromPreview}
-                  disabled={actionLoading}
-                  className="px-3 py-1.5 bg-primary-600 hover:bg-primary-700 text-white text-sm font-medium rounded disabled:opacity-50"
-                >
-                  {actionLoading ? 'Sending...' : 'Email to Client'}
-                </button>
-              )}
+              <button
+                onClick={handleEmailFromPreview}
+                disabled={actionLoading}
+                className="px-3 py-1.5 bg-primary-600 hover:bg-primary-700 text-white text-sm font-medium rounded disabled:opacity-50"
+              >
+                {actionLoading ? 'Sending...' : invoice?.status === 'draft' ? 'Email to Client' : 'Resend to Client'}
+              </button>
               <button
                 onClick={handlePdfPrint}
                 disabled={pdfLoading}
