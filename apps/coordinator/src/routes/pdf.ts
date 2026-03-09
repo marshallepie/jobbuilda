@@ -201,10 +201,16 @@ export function generateQuoteHTML(quote: any, profile: any): string {
 
   // Generate line items HTML
   const lineItemsHTML = (quote.items || []).map((item: any) => {
-    const qty = parseFloat(item.quantity) || 1;
-    const rate = parseFloat(item.unit_price_ex_vat) || 0;
+    const isLabor = item.item_type === 'labor';
+    const qty = isLabor
+      ? (parseFloat(item.estimated_hours) || parseFloat(item.quantity) || 1)
+      : (parseFloat(item.quantity) || 1);
+    const rate = isLabor
+      ? (parseFloat(item.labor_rate) || 0)
+      : (parseFloat(item.unit_price_ex_vat) || 0);
     const markup = parseFloat(item.markup_percent) || 0;
-    const subtotal = qty * rate * (1 + markup / 100);
+    const subtotal = parseFloat(item.line_total_inc_vat) || (qty * rate * (1 + markup / 100));
+    const unit = item.unit || (isLabor ? 'hr' : 'unit');
 
     return `
       <tr>
@@ -213,7 +219,7 @@ export function generateQuoteHTML(quote: any, profile: any): string {
           ${showItemCodes && item.sku ? `<div class="item-code">SKU: ${item.sku}</div>` : ''}
           ${showItemDescriptions && item.notes ? `<div class="item-description">${item.notes}</div>` : ''}
         </td>
-        <td class="text-right">${qty}</td>
+        <td class="text-right">${qty} ${unit}</td>
         <td class="text-right">£${rate.toFixed(2)}</td>
         <td class="text-right">£${subtotal.toFixed(2)}</td>
       </tr>
