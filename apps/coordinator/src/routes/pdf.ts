@@ -201,9 +201,9 @@ export function generateQuoteHTML(quote: any, profile: any): string {
 
   // Generate line items HTML
   const lineItemsHTML = (quote.items || []).map((item: any) => {
-    const qty = item.quantity || 1;
-    const rate = item.unit_price_ex_vat || 0;
-    const markup = item.markup_percent || 0;
+    const qty = parseFloat(item.quantity) || 1;
+    const rate = parseFloat(item.unit_price_ex_vat) || 0;
+    const markup = parseFloat(item.markup_percent) || 0;
     const subtotal = qty * rate * (1 + markup / 100);
 
     return `
@@ -220,9 +220,9 @@ export function generateQuoteHTML(quote: any, profile: any): string {
     `;
   }).join('');
 
-  const subtotal = quote.subtotal_ex_vat || 0;
-  const vatAmount = quote.vat_amount || 0;
-  const total = quote.total_inc_vat || 0;
+  const subtotal = parseFloat(quote.subtotal_ex_vat) || 0;
+  const vatAmount = parseFloat(quote.vat_amount) || 0;
+  const total = parseFloat(quote.total_inc_vat) || 0;
 
   return `<!DOCTYPE html>
 <html>
