@@ -1,6 +1,7 @@
 import { FastifyInstance } from 'fastify';
 import { sendEmail, generateQuoteEmail, generateQuoteEmailText, generateInvoiceEmail } from '../lib/email.js';
 import { generatePDFFromHTML } from '../lib/pdf.js';
+import { generateQuoteHTML, generateInvoiceHTML } from './pdf.js';
 
 export async function emailRoutes(fastify: FastifyInstance) {
   /**
@@ -51,8 +52,32 @@ export async function emailRoutes(fastify: FastifyInstance) {
       );
       const profile = profileResource.data as any;
 
-      // Generate quote PDF
-      const quoteHTML = generateQuoteHTMLForPDF(quote, profile);
+      // Enrich quote with client name for the PDF template
+      quote.client_name = client.name;
+
+      // Fetch site details if available
+      if (quote.site_id) {
+        try {
+          const siteResource = await fastify.mcp.clients.readResource(
+            `res://clients/sites/${quote.site_id}`,
+            context
+          );
+          const site = siteResource.data as any;
+          quote.site_name = site.name;
+          quote.site_address = [
+            site.address_line1,
+            site.address_line2,
+            site.city,
+            site.county,
+            site.postcode,
+          ].filter(Boolean).join(', ');
+        } catch (e) {
+          // Site fetch failed — continue without it
+        }
+      }
+
+      // Generate quote PDF using the same full template as the preview
+      const quoteHTML = generateQuoteHTML(quote, profile);
       const pdfBuffer = await generatePDFFromHTML(quoteHTML, {
         format: 'A4',
         margin: {
@@ -185,8 +210,40 @@ export async function emailRoutes(fastify: FastifyInstance) {
       );
       const profile = profileResource.data as any;
 
-      // Generate invoice PDF
-      const invoiceHTML = generateInvoiceHTMLForPDF(invoice, profile);
+      // Enrich invoice with client details for the PDF template
+      invoice.client_name = client.name;
+      invoice.client_email = client.email;
+      invoice.client_phone = client.phone;
+      invoice.client_address = [
+        client.address_line1,
+        client.address_line2,
+        client.city,
+        client.postcode,
+      ].filter(Boolean).join(', ');
+
+      // Fetch site details if available
+      if (invoice.site_id) {
+        try {
+          const siteResource = await fastify.mcp.clients.readResource(
+            `res://clients/sites/${invoice.site_id}`,
+            context
+          );
+          const site = siteResource.data as any;
+          invoice.site_name = site.name;
+          invoice.site_address = [
+            site.address_line1,
+            site.address_line2,
+            site.city,
+            site.county,
+            site.postcode,
+          ].filter(Boolean).join(', ');
+        } catch (e) {
+          // Site fetch failed — continue without it
+        }
+      }
+
+      // Generate invoice PDF using the same full template as the preview
+      const invoiceHTML = generateInvoiceHTML(invoice, profile);
       const pdfBuffer = await generatePDFFromHTML(invoiceHTML, {
         format: 'A4',
         margin: {
@@ -265,71 +322,3 @@ export async function emailRoutes(fastify: FastifyInstance) {
   });
 }
 
-/**
- * Generate HTML for quote PDF (simplified version)
- * In production, this should reuse the same function from pdf.ts
- */
-function generateQuoteHTMLForPDF(quote: any, profile: any): string {
-  // For now, generate a simple HTML
-  // TODO: Import and reuse the function from pdf.ts to avoid duplication
-  const lineItems = (quote.items || []).map((item: any) => `
-    <tr>
-      <td>${item.description}</td>
-      <td>${item.quantity}</td>
-      <td>£${parseFloat(item.unit_price_ex_vat || 0).toFixed(2)}</td>
-      <td>£${parseFloat(item.line_total_inc_vat || 0).toFixed(2)}</td>
-    </tr>
-  `).join('');
-
-  return `
-<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="UTF-8">
-  <title>Quote ${quote.quote_number}</title>
-  <style>
-    body { font-family: Arial, sans-serif; padding: 40px; }
-    h1 { color: ${profile.primary_color || '#3B82F6'}; }
-    table { width: 100%; border-collapse: collapse; margin: 20px 0; }
-    th, td { padding: 10px; text-align: left; border-bottom: 1px solid #ddd; }
-    th { background: ${profile.primary_color || '#3B82F6'}; color: white; }
-    .total { font-size: 18px; font-weight: bold; text-align: right; margin-top: 20px; }
-  </style>
-</head>
-<body>
-  <h1>QUOTATION</h1>
-  <p><strong>Quote Number:</strong> ${quote.quote_number}</p>
-  <p><strong>Client:</strong> ${quote.client_name || 'N/A'}</p>
-  <p><strong>Valid Until:</strong> ${new Date(quote.valid_until).toLocaleDateString('en-GB')}</p>
-
-  <table>
-    <thead>
-      <tr>
-        <th>Description</th>
-        <th>Qty</th>
-        <th>Rate</th>
-        <th>Total</th>
-      </tr>
-    </thead>
-    <tbody>
-      ${lineItems}
-    </tbody>
-  </table>
-
-  <div class="total">
-    <p>Subtotal: £${parseFloat(quote.subtotal_ex_vat || 0).toFixed(2)}</p>
-    <p>VAT: £${parseFloat(quote.vat_amount || 0).toFixed(2)}</p>
-    <p>Total: £${parseFloat(quote.total_inc_vat || 0).toFixed(2)}</p>
-  </div>
-</body>
-</html>
-  `.trim();
-}
-
-/**
- * Generate HTML for invoice PDF (simplified version)
- */
-function generateInvoiceHTMLForPDF(invoice: any, profile: any): string {
-  // Similar to quote, but for invoices
-  return generateQuoteHTMLForPDF(invoice, profile).replace('QUOTATION', 'INVOICE');
-}

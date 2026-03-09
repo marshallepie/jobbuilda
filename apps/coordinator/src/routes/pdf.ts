@@ -190,7 +190,7 @@ export async function pdfRoutes(fastify: FastifyInstance) {
  * Generate HTML for quote PDF (reusing template from preview)
  * This is a simplified version - you can import the actual template function
  */
-function generateQuoteHTML(quote: any, profile: any): string {
+export function generateQuoteHTML(quote: any, profile: any): string {
   const templateFont = profile.template_font || 'Inter';
   const primaryColor = profile.primary_color || '#3B82F6';
   const showItemCodes = profile.show_item_codes !== false;
@@ -348,7 +348,7 @@ function generateQuoteHTML(quote: any, profile: any): string {
 /**
  * Generate HTML for invoice PDF
  */
-function generateInvoiceHTML(invoice: any, profile: any): string {
+export function generateInvoiceHTML(invoice: any, profile: any): string {
   const primaryColor = profile.primary_color || '#dc2626'; // red for invoices
   const templateFont = profile.template_font || 'Inter';
 
