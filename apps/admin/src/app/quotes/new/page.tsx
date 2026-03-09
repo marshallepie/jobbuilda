@@ -209,7 +209,7 @@ export default function NewQuotePage() {
   const calculateItemTotals = (item: Partial<QuoteItem>) => {
     let unitPrice = 0;
     const quantity = Number(item.quantity) || 0;
-    const vatRate = Number(item.vat_rate) || 20;
+    const vatRate = item.vat_rate != null ? Number(item.vat_rate) : 20;
 
     if (item.item_type === 'labor') {
       const hours = Number(item.estimated_hours) || 0;

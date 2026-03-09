@@ -50,7 +50,7 @@ export async function addQuoteItem(
     }
 
     const itemId = randomUUID();
-    const vatRate = input.vat_rate || 20.0;
+    const vatRate = input.vat_rate ?? 20.0;
 
     // Calculate pricing based on item type
     let unitPrice = 0;

@@ -96,7 +96,7 @@ export async function createQuote(
     for (const item of input.items) {
       const itemId = randomUUID();
       const markup = item.markup_percent || 0;
-      const vatRate = item.vat_rate || 20.0;
+      const vatRate = item.vat_rate ?? 20.0;
 
       const lineTotalExVat = Math.round(item.quantity * item.unit_price_ex_vat * (1 + markup / 100) * 100) / 100;
       const lineVatAmount = Math.round(lineTotalExVat * (vatRate / 100) * 100) / 100;
