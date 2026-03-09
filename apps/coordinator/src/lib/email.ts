@@ -30,7 +30,7 @@ export async function sendEmail(options: SendEmailOptions): Promise<{ id: string
     // Use configured from address or default
     const fromAddress = options.from || process.env.EMAIL_FROM_ADDRESS || 'JobBuilda <noreply@jobbuilda.com>';
 
-    const data = await resend.emails.send({
+    const { data, error } = await resend.emails.send({
       from: fromAddress,
       to: Array.isArray(options.to) ? options.to : [options.to],
       subject: options.subject,
@@ -45,8 +45,12 @@ export async function sendEmail(options: SendEmailOptions): Promise<{ id: string
       bcc: options.bcc ? (Array.isArray(options.bcc) ? options.bcc : [options.bcc]) : undefined,
     });
 
+    if (error) {
+      throw new Error(error.message || 'Resend API returned an error');
+    }
+
     return {
-      id: (data as any).data?.id || 'unknown',
+      id: data?.id || 'unknown',
       success: true,
     };
   } catch (error: any) {
