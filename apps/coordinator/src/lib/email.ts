@@ -69,6 +69,9 @@ export function generateQuoteEmail(data: {
   total: string;
   validUntil: string;
   viewUrl?: string;
+  depositAmount?: string;
+  balanceDue?: string;
+  payDepositUrl?: string;
 }): string {
   return `<!DOCTYPE html>
 <html>
@@ -213,6 +216,28 @@ export function generateQuoteEmail(data: {
         </div>
       </div>
 
+      ${data.depositAmount ? `
+      <div style="background-color: #f0fdf4; border-left: 4px solid #10b981; padding: 16px 20px; margin: 20px 0; border-radius: 4px;">
+        <h3 style="margin: 0 0 10px 0; color: #065f46; font-size: 15px;">Payment Terms</h3>
+        <div style="display: flex; justify-content: space-between; margin-bottom: 6px; font-size: 14px;">
+          <span style="color: #6b7280;">Deposit Required:</span>
+          <strong style="color: #065f46;">${data.depositAmount}</strong>
+        </div>
+        <div style="display: flex; justify-content: space-between; font-size: 14px;">
+          <span style="color: #6b7280;">Balance on Completion:</span>
+          <strong style="color: #374151;">${data.balanceDue}</strong>
+        </div>
+      </div>
+      ` : ''}
+
+      ${data.payDepositUrl ? `
+      <div style="text-align: center; margin: 20px 0;">
+        <a href="${data.payDepositUrl}" style="display: inline-block; background-color: #10b981; color: white; text-decoration: none; padding: 14px 32px; border-radius: 6px; font-weight: 600; font-size: 16px;">
+          Pay Deposit Now
+        </a>
+      </div>
+      ` : ''}
+
       <div class="attachment-notice">
         <p><strong>📎 Your quote is attached as a PDF</strong><br>
         Please review the attached PDF document for complete details including materials, labor, and terms.</p>
@@ -280,6 +305,141 @@ ${data.companyName}
 This quote is valid until ${data.validUntil}
 Please keep this email for your records
   `.trim();
+}
+
+/**
+ * Generate HTML notification email for tenant when a quote deposit is received
+ */
+export function generateDepositReceivedEmail(data: {
+  clientName: string;
+  quoteNumber: string;
+  jobNumber?: string;
+  depositAmount: string;
+  balanceDue: string;
+  companyName: string;
+  dashboardUrl?: string;
+}): string {
+  return `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Deposit Received</title>
+</head>
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f5f5f5;">
+  <div style="background-color: white; border-radius: 8px; padding: 40px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+    <div style="text-align: center; padding-bottom: 30px; border-bottom: 3px solid #10b981; margin-bottom: 30px;">
+      <h1 style="color: #10b981; margin: 0 0 10px 0; font-size: 28px;">Deposit Received</h1>
+      <p style="color: #666; margin: 0; font-size: 16px;">${data.companyName}</p>
+    </div>
+
+    <p style="font-size: 16px; margin: 0 0 15px 0;">A deposit payment has been received from <strong>${data.clientName}</strong>.</p>
+
+    <div style="background-color: #f0fdf4; border-left: 4px solid #10b981; padding: 20px; margin: 25px 0; border-radius: 4px;">
+      <h2 style="margin: 0 0 15px 0; color: #065f46; font-size: 18px;">Payment Details</h2>
+      <div style="display: flex; justify-content: space-between; margin-bottom: 10px; font-size: 15px;">
+        <span style="color: #6b7280;">Quote Number:</span>
+        <strong style="color: #1f2937;">${data.quoteNumber}</strong>
+      </div>
+      ${data.jobNumber ? `
+      <div style="display: flex; justify-content: space-between; margin-bottom: 10px; font-size: 15px;">
+        <span style="color: #6b7280;">Job Created:</span>
+        <strong style="color: #1f2937;">${data.jobNumber}</strong>
+      </div>` : ''}
+      <div style="display: flex; justify-content: space-between; margin-bottom: 10px; font-size: 15px;">
+        <span style="color: #6b7280;">Deposit Received:</span>
+        <strong style="color: #10b981; font-size: 18px;">${data.depositAmount}</strong>
+      </div>
+      <div style="display: flex; justify-content: space-between; font-size: 15px;">
+        <span style="color: #6b7280;">Balance Due on Completion:</span>
+        <strong style="color: #1f2937;">${data.balanceDue}</strong>
+      </div>
+    </div>
+
+    <p style="font-size: 15px; color: #4b5563;">A job has been automatically created and scheduled. You can view and manage it from your dashboard.</p>
+
+    ${data.dashboardUrl ? `
+    <div style="text-align: center; margin: 25px 0;">
+      <a href="${data.dashboardUrl}" style="display: inline-block; background-color: #10b981; color: white; text-decoration: none; padding: 14px 32px; border-radius: 6px; font-weight: 600; font-size: 16px;">
+        View Job in Dashboard
+      </a>
+    </div>` : ''}
+
+    <div style="margin-top: 40px; padding-top: 20px; border-top: 1px solid #e5e7eb; text-align: center; color: #6b7280; font-size: 14px;">
+      <p style="margin: 5px 0;">This is an automated notification from ${data.companyName}</p>
+    </div>
+  </div>
+</body>
+</html>`;
+}
+
+/**
+ * Generate HTML receipt email for client after paying a quote deposit
+ */
+export function generateDepositReceiptEmail(data: {
+  clientName: string;
+  quoteNumber: string;
+  quoteTitle: string;
+  depositAmount: string;
+  balanceDue: string;
+  companyName: string;
+  companyPhone?: string;
+  companyEmail?: string;
+}): string {
+  return `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Deposit Receipt</title>
+</head>
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f5f5f5;">
+  <div style="background-color: white; border-radius: 8px; padding: 40px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+    <div style="text-align: center; padding-bottom: 30px; border-bottom: 3px solid #10b981; margin-bottom: 30px;">
+      <div style="display: inline-flex; align-items: center; justify-content: center; width: 60px; height: 60px; background-color: #d1fae5; border-radius: 50%; margin-bottom: 16px;">
+        <svg width="28" height="28" fill="none" stroke="#10b981" stroke-width="2.5" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/>
+        </svg>
+      </div>
+      <h1 style="color: #10b981; margin: 0 0 6px 0; font-size: 26px;">Deposit Confirmed</h1>
+      <p style="color: #666; margin: 0; font-size: 15px;">from ${data.companyName}</p>
+    </div>
+
+    <p style="font-size: 16px; margin: 0 0 15px 0;">Dear ${data.clientName},</p>
+
+    <p style="font-size: 15px; color: #4b5563; margin: 0 0 20px 0;">
+      Your deposit of <strong style="color: #10b981;">${data.depositAmount}</strong> has been received for <strong>${data.quoteTitle}</strong> (Quote ${data.quoteNumber}).
+    </p>
+
+    <div style="background-color: #f0fdf4; border-left: 4px solid #10b981; padding: 20px; margin: 25px 0; border-radius: 4px;">
+      <div style="display: flex; justify-content: space-between; margin-bottom: 10px; font-size: 15px;">
+        <span style="color: #6b7280;">Deposit Paid:</span>
+        <strong style="color: #10b981;">${data.depositAmount}</strong>
+      </div>
+      <div style="display: flex; justify-content: space-between; font-size: 15px;">
+        <span style="color: #6b7280;">Balance Due on Completion:</span>
+        <strong style="color: #374151;">${data.balanceDue}</strong>
+      </div>
+    </div>
+
+    <p style="font-size: 15px; color: #4b5563;">
+      An engineer has received the job details and will be in touch to arrange a convenient time for access to the premises.
+    </p>
+
+    ${(data.companyPhone || data.companyEmail) ? `
+    <div style="background-color: #f9fafb; border-radius: 6px; padding: 16px 20px; margin: 20px 0;">
+      <p style="margin: 0 0 8px 0; font-size: 13px; color: #6b7280; text-transform: uppercase; letter-spacing: 0.05em; font-weight: 600;">Contact Details</p>
+      ${data.companyPhone ? `<p style="margin: 0 0 4px 0; font-size: 14px;"><strong>${data.companyName}</strong></p><p style="margin: 0 0 4px 0; font-size: 14px; color: #4b5563;">Tel: ${data.companyPhone}</p>` : ''}
+      ${data.companyEmail ? `<p style="margin: 0; font-size: 14px; color: #4b5563;">${data.companyEmail}</p>` : ''}
+    </div>` : ''}
+
+    <div style="margin-top: 40px; padding-top: 20px; border-top: 1px solid #e5e7eb; text-align: center; color: #6b7280; font-size: 14px;">
+      <p style="margin: 5px 0;">Please keep this email as your deposit receipt</p>
+      <p style="margin: 5px 0;">${data.companyName}</p>
+    </div>
+  </div>
+</body>
+</html>`;
 }
 
 /**

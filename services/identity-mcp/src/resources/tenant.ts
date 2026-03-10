@@ -9,6 +9,9 @@ export async function getTenant(tenantId: string): Promise<Tenant | null> {
   try {
     span.setAttribute('tenant_id', tenantId);
 
+    // NOTE: Run on Supabase before deploying:
+    // ALTER TABLE tenants ADD COLUMN IF NOT EXISTS stripe_account_id varchar(255);
+    // ALTER TABLE tenants ADD COLUMN IF NOT EXISTS stripe_connect_status varchar(50);
     const result = await query<Tenant>(
       `SELECT
         id, name, plan, created_at, updated_at,
@@ -21,7 +24,8 @@ export async function getTenant(tenantId: string): Promise<Tenant | null> {
         logo_url, primary_color,
         invoice_template_id, quote_template_id, template_font,
         show_payment_qr, show_item_codes, show_item_descriptions,
-        footer_text, header_image_url
+        footer_text, header_image_url,
+        stripe_account_id, stripe_connect_status
        FROM tenants
        WHERE id = $1`,
       [tenantId]

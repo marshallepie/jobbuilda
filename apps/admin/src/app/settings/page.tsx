@@ -1,8 +1,9 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import AppLayout from '@/components/AppLayout';
 import { api } from '@/lib/api';
+import { useSearchParams } from 'next/navigation';
 
 interface BusinessProfile {
   id: string;
@@ -41,15 +42,53 @@ interface BusinessProfile {
   header_image_url?: string;
 }
 
+interface StripeStatus {
+  connected: boolean;
+  stripe_account_id?: string;
+  stripe_connect_status?: string;
+}
+
 export default function SettingsPage() {
   const [profile, setProfile] = useState<BusinessProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [activeSection, setActiveSection] = useState<string>('profile');
+  const [stripeStatus, setStripeStatus] = useState<StripeStatus | null>(null);
+  const [stripeLoading, setStripeLoading] = useState(false);
+  const [stripeMessage, setStripeMessage] = useState<{ type: 'success' | 'warn'; text: string } | null>(null);
+
+  const searchParams = useSearchParams();
 
   useEffect(() => {
     loadProfile();
+    loadStripeStatus();
+
+    // Handle return from Stripe Connect onboarding
+    const stripeParam = searchParams?.get('stripe');
+    if (stripeParam === 'success') {
+      setStripeMessage({ type: 'success', text: 'Stripe account connected successfully! Reloading status...' });
+      // Reload status after a short delay to allow Stripe to propagate
+      setTimeout(() => loadStripeStatus(), 1500);
+    } else if (stripeParam === 'refresh') {
+      setStripeMessage({ type: 'warn', text: 'Stripe onboarding session expired. Please try connecting again.' });
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const loadStripeStatus = async () => {
+    try {
+      const mockAuth = {
+        token: 'mock-jwt-token',
+        tenant_id: '550e8400-e29b-41d4-a716-446655440000',
+        user_id: '550e8400-e29b-41d4-a716-446655440001',
+      };
+      api.setAuth(mockAuth);
+      const data = await api.request('/api/payments/connect/status') as StripeStatus;
+      setStripeStatus(data);
+    } catch (err) {
+      console.error('Failed to load Stripe status:', err);
+    }
+  };
 
   const loadProfile = async () => {
     try {
@@ -67,6 +106,47 @@ export default function SettingsPage() {
       alert('Failed to load business profile');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleStripeConnect = async () => {
+    setStripeLoading(true);
+    setStripeMessage(null);
+    try {
+      const mockAuth = {
+        token: 'mock-jwt-token',
+        tenant_id: '550e8400-e29b-41d4-a716-446655440000',
+        user_id: '550e8400-e29b-41d4-a716-446655440001',
+      };
+      api.setAuth(mockAuth);
+      const data = await api.request('/api/payments/connect/authorize') as { url: string };
+      window.location.href = data.url;
+    } catch (err: any) {
+      console.error('Failed to start Stripe Connect:', err);
+      setStripeMessage({ type: 'warn', text: err.message || 'Failed to start Stripe Connect. Please try again.' });
+      setStripeLoading(false);
+    }
+  };
+
+  const handleStripeDisconnect = async () => {
+    if (!confirm('Are you sure you want to disconnect your Stripe account? Clients will no longer be able to pay deposits online.')) return;
+    setStripeLoading(true);
+    setStripeMessage(null);
+    try {
+      const mockAuth = {
+        token: 'mock-jwt-token',
+        tenant_id: '550e8400-e29b-41d4-a716-446655440000',
+        user_id: '550e8400-e29b-41d4-a716-446655440001',
+      };
+      api.setAuth(mockAuth);
+      await api.request('/api/payments/connect/disconnect', { method: 'POST' });
+      await loadStripeStatus();
+      setStripeMessage({ type: 'success', text: 'Stripe account disconnected.' });
+    } catch (err: any) {
+      console.error('Failed to disconnect Stripe:', err);
+      setStripeMessage({ type: 'warn', text: err.message || 'Failed to disconnect Stripe account.' });
+    } finally {
+      setStripeLoading(false);
     }
   };
 
@@ -461,6 +541,73 @@ export default function SettingsPage() {
                     />
                   </div>
                 </div>
+              </div>
+
+              {/* Stripe Payments */}
+              <div>
+                <h3 className="text-base font-semibold text-gray-900 mb-1">Stripe Payments</h3>
+                <p className="text-sm text-gray-600 mb-4">Accept deposit payments from clients directly into your bank account via Stripe</p>
+
+                {stripeMessage && (
+                  <div className={`mb-4 p-3 rounded-md text-sm ${stripeMessage.type === 'success' ? 'bg-green-50 text-green-800 border border-green-200' : 'bg-amber-50 text-amber-800 border border-amber-200'}`}>
+                    {stripeMessage.text}
+                  </div>
+                )}
+
+                {stripeStatus === null ? (
+                  <div className="p-4 bg-gray-50 rounded-lg text-sm text-gray-500">Loading Stripe status...</div>
+                ) : stripeStatus.stripe_connect_status === 'active' ? (
+                  <div className="p-4 bg-white border border-gray-200 rounded-lg flex items-start justify-between gap-4">
+                    <div>
+                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 mb-2">
+                        Connected
+                      </span>
+                      <p className="text-sm text-gray-700">Your Stripe account is connected. Clients can pay deposits directly to your account.</p>
+                      {stripeStatus.stripe_account_id && (
+                        <p className="mt-1 text-xs text-gray-400">Account: {stripeStatus.stripe_account_id}</p>
+                      )}
+                    </div>
+                    <button
+                      onClick={handleStripeDisconnect}
+                      disabled={stripeLoading}
+                      className="shrink-0 px-4 py-2 text-sm font-medium text-red-600 border border-red-300 rounded-md hover:bg-red-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {stripeLoading ? 'Working...' : 'Disconnect'}
+                    </button>
+                  </div>
+                ) : stripeStatus.stripe_connect_status === 'pending' ? (
+                  <div className="p-4 bg-white border border-gray-200 rounded-lg flex items-start justify-between gap-4">
+                    <div>
+                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800 mb-2">
+                        Setup Incomplete
+                      </span>
+                      <p className="text-sm text-gray-700">Stripe account created but onboarding is not complete. Please finish setting up your account.</p>
+                    </div>
+                    <button
+                      onClick={handleStripeConnect}
+                      disabled={stripeLoading}
+                      className="shrink-0 px-4 py-2 text-sm font-medium text-white bg-primary-600 rounded-md hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {stripeLoading ? 'Redirecting...' : 'Continue Setup'}
+                    </button>
+                  </div>
+                ) : (
+                  <div className="p-4 bg-white border border-gray-200 rounded-lg flex items-start justify-between gap-4">
+                    <div>
+                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600 mb-2">
+                        Not Connected
+                      </span>
+                      <p className="text-sm text-gray-700">Connect your Stripe account to accept deposit payments from clients directly into your bank account.</p>
+                    </div>
+                    <button
+                      onClick={handleStripeConnect}
+                      disabled={stripeLoading}
+                      className="shrink-0 px-4 py-2 text-sm font-medium text-white bg-primary-600 rounded-md hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {stripeLoading ? 'Redirecting...' : 'Connect Stripe Account'}
+                    </button>
+                  </div>
+                )}
               </div>
 
               {/* Branding */}

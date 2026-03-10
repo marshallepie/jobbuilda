@@ -75,6 +75,10 @@ export default function NewQuotePage() {
   const [newSiteAccessNotes, setNewSiteAccessNotes] = useState('');
   const [creatingSite, setCreatingSite] = useState(false);
 
+  // Deposit settings
+  const [depositType, setDepositType] = useState<'none' | 'percent' | 'fixed'>('none');
+  const [depositValue, setDepositValue] = useState('');
+
   // Quote items
   const [items, setItems] = useState<QuoteItem[]>([]);
   const [showAddItem, setShowAddItem] = useState(false);
@@ -292,6 +296,8 @@ export default function NewQuotePage() {
         valid_until: validUntil,
         terms,
         notes,
+        deposit_percent: depositType === 'percent' ? (parseFloat(depositValue) || 0) : undefined,
+        deposit_fixed_amount: depositType === 'fixed' ? (parseFloat(depositValue) || 0) : undefined,
         items: items.map(item => {
           // For labor items, unit_price_ex_vat is calculated as hours × rate
           const unitPrice = item.item_type === 'labor'
@@ -700,6 +706,69 @@ export default function NewQuotePage() {
                   ))}
                 </div>
               )}
+            </div>
+
+            {/* Deposit Settings */}
+            <div className="bg-white shadow rounded-lg p-6">
+              <h2 className="text-lg font-semibold text-gray-900 mb-4">Deposit</h2>
+              <div className="space-y-4">
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => { setDepositType('none'); setDepositValue(''); }}
+                    className={`px-4 py-2 rounded-lg text-sm font-medium border ${depositType === 'none' ? 'bg-gray-800 text-white border-gray-800' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'}`}
+                  >
+                    No Deposit
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setDepositType('percent')}
+                    className={`px-4 py-2 rounded-lg text-sm font-medium border ${depositType === 'percent' ? 'bg-gray-800 text-white border-gray-800' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'}`}
+                  >
+                    Percentage %
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setDepositType('fixed')}
+                    className={`px-4 py-2 rounded-lg text-sm font-medium border ${depositType === 'fixed' ? 'bg-gray-800 text-white border-gray-800' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'}`}
+                  >
+                    Fixed Amount £
+                  </button>
+                </div>
+
+                {depositType !== 'none' && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      {depositType === 'percent' ? 'Deposit Percentage (%)' : 'Deposit Amount (£)'}
+                    </label>
+                    <input
+                      type="number"
+                      step={depositType === 'percent' ? '1' : '0.01'}
+                      min="0"
+                      max={depositType === 'percent' ? '100' : undefined}
+                      value={depositValue}
+                      onChange={(e) => setDepositValue(e.target.value)}
+                      placeholder={depositType === 'percent' ? 'e.g., 25' : 'e.g., 250.00'}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+                    />
+                  </div>
+                )}
+
+                {depositType !== 'none' && depositValue && totals.total > 0 && (() => {
+                  const depAmt = depositType === 'percent'
+                    ? Math.round(totals.total * (parseFloat(depositValue) / 100) * 100) / 100
+                    : parseFloat(depositValue) || 0;
+                  const balance = totals.total - depAmt;
+                  return (
+                    <div className="bg-amber-50 border border-amber-200 rounded-lg px-4 py-3 text-sm">
+                      <p className="text-amber-800">
+                        <strong>Deposit: £{depAmt.toFixed(2)}</strong>
+                        {' '}&mdash; Balance on completion: £{balance.toFixed(2)}
+                      </p>
+                    </div>
+                  );
+                })()}
+              </div>
             </div>
           </div>
 

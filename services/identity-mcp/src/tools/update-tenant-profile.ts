@@ -44,6 +44,10 @@ export interface UpdateTenantProfileInput {
   logo_url?: string;
   primary_color?: string;
 
+  // Stripe Connect
+  stripe_account_id?: string;
+  stripe_connect_status?: string;
+
   // Templates
   invoice_template_id?: string;
   quote_template_id?: string;
@@ -114,6 +118,8 @@ export async function updateTenantProfile(
       addField('show_item_descriptions', input.show_item_descriptions);
       addField('footer_text', input.footer_text);
       addField('header_image_url', input.header_image_url);
+      addField('stripe_account_id', input.stripe_account_id);
+      addField('stripe_connect_status', input.stripe_connect_status);
 
       if (updates.length === 0) {
         throw new Error('No fields to update');

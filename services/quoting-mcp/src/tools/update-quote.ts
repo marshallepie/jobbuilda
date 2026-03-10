@@ -11,6 +11,9 @@ export interface UpdateQuoteInput {
   terms?: string;
   notes?: string;
   job_id?: string;
+  deposit_percent?: number;
+  deposit_fixed_amount?: number;
+  deposit_amount?: number;
 }
 
 export interface UpdateQuoteOutput {
@@ -60,6 +63,18 @@ export async function updateQuote(
     if (input.job_id !== undefined) {
       updates.push(`job_id = $${paramIndex++}`);
       values.push(input.job_id);
+    }
+    if (input.deposit_percent !== undefined) {
+      updates.push(`deposit_percent = $${paramIndex++}`);
+      values.push(input.deposit_percent);
+    }
+    if (input.deposit_fixed_amount !== undefined) {
+      updates.push(`deposit_fixed_amount = $${paramIndex++}`);
+      values.push(input.deposit_fixed_amount);
+    }
+    if (input.deposit_amount !== undefined) {
+      updates.push(`deposit_amount = $${paramIndex++}`);
+      values.push(input.deposit_amount);
     }
 
     if (updates.length === 0) {

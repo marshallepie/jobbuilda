@@ -27,6 +27,8 @@ export interface CreateQuoteInput {
   terms?: string;
   notes?: string;
   items: QuoteLineItem[];
+  deposit_percent?: number;
+  deposit_fixed_amount?: number;
 }
 
 export interface CreateQuoteOutput {
@@ -37,6 +39,7 @@ export interface CreateQuoteOutput {
   subtotal_ex_vat: number;
   vat_amount: number;
   total_inc_vat: number;
+  deposit_amount: number;
   created_at: string;
 }
 
@@ -66,8 +69,9 @@ export async function createQuote(
     // Create quote
     await query(
       `INSERT INTO quotes (id, tenant_id, quote_number, lead_id, client_id, site_id, title,
-                           description, status, valid_until, terms, notes, created_by, created_at, updated_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)`,
+                           description, status, valid_until, terms, notes, created_by, created_at, updated_at,
+                           deposit_percent, deposit_fixed_amount)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)`,
       [
         quoteId,
         context.tenant_id,
@@ -83,7 +87,9 @@ export async function createQuote(
         input.notes || null,
         context.user_id,
         now,
-        now
+        now,
+        input.deposit_percent || null,
+        input.deposit_fixed_amount || null,
       ]
     );
 
@@ -139,10 +145,15 @@ export async function createQuote(
     totalVatAmount = Math.round(totalVatAmount * 100) / 100;
     totalIncVat = Math.round(totalIncVat * 100) / 100;
 
+    // Compute deposit amount
+    const depositAmount = input.deposit_percent
+      ? Math.round(totalIncVat * (input.deposit_percent / 100) * 100) / 100
+      : (input.deposit_fixed_amount || 0);
+
     await query(
-      `UPDATE quotes SET subtotal_ex_vat = $1, vat_amount = $2, total_inc_vat = $3, updated_at = NOW()
-       WHERE id = $4`,
-      [subtotalExVat, totalVatAmount, totalIncVat, quoteId]
+      `UPDATE quotes SET subtotal_ex_vat = $1, vat_amount = $2, total_inc_vat = $3, deposit_amount = $4, updated_at = NOW()
+       WHERE id = $5`,
+      [subtotalExVat, totalVatAmount, totalIncVat, depositAmount, quoteId]
     );
 
     const quote = { subtotal_ex_vat: subtotalExVat, vat_amount: totalVatAmount, total_inc_vat: totalIncVat };
@@ -173,6 +184,7 @@ export async function createQuote(
       subtotal_ex_vat: quote.subtotal_ex_vat,
       vat_amount: quote.vat_amount,
       total_inc_vat: quote.total_inc_vat,
+      deposit_amount: depositAmount,
       created_at: now
     };
   } catch (error) {

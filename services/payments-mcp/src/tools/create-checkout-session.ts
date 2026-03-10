@@ -19,6 +19,10 @@ interface CreateCheckoutSessionInput {
   cancel_url: string;
   payment_method_types?: string[];
   expires_in_minutes?: number;
+  // Stripe Connect: route payment to the tenant's connected account
+  stripe_account_id?: string;
+  // Passthrough metadata merged onto the Stripe session
+  metadata?: Record<string, string>;
 }
 
 export async function createCheckoutSession(
@@ -35,10 +39,12 @@ export async function createCheckoutSession(
     cancel_url,
     payment_method_types = ['card'],
     expires_in_minutes = 30,
+    stripe_account_id,
+    metadata: extraMetadata,
   } = input;
 
-  // Create Stripe checkout session
-  const session = await stripe.checkout.sessions.create({
+  // Build session params
+  const sessionParams: Parameters<typeof stripe.checkout.sessions.create>[0] = {
     payment_method_types: payment_method_types as any,
     line_items: [
       {
@@ -48,7 +54,7 @@ export async function createCheckoutSession(
             name: description || `Invoice Payment`,
             description: `Payment for invoice ${invoice_id}`,
           },
-          unit_amount: Math.round(amount * 100), // Convert to cents
+          unit_amount: Math.round(amount * 100), // Convert to pence/cents
         },
         quantity: 1,
       },
@@ -61,8 +67,17 @@ export async function createCheckoutSession(
       tenant_id: context.tenant_id,
       invoice_id,
       created_by: context.user_id,
+      ...extraMetadata,
     },
-  });
+    // Required for Stripe Connect direct charges — set platform fee to 0 for now
+    ...(stripe_account_id ? { payment_intent_data: { application_fee_amount: 0 } } : {}),
+  };
+
+  // Create Stripe checkout session, routing to the connected account when provided
+  const session = await stripe.checkout.sessions.create(
+    sessionParams,
+    stripe_account_id ? { stripeAccount: stripe_account_id } : undefined
+  );
 
   // Store payment intent in database
   const intentId = randomUUID();

@@ -14,6 +14,9 @@ export interface Quote {
   subtotal_ex_vat: number;
   vat_amount: number;
   total_inc_vat: number;
+  deposit_percent?: number;
+  deposit_fixed_amount?: number;
+  deposit_amount?: number;
   valid_until?: string;
   sent_at?: string;
   viewed_at?: string;
@@ -58,8 +61,9 @@ export async function getQuote(quoteId: string, tenantId: string, includeItems =
 
     const result = await query<Quote>(
       `SELECT id, tenant_id, quote_number, lead_id, client_id, site_id, title, description,
-              status, subtotal_ex_vat, vat_amount, total_inc_vat, valid_until,
-              sent_at, viewed_at, approved_at, rejected_at, rejection_reason,
+              status, subtotal_ex_vat, vat_amount, total_inc_vat,
+              deposit_percent, deposit_fixed_amount, deposit_amount,
+              valid_until, sent_at, viewed_at, approved_at, rejected_at, rejection_reason,
               terms, notes, created_by, created_at, updated_at
        FROM quotes
        WHERE id = $1 AND tenant_id = $2`,
@@ -104,8 +108,9 @@ export async function listQuotesByClient(clientId: string, tenantId: string): Pr
 
     const result = await query<Quote>(
       `SELECT id, tenant_id, quote_number, lead_id, client_id, site_id, title, description,
-              status, subtotal_ex_vat, vat_amount, total_inc_vat, valid_until,
-              sent_at, viewed_at, approved_at, rejected_at, rejection_reason,
+              status, subtotal_ex_vat, vat_amount, total_inc_vat,
+              deposit_percent, deposit_fixed_amount, deposit_amount,
+              valid_until, sent_at, viewed_at, approved_at, rejected_at, rejection_reason,
               terms, notes, created_by, created_at, updated_at
        FROM quotes
        WHERE client_id = $1 AND tenant_id = $2
@@ -139,8 +144,9 @@ export async function listQuotes(tenantId: string, status?: string): Promise<Quo
 
     const result = await query<Quote>(
       `SELECT id, tenant_id, quote_number, lead_id, client_id, site_id, title, description,
-              status, subtotal_ex_vat, vat_amount, total_inc_vat, valid_until,
-              sent_at, viewed_at, approved_at, rejected_at, rejection_reason,
+              status, subtotal_ex_vat, vat_amount, total_inc_vat,
+              deposit_percent, deposit_fixed_amount, deposit_amount,
+              valid_until, sent_at, viewed_at, approved_at, rejected_at, rejection_reason,
               terms, notes, created_by, created_at, updated_at
        FROM quotes
        ${whereClause}

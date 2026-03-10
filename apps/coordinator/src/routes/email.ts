@@ -101,6 +101,26 @@ export async function emailRoutes(fastify: FastifyInstance) {
         currency: 'GBP',
       }).format(quote.total_inc_vat);
 
+      // Compute deposit amount and balance
+      const rawDepositAmount = parseFloat(quote.deposit_amount) ||
+        (quote.deposit_percent
+          ? Math.round(parseFloat(quote.total_inc_vat) * parseFloat(quote.deposit_percent) / 100 * 100) / 100
+          : parseFloat(quote.deposit_fixed_amount) || 0);
+      const rawBalanceDue = parseFloat(quote.total_inc_vat) - rawDepositAmount;
+
+      const gbpFormatter = new Intl.NumberFormat('en-GB', { style: 'currency', currency: 'GBP' });
+
+      let payDepositUrl: string | undefined;
+      let formattedDeposit: string | undefined;
+      let formattedBalance: string | undefined;
+
+      if (rawDepositAmount > 0) {
+        const portalUrl = process.env.PORTAL_URL || 'http://localhost:3001';
+        payDepositUrl = `${portalUrl}/payment/quote-deposit/${quoteId}`;
+        formattedDeposit = gbpFormatter.format(rawDepositAmount);
+        formattedBalance = gbpFormatter.format(rawBalanceDue);
+      }
+
       // Generate email content
       const emailHTML = generateQuoteEmail({
         clientName: client.name,
@@ -109,6 +129,9 @@ export async function emailRoutes(fastify: FastifyInstance) {
         total,
         validUntil,
         viewUrl: undefined, // TODO: Add client portal URL when available
+        depositAmount: formattedDeposit,
+        balanceDue: formattedBalance,
+        payDepositUrl,
       });
 
       const emailText = generateQuoteEmailText({

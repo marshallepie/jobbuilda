@@ -229,6 +229,11 @@ export function generateQuoteHTML(quote: any, profile: any): string {
   const subtotal = parseFloat(quote.subtotal_ex_vat) || 0;
   const vatAmount = parseFloat(quote.vat_amount) || 0;
   const total = parseFloat(quote.total_inc_vat) || 0;
+  const depositAmt = parseFloat(quote.deposit_amount) ||
+    (quote.deposit_percent
+      ? Math.round(total * parseFloat(quote.deposit_percent) / 100 * 100) / 100
+      : parseFloat(quote.deposit_fixed_amount) || 0);
+  const balanceOnCompletion = total - depositAmt;
 
   return `<!DOCTYPE html>
 <html>
@@ -274,6 +279,9 @@ export function generateQuoteHTML(quote: any, profile: any): string {
     .total-row { display: flex; justify-content: space-between; padding: 6px 0; font-size: 13px; }
     .total-row.subtotal { border-top: 1px solid #e5e7eb; }
     .total-row.grand-total { border-top: 2px solid ${primaryColor}; font-size: 16px; font-weight: bold; color: ${primaryColor}; padding-top: 10px; margin-top: 6px; }
+    .deposit-section { margin-top: 10px; border-top: 1px dashed #e5e7eb; padding-top: 10px; }
+    .total-row.deposit { color: #d97706; font-weight: 600; }
+    .total-row.balance { color: #374151; font-weight: 600; }
     .footer { margin-top: 30px; padding-top: 15px; border-top: 1px solid #e5e7eb; text-align: center; font-size: 11px; color: #6b7280; white-space: pre-line; }
   </style>
 </head>
@@ -343,6 +351,17 @@ export function generateQuoteHTML(quote: any, profile: any): string {
         <span>Total:</span>
         <span>£${total.toFixed(2)}</span>
       </div>
+      ${depositAmt > 0 ? `
+      <div class="deposit-section">
+        <div class="total-row deposit">
+          <span>Deposit Required:</span>
+          <span>£${depositAmt.toFixed(2)}</span>
+        </div>
+        <div class="total-row balance">
+          <span>Balance on Completion:</span>
+          <span>£${balanceOnCompletion.toFixed(2)}</span>
+        </div>
+      </div>` : ''}
     </div>
 
     ${profile.footer_text ? `<div class="footer">${profile.footer_text}</div>` : ''}

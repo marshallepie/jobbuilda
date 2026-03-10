@@ -19,6 +19,7 @@ import { warmUpBrowser } from './lib/pdf.js';
 import { emailRoutes } from './routes/email.js';
 import { subscriptionRoutes } from './routes/subscription.js';
 import { subscriptionWebhookRoutes } from './routes/subscription-webhook.js';
+import { quoteDepositWebhookRoutes } from './routes/quote-deposit-webhook.js';
 import { getPool } from './lib/db.js';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -348,6 +349,7 @@ export async function createServer() {
   await fastify.register(emailRoutes);
   await fastify.register(subscriptionRoutes);
   await fastify.register(subscriptionWebhookRoutes);
+  await fastify.register(quoteDepositWebhookRoutes);
 
   return fastify;
 }
