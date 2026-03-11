@@ -167,9 +167,9 @@ export default function InvoiceDetailPage() {
         await api.sendInvoice(invoiceId);
         await loadInvoice();
         alert('Invoice sent successfully!');
-      } catch (err) {
+      } catch (err: any) {
         console.error('Failed to send invoice:', err);
-        alert('Failed to send invoice. Please try again.');
+        alert(`Failed to send invoice: ${err.message || 'Please try again.'}`);
       } finally {
         setActionLoading(false);
       }
@@ -619,9 +619,10 @@ export default function InvoiceDetailPage() {
               )}
               <button
                 onClick={openPdfPreview}
-                className="px-4 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 text-sm font-medium"
+                disabled={pdfLoading}
+                className="px-4 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 disabled:opacity-60 text-sm font-medium"
               >
-                Preview PDF
+                {pdfLoading ? 'Preparing PDF...' : 'Preview PDF'}
               </button>
             </div>
           </div>
