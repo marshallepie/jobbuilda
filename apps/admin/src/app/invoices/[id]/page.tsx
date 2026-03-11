@@ -177,8 +177,11 @@ export default function InvoiceDetailPage() {
   };
 
   const openPdfPreview = async () => {
+    // Mobile browsers (iOS Safari, Android) cannot render PDF blob URLs in iframes.
+    // Detect mobile and trigger a download instead.
+    const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
     setPdfLoading(true);
-    setShowPdfPreview(true);
+    if (!isMobile) setShowPdfPreview(true);
     try {
       const auth = api.loadAuth();
       const headers: Record<string, string> = {};
@@ -195,9 +198,21 @@ export default function InvoiceDetailPage() {
       }
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
-      // Revoke previous blob URL if any
-      if (pdfBlobUrl) URL.revokeObjectURL(pdfBlobUrl);
-      setPdfBlobUrl(url);
+
+      if (isMobile) {
+        // On mobile: trigger a file download so the user can open the PDF natively
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `Invoice_${invoice?.invoice_number || invoiceId}.pdf`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+      } else {
+        // On desktop: show inline iframe preview
+        if (pdfBlobUrl) URL.revokeObjectURL(pdfBlobUrl);
+        setPdfBlobUrl(url);
+      }
     } catch (err: any) {
       console.error('Failed to load PDF preview:', err);
       alert(`Failed to load PDF preview: ${err.message || 'Please try again.'}`);
