@@ -452,6 +452,11 @@ export function generateInvoiceHTML(invoice: any, profile: any): string {
     .grand-total td { background: ${primaryColor}; color: white; font-size: 15px; font-weight: bold; }
     .amount-due td { background: #fef2f2; color: #b91c1c; font-weight: bold; font-size: 14px; }
     .payment-info { background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 6px; padding: 12px 16px; margin-bottom: 20px; font-size: 13px; color: #166534; }
+    .bank-details { background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 6px; padding: 14px 16px; margin-top: 20px; font-size: 12px; }
+    .bank-details h3 { font-size: 11px; text-transform: uppercase; color: #1e40af; letter-spacing: 0.05em; margin-bottom: 8px; font-weight: 700; }
+    .bank-row { display: flex; justify-content: space-between; margin-bottom: 4px; }
+    .bank-label { color: #6b7280; }
+    .bank-value { font-weight: 600; color: #1f2937; }
     .notes { margin-top: 20px; padding: 12px 16px; background: #f9fafb; border-left: 4px solid ${primaryColor}; font-size: 13px; }
     .notes h3 { font-size: 11px; text-transform: uppercase; color: #6b7280; margin-bottom: 6px; }
     .footer { margin-top: 30px; padding-top: 15px; border-top: 1px solid #e5e7eb; text-align: center; font-size: 11px; color: #6b7280; white-space: pre-line; }
@@ -550,6 +555,30 @@ export function generateInvoiceHTML(invoice: any, profile: any): string {
         ` : ''}
       </table>
     </div>
+
+    ${(profile.account_name && profile.sort_code && profile.account_number) ? `
+    <div class="bank-details">
+      <h3>🏦 Bank Transfer Details</h3>
+      <div class="bank-row">
+        <span class="bank-label">Pay To:</span>
+        <span class="bank-value">${profile.account_name}</span>
+      </div>
+      <div class="bank-row">
+        <span class="bank-label">Sort Code:</span>
+        <span class="bank-value">${profile.sort_code}</span>
+      </div>
+      <div class="bank-row">
+        <span class="bank-label">Account Number:</span>
+        <span class="bank-value">${profile.account_number}</span>
+      </div>
+      ${profile.bank_name ? `
+      <div class="bank-row">
+        <span class="bank-label">Bank:</span>
+        <span class="bank-value">${profile.bank_name}</span>
+      </div>` : ''}
+      <p style="margin: 8px 0 0 0; font-size: 11px; color: #1e40af;">Please use invoice number <strong>${invoice.invoice_number}</strong> as your payment reference.</p>
+    </div>
+    ` : ''}
 
     ${invoice.notes ? `
     <div class="notes">

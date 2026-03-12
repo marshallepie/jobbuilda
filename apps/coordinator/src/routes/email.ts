@@ -306,6 +306,12 @@ export async function emailRoutes(fastify: FastifyInstance) {
         total,
         dueDate,
         paymentUrl: undefined, // TODO: Add Stripe payment link when available
+        bankName: profile.bank_name || undefined,
+        accountName: profile.account_name || undefined,
+        sortCode: profile.sort_code || undefined,
+        accountNumber: profile.account_number || undefined,
+        companyPhone: profile.phone || undefined,
+        companyEmail: profile.email || undefined,
       });
 
       // Send email with PDF attachment

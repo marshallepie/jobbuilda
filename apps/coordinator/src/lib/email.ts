@@ -452,7 +452,16 @@ export function generateInvoiceEmail(data: {
   total: string;
   dueDate: string;
   paymentUrl?: string;
+  bankName?: string;
+  accountName?: string;
+  sortCode?: string;
+  accountNumber?: string;
+  companyPhone?: string;
+  companyEmail?: string;
 }): string {
+  const hasBankDetails = data.accountName && data.sortCode && data.accountNumber;
+  const hasContact = data.companyPhone || data.companyEmail;
+
   return `<!DOCTYPE html>
 <html>
 <head>
@@ -499,10 +508,23 @@ export function generateInvoiceEmail(data: {
       margin-bottom: 10px;
       font-size: 15px;
     }
+    .detail-row:last-child { margin-bottom: 0; }
     .total-amount {
       font-size: 24px;
       color: #10b981;
       font-weight: bold;
+    }
+    .bank-details {
+      background-color: #eff6ff;
+      border-left: 4px solid #3b82f6;
+      padding: 20px;
+      margin: 20px 0;
+      border-radius: 4px;
+    }
+    .bank-details h3 {
+      margin: 0 0 12px 0;
+      color: #1e40af;
+      font-size: 15px;
     }
     .cta-button {
       display: inline-block;
@@ -514,6 +536,14 @@ export function generateInvoiceEmail(data: {
       font-weight: 600;
       font-size: 16px;
       margin: 20px 0;
+    }
+    .contact-box {
+      background-color: #f9fafb;
+      border-radius: 6px;
+      padding: 16px 20px;
+      margin: 20px 0;
+      font-size: 14px;
+      color: #4b5563;
     }
     .footer {
       margin-top: 40px;
@@ -535,7 +565,7 @@ export function generateInvoiceEmail(data: {
     <div class="content">
       <p>Dear ${data.clientName},</p>
 
-      <p>Thank you for your business! Please find your invoice attached.</p>
+      <p>Thank you for your business! Please find your invoice attached.${hasBankDetails ? ' For your convenience, you can quickly make a bank transfer using our banking details below.' : ''}</p>
 
       <div class="invoice-details">
         <h2>Invoice Details</h2>
@@ -553,6 +583,30 @@ export function generateInvoiceEmail(data: {
         </div>
       </div>
 
+      ${hasBankDetails ? `
+      <div class="bank-details">
+        <h3>🏦 Bank Transfer Details</h3>
+        <div class="detail-row">
+          <span style="color:#6b7280;">Pay To:</span>
+          <strong style="color:#1f2937;">${data.accountName}</strong>
+        </div>
+        <div class="detail-row">
+          <span style="color:#6b7280;">Sort Code:</span>
+          <strong style="color:#1f2937;">${data.sortCode}</strong>
+        </div>
+        <div class="detail-row">
+          <span style="color:#6b7280;">Account Number:</span>
+          <strong style="color:#1f2937;">${data.accountNumber}</strong>
+        </div>
+        ${data.bankName ? `
+        <div class="detail-row">
+          <span style="color:#6b7280;">Bank:</span>
+          <strong style="color:#1f2937;">${data.bankName}</strong>
+        </div>` : ''}
+        <p style="margin: 12px 0 0 0; font-size: 13px; color: #1e40af;">Please use your invoice number <strong>${data.invoiceNumber}</strong> as the payment reference.</p>
+      </div>
+      ` : ''}
+
       ${data.paymentUrl ? `
       <div style="text-align: center;">
         <a href="${data.paymentUrl}" class="cta-button">
@@ -561,9 +615,13 @@ export function generateInvoiceEmail(data: {
       </div>
       ` : ''}
 
-      <p>The attached PDF contains complete payment details including our banking information.</p>
-
-      <p>Thank you for your business!</p>
+      ${hasContact ? `
+      <div class="contact-box">
+        <p style="margin: 0 0 6px 0; font-size: 13px; color: #6b7280; text-transform: uppercase; letter-spacing: 0.05em; font-weight: 600;">For any queries regarding this invoice, please contact us:</p>
+        ${data.companyPhone ? `<p style="margin: 0 0 4px 0;">📞 Tel: <strong>${data.companyPhone}</strong></p>` : ''}
+        ${data.companyEmail ? `<p style="margin: 0;">✉️ <strong>${data.companyEmail}</strong></p>` : ''}
+      </div>
+      ` : ''}
 
       <p style="margin-top: 30px;">
         <strong>Best regards,</strong><br>
