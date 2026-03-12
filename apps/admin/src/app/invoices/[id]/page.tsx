@@ -177,9 +177,18 @@ export default function InvoiceDetailPage() {
   };
 
   const openPdfPreview = async () => {
-    // Mobile browsers (iOS Safari, Android) cannot render PDF blob URLs in iframes.
-    // Detect mobile and trigger a download instead.
     const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+
+    // On mobile (both iOS Safari and Chrome Android), blob URLs in iframes don't
+    // work, and the download-anchor trick navigates the current page away (causing
+    // a stuck loading spinner on return). Instead, open a blank tab synchronously
+    // NOW (within the click handler, before any await) so the popup blocker can't
+    // fire, then point that tab at the blob URL once the PDF is ready.
+    let mobileTab: Window | null = null;
+    if (isMobile) {
+      mobileTab = window.open('', '_blank');
+    }
+
     setPdfLoading(true);
     if (!isMobile) setShowPdfPreview(true);
     try {
@@ -199,21 +208,17 @@ export default function InvoiceDetailPage() {
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
 
-      if (isMobile) {
-        // On mobile: trigger a file download so the user can open the PDF natively
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `Invoice_${invoice?.invoice_number || invoiceId}.pdf`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        setTimeout(() => URL.revokeObjectURL(url), 1000);
+      if (isMobile && mobileTab) {
+        // Navigate the pre-opened tab to the blob — the device's native PDF viewer takes over
+        mobileTab.location.href = url;
+        setTimeout(() => URL.revokeObjectURL(url), 10000);
       } else {
-        // On desktop: show inline iframe preview
+        // Desktop: show inline iframe preview
         if (pdfBlobUrl) URL.revokeObjectURL(pdfBlobUrl);
         setPdfBlobUrl(url);
       }
     } catch (err: any) {
+      if (mobileTab) mobileTab.close();
       console.error('Failed to load PDF preview:', err);
       alert(`Failed to load PDF preview: ${err.message || 'Please try again.'}`);
       setShowPdfPreview(false);
