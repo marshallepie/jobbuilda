@@ -29,14 +29,16 @@ export async function emailRoutes(fastify: FastifyInstance) {
         `res://quoting/quotes/${quoteId}`,
         context
       );
-      const quote = quoteResource.data as any;
+      const quoteWrapper = quoteResource.data as any;
+      const quote = quoteWrapper.data || quoteWrapper;
 
       // Fetch client data to get email
       const clientResource = await fastify.mcp.clients.readResource(
         `res://clients/clients/${quote.client_id}`,
         context
       );
-      const client = clientResource.data as any;
+      const clientWrapper = clientResource.data as any;
+      const client = clientWrapper.data || clientWrapper;
 
       if (!client.email) {
         return reply.status(400).send({
@@ -50,7 +52,8 @@ export async function emailRoutes(fastify: FastifyInstance) {
         `res://identity/tenants/${context.tenant_id}`,
         context
       );
-      const profile = profileResource.data as any;
+      const profileWrapper = profileResource.data as any;
+      const profile = profileWrapper.data || profileWrapper;
 
       // Enrich quote with client name for the PDF template
       quote.client_name = client.name;
@@ -62,7 +65,8 @@ export async function emailRoutes(fastify: FastifyInstance) {
             `res://clients/sites/${quote.site_id}`,
             context
           );
-          const site = siteResource.data as any;
+          const siteWrapper = siteResource.data as any;
+          const site = siteWrapper.data || siteWrapper;
           quote.site_name = site.name;
           quote.site_address = [
             site.address_line1,
@@ -210,14 +214,16 @@ export async function emailRoutes(fastify: FastifyInstance) {
         `res://invoicing/invoices/${invoiceId}`,
         context
       );
-      const invoice = invoiceResource.data as any;
+      const invoiceWrapper = invoiceResource.data as any;
+      const invoice = invoiceWrapper.data || invoiceWrapper;
 
       // Fetch client data
       const clientResource = await fastify.mcp.clients.readResource(
         `res://clients/clients/${invoice.client_id}`,
         context
       );
-      const client = clientResource.data as any;
+      const clientWrapper = clientResource.data as any;
+      const client = clientWrapper.data || clientWrapper;
 
       if (!client.email) {
         return reply.status(400).send({
@@ -231,7 +237,8 @@ export async function emailRoutes(fastify: FastifyInstance) {
         `res://identity/tenants/${context.tenant_id}`,
         context
       );
-      const profile = profileResource.data as any;
+      const profileWrapper = profileResource.data as any;
+      const profile = profileWrapper.data || profileWrapper;
 
       // Enrich invoice with client details for the PDF template
       invoice.client_name = client.name;
@@ -251,7 +258,8 @@ export async function emailRoutes(fastify: FastifyInstance) {
             `res://clients/sites/${invoice.site_id}`,
             context
           );
-          const site = siteResource.data as any;
+          const siteWrapper = siteResource.data as any;
+          const site = siteWrapper.data || siteWrapper;
           invoice.site_name = site.name;
           invoice.site_address = [
             site.address_line1,
