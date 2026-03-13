@@ -146,10 +146,18 @@ export async function emailRoutes(fastify: FastifyInstance) {
         validUntil,
       });
 
+      // Build "from" display name from tenant profile so clients see the
+      // company name in their inbox, not "JobBuilda"
+      const quoteFromName = profile.trading_name || profile.name || 'Your Company';
+      const defaultAddr = process.env.EMAIL_FROM_ADDRESS || 'noreply@jobbuilda.com';
+      const addrMatch = defaultAddr.match(/<([^>]+)>/);
+      const sendingEmail = addrMatch ? addrMatch[1] : defaultAddr;
+
       // Send email with PDF attachment
       const emailResult = await sendEmail({
         to: client.email,
-        subject: `Quote ${quote.quote_number} from ${profile.name || 'Your Company'}`,
+        from: `${quoteFromName} <${sendingEmail}>`,
+        subject: `Quote ${quote.quote_number} from ${quoteFromName}`,
         html: emailHTML,
         text: emailText,
         replyTo: profile.email || undefined,
@@ -314,10 +322,18 @@ export async function emailRoutes(fastify: FastifyInstance) {
         companyEmail: profile.email || undefined,
       });
 
+      // Build "from" display name from tenant profile so clients see the
+      // company name in their inbox, not "JobBuilda"
+      const invoiceFromName = profile.trading_name || profile.name || 'Your Company';
+      const invoiceDefaultAddr = process.env.EMAIL_FROM_ADDRESS || 'noreply@jobbuilda.com';
+      const invoiceAddrMatch = invoiceDefaultAddr.match(/<([^>]+)>/);
+      const invoiceSendingEmail = invoiceAddrMatch ? invoiceAddrMatch[1] : invoiceDefaultAddr;
+
       // Send email with PDF attachment
       const emailResult = await sendEmail({
         to: client.email,
-        subject: `Invoice ${invoice.invoice_number} from ${profile.name || 'Your Company'}`,
+        from: `${invoiceFromName} <${invoiceSendingEmail}>`,
+        subject: `Invoice ${invoice.invoice_number} from ${invoiceFromName}`,
         html: emailHTML,
         replyTo: profile.email || undefined,
         attachments: [
