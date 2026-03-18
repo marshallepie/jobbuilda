@@ -1,5 +1,6 @@
 'use client';
 
+import Image from 'next/image';
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { api } from '@/lib/api';
@@ -44,7 +45,7 @@ export default function ProtectedLayout({
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between h-16">
             <div className="flex items-center">
-              <h1 className="text-xl font-bold text-primary-600">JobBuilda</h1>
+              <Image src="/jobbuilda_logo_full.png" alt="JobBuilda" width={130} height={44} priority />
             </div>
             <div className="flex items-center space-x-4">
               <a

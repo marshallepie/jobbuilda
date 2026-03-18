@@ -26,7 +26,9 @@ export default function RootLayout({
     <html lang="en">
       <head>
         <link rel="icon" href="/favicon.ico" />
-        <link rel="apple-touch-icon" href="/icon-192.png" />
+        <link rel="icon" type="image/png" sizes="32x32" href="/jobbuilda_icon_32.png" />
+        <link rel="icon" type="image/png" sizes="16x16" href="/jobbuilda_icon_16.png" />
+        <link rel="apple-touch-icon" href="/jobbuilda_icon_180.png" />
       </head>
       <body className={inter.className}>
         {children}

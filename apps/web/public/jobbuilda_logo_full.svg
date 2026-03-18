@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="900" height="300" viewBox="0 0 900 300" xmlns="http://www.w3.org/2000/svg">
+  <rect x="0" y="0" width="900" height="300" fill="#FFFFFF"/>
+  <!-- Icon -->
+  <g transform="translate(20,20) scale(0.5)">
+    <rect x="0" y="0" width="512" height="512" fill="#1F2933" rx="40" ry="40"/>
+    <rect x="80" y="250" rx="18" ry="18" width="352" height="182" fill="#F97316"/>
+    <rect x="188" y="180" rx="12" ry="12" width="136" height="54" fill="#F97316"/>
+  </g>
+  <!-- Text -->
+  <text x="320" y="180" font-family="Inter, Arial, sans-serif" font-size="96" font-weight="600" fill="#1F2933">JobBuilder</text>
+</svg>

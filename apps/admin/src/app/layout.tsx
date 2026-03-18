@@ -11,6 +11,14 @@ const Providers = dynamic(() => import('./Providers'), { ssr: false });
 export const metadata: Metadata = {
   title: 'JobBuilda Admin',
   description: 'Contractor management platform for electrical services',
+  icons: {
+    icon: [
+      { url: '/favicon.ico' },
+      { url: '/jobbuilda_icon_32.png', sizes: '32x32', type: 'image/png' },
+      { url: '/jobbuilda_icon_16.png', sizes: '16x16', type: 'image/png' },
+    ],
+    apple: '/jobbuilda_icon_180.png',
+  },
 };
 
 export default function RootLayout({

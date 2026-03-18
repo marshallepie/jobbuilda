@@ -4,6 +4,14 @@ import CookieBanner from '@/components/CookieBanner';
 
 export const metadata: Metadata = {
   title: 'JobBuilda — Software for Electrical Contractors',
+  icons: {
+    icon: [
+      { url: '/favicon.ico' },
+      { url: '/jobbuilda_icon_32.png', sizes: '32x32', type: 'image/png' },
+      { url: '/jobbuilda_icon_16.png', sizes: '16x16', type: 'image/png' },
+    ],
+    apple: '/jobbuilda_icon_180.png',
+  },
   description:
     'The all-in-one app for electrical contractors. Manage quotes, jobs, invoices, and payments — all in one place.',
   openGraph: {

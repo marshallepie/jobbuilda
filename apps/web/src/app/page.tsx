@@ -1,3 +1,4 @@
+import Image from 'next/image';
 import Link from 'next/link';
 import PricingCard from '@/components/PricingCard';
 
@@ -46,7 +47,7 @@ export default function HomePage() {
       {/* Navigation */}
       <nav className="border-b border-gray-100 bg-white/80 backdrop-blur-sm sticky top-0 z-50">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-          <span className="text-xl font-bold text-blue-600">JobBuilda</span>
+          <Image src="/jobbuilda_logo_full.png" alt="JobBuilda" width={140} height={46} priority />
           <div className="flex items-center gap-4">
             <a
               href={`${process.env.NEXT_PUBLIC_ADMIN_URL || 'https://admin.jobbuilda.co.uk'}/login`}

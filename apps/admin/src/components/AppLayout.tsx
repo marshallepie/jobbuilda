@@ -1,5 +1,6 @@
 'use client';
 
+import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { ReactNode, useState } from 'react';
@@ -37,7 +38,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
       {/* Mobile header */}
       <div className="lg:hidden fixed top-0 left-0 right-0 z-40 bg-white border-b border-gray-200">
         <div className="flex items-center justify-between h-16 px-4">
-          <h1 className="text-lg font-bold text-primary-600">JobBuilda</h1>
+          <Image src="/jobbuilda_logo_full.png" alt="JobBuilda" width={120} height={40} priority />
           <button
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
             className="p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg"
@@ -71,7 +72,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
         <div className="flex flex-col h-full">
           {/* Logo (desktop only, mobile uses header) */}
           <div className="hidden lg:flex items-center h-16 px-6 border-b border-gray-200">
-            <h1 className="text-xl font-bold text-primary-600">JobBuilda</h1>
+            <Image src="/jobbuilda_logo_full.png" alt="JobBuilda" width={140} height={46} priority />
           </div>
 
           {/* Mobile header spacer */}
