@@ -28,9 +28,9 @@ export const metadata: Metadata = {
     description: 'Manage jobs, quotes, invoices and clients with JobBuilda — the smart platform for electrical contractors.',
     images: [
       {
-        url: '/jobbuilda_logo_full.png',
+        url: '/og_image.png',
         width: 1200,
-        height: 400,
+        height: 630,
         alt: 'JobBuilda',
       },
     ],
@@ -39,7 +39,7 @@ export const metadata: Metadata = {
     card: 'summary_large_image',
     title: 'JobBuilda | Admin Dashboard',
     description: 'Manage jobs, quotes, invoices and clients with JobBuilda — the smart platform for electrical contractors.',
-    images: ['/jobbuilda_logo_full.png'],
+    images: ['/og_image.png'],
   },
 };
 

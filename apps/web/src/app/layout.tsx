@@ -3,7 +3,10 @@ import './globals.css';
 import CookieBanner from '@/components/CookieBanner';
 
 export const metadata: Metadata = {
+  metadataBase: new URL('https://jobbuilda.co.uk'),
   title: 'JobBuilda — Software for Electrical Contractors',
+  description:
+    'The all-in-one app for electrical contractors. Manage quotes, jobs, invoices, and payments — all in one place.',
   icons: {
     icon: [
       { url: '/favicon.ico' },
@@ -12,15 +15,27 @@ export const metadata: Metadata = {
     ],
     apple: '/jobbuilda_icon_180.png',
   },
-  description:
-    'The all-in-one app for electrical contractors. Manage quotes, jobs, invoices, and payments — all in one place.',
   openGraph: {
-    title: 'JobBuilda',
-    description: 'The all-in-one app for electrical contractors.',
+    type: 'website',
     url: 'https://jobbuilda.co.uk',
     siteName: 'JobBuilda',
     locale: 'en_GB',
-    type: 'website',
+    title: 'JobBuilda — Software for Electrical Contractors',
+    description: 'The all-in-one app for electrical contractors. Manage quotes, jobs, invoices, and payments — all in one place.',
+    images: [
+      {
+        url: '/og_image.png',
+        width: 1200,
+        height: 630,
+        alt: 'JobBuilda',
+      },
+    ],
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'JobBuilda — Software for Electrical Contractors',
+    description: 'The all-in-one app for electrical contractors. Manage quotes, jobs, invoices, and payments — all in one place.',
+    images: ['/og_image.png'],
   },
 };
 
