@@ -9,8 +9,9 @@ import dynamic from 'next/dynamic';
 const Providers = dynamic(() => import('./Providers'), { ssr: false });
 
 export const metadata: Metadata = {
-  title: 'JobBuilda Admin',
-  description: 'Contractor management platform for electrical services',
+  metadataBase: new URL('https://admin.jobbuilda.co.uk'),
+  title: 'JobBuilda | Admin Dashboard',
+  description: 'Manage jobs, quotes, invoices and clients with JobBuilda — the smart platform for electrical contractors.',
   icons: {
     icon: [
       { url: '/favicon.ico' },
@@ -18,6 +19,27 @@ export const metadata: Metadata = {
       { url: '/jobbuilda_icon_16.png', sizes: '16x16', type: 'image/png' },
     ],
     apple: '/jobbuilda_icon_180.png',
+  },
+  openGraph: {
+    type: 'website',
+    url: 'https://admin.jobbuilda.co.uk',
+    siteName: 'JobBuilda',
+    title: 'JobBuilda | Admin Dashboard',
+    description: 'Manage jobs, quotes, invoices and clients with JobBuilda — the smart platform for electrical contractors.',
+    images: [
+      {
+        url: '/jobbuilda_logo_full.png',
+        width: 1200,
+        height: 400,
+        alt: 'JobBuilda',
+      },
+    ],
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'JobBuilda | Admin Dashboard',
+    description: 'Manage jobs, quotes, invoices and clients with JobBuilda — the smart platform for electrical contractors.',
+    images: ['/jobbuilda_logo_full.png'],
   },
 };
 
