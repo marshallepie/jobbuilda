@@ -9,7 +9,7 @@ import dynamic from 'next/dynamic';
 const Providers = dynamic(() => import('./Providers'), { ssr: false });
 
 export const metadata: Metadata = {
-  metadataBase: new URL('https://admin.jobbuilda.co.uk'),
+  metadataBase: new URL('https://jobbuilda.co.uk'),
   title: 'JobBuilda | Admin Dashboard',
   description: 'Manage jobs, quotes, invoices and clients with JobBuilda — the smart platform for electrical contractors.',
   icons: {
@@ -22,7 +22,7 @@ export const metadata: Metadata = {
   },
   openGraph: {
     type: 'website',
-    url: 'https://admin.jobbuilda.co.uk',
+    url: 'https://jobbuilda.co.uk',
     siteName: 'JobBuilda',
     title: 'JobBuilda | Admin Dashboard',
     description: 'Manage jobs, quotes, invoices and clients with JobBuilda — the smart platform for electrical contractors.',

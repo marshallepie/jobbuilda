@@ -6,7 +6,6 @@ import CookieBanner from '@/components/CookieBanner';
 const inter = Inter({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
-  metadataBase: new URL('https://portal.jobbuilda.co.uk'),
   title: 'JobBuilda | Client Portal',
   description: 'View your job progress, approve quotes and pay invoices online with JobBuilda.',
   manifest: '/manifest.json',
@@ -16,26 +15,9 @@ export const metadata: Metadata = {
     statusBarStyle: 'default',
     title: 'JobBuilda',
   },
-  openGraph: {
-    type: 'website',
-    url: 'https://portal.jobbuilda.co.uk',
-    siteName: 'JobBuilda',
-    title: 'JobBuilda | Client Portal',
-    description: 'View your job progress, approve quotes and pay invoices online with JobBuilda.',
-    images: [
-      {
-        url: '/jobbuilda_logo_full.png',
-        width: 1200,
-        height: 400,
-        alt: 'JobBuilda',
-      },
-    ],
-  },
-  twitter: {
-    card: 'summary_large_image',
-    title: 'JobBuilda | Client Portal',
-    description: 'View your job progress, approve quotes and pay invoices online with JobBuilda.',
-    images: ['/jobbuilda_logo_full.png'],
+  robots: {
+    index: false,
+    follow: false,
   },
 };
 
