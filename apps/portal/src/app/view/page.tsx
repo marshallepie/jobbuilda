@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { formatCurrency, formatDate } from '@/lib/utils';
 
@@ -119,7 +119,7 @@ function CopyField({ label, value }: { label: string; value: string }) {
   );
 }
 
-export default function ViewPage() {
+function ViewPageContent() {
   const searchParams = useSearchParams();
   const [state, setState] = useState<ViewState>('loading');
   const [error, setError] = useState<string | null>(null);
@@ -440,4 +440,21 @@ export default function ViewPage() {
   }
 
   return null;
+}
+
+export default function ViewPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+          <div className="text-center">
+            <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-green-600 mb-4" />
+            <p className="text-gray-600">Loading your document…</p>
+          </div>
+        </div>
+      }
+    >
+      <ViewPageContent />
+    </Suspense>
+  );
 }
