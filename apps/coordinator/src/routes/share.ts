@@ -66,20 +66,29 @@ export async function shareRoutes(fastify: FastifyInstance) {
 
   /**
    * POST /api/share/invoice/:invoiceId
-   * Generate a 7-day shareable link for an invoice (for WhatsApp or copy-paste)
+   * Generate a 7-day shareable link for an invoice.
+   * The WhatsApp message leads with bank details and amount due;
+   * the portal view link appears as small print at the end.
    */
   fastify.post('/api/share/invoice/:invoiceId', async (request, reply) => {
     const { invoiceId } = request.params as { invoiceId: string };
     const context = extractAuthContext(request);
 
     try {
-      // Fetch invoice to build the message preview
-      const invoiceResource = await fastify.mcp.invoicing.readResource(
-        `res://invoicing/invoices/${invoiceId}`,
-        context
-      );
-      const invoiceWrapper = invoiceResource.data as any;
-      const invoice = invoiceWrapper.data || invoiceWrapper;
+      // Fetch invoice and business profile in parallel
+      const [invoiceResource, profileResource] = await Promise.all([
+        fastify.mcp.invoicing.readResource(
+          `res://invoicing/invoices/${invoiceId}`,
+          context
+        ),
+        fastify.mcp.identity.readResource(
+          `res://identity/tenants/${context.tenant_id}`,
+          context
+        ),
+      ]);
+
+      const invoice = (invoiceResource.data as any).data || invoiceResource.data;
+      const profile = (profileResource.data as any).data || profileResource.data;
 
       // Issue a share token with 7-day TTL
       const tokenResult = await fastify.mcp.identity.callTool(
@@ -100,12 +109,64 @@ export async function shareRoutes(fastify: FastifyInstance) {
 
       const shareUrl = `${PORTAL_URL}/view?token=${tokenData.token}`;
 
+      // Format amounts
       const amountDue = invoice.amount_due
         ? `£${parseFloat(invoice.amount_due).toFixed(2)}`
         : '';
-      const ref = invoice.invoice_number ? ` (${invoice.invoice_number})` : '';
-      const amountPart = amountDue ? ` for ${amountDue}` : '';
-      const message = `Hi, please find your invoice${ref}${amountPart} here: ${shareUrl}`;
+      // Format due date
+      const dueDate = invoice.due_date
+        ? new Date(invoice.due_date).toLocaleDateString('en-GB', {
+            day: 'numeric',
+            month: 'long',
+            year: 'numeric',
+          })
+        : '';
+
+      // Format sort code with dashes if stored without them (e.g. "123456" → "12-34-56")
+      const rawSortCode: string = profile?.sort_code || '';
+      const sortCode = rawSortCode.includes('-')
+        ? rawSortCode
+        : rawSortCode.replace(/(\d{2})(\d{2})(\d{2})/, '$1-$2-$3');
+
+      const companyName = profile?.trading_name || profile?.name || '';
+      const hasBankDetails =
+        profile?.account_number && profile?.sort_code && profile?.account_name;
+
+      // Build the message — bank details prominent, portal link at the bottom
+      const lines: string[] = [];
+
+      lines.push(`Hi, please find your invoice below from ${companyName}.`);
+      lines.push('');
+
+      if (invoice.invoice_number) lines.push(`*Invoice:* ${invoice.invoice_number}`);
+      if (amountDue) lines.push(`*Amount due:* ${amountDue}`);
+      if (dueDate) lines.push(`*Due by:* ${dueDate}`);
+
+      if (hasBankDetails) {
+        lines.push('');
+        lines.push('─────────────────────');
+        lines.push('*Pay by bank transfer:*');
+        lines.push('');
+        if (profile.account_name) lines.push(`Account name:  ${profile.account_name}`);
+        if (sortCode)             lines.push(`Sort code:     ${sortCode}`);
+        if (profile.account_number) lines.push(`Account no:    ${profile.account_number}`);
+        if (invoice.invoice_number) lines.push(`Reference:     ${invoice.invoice_number}`);
+        lines.push('─────────────────────');
+      }
+
+      if (profile?.phone || profile?.email) {
+        lines.push('');
+        const contact: string[] = [];
+        if (profile.phone) contact.push(profile.phone);
+        if (profile.email) contact.push(profile.email);
+        lines.push(`Questions? ${contact.join(' · ')}`);
+      }
+
+      // Portal link as small print
+      lines.push('');
+      lines.push(`_View invoice online: ${shareUrl}_`);
+
+      const message = lines.join('\n');
       const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(message)}`;
 
       return reply.send({
@@ -114,6 +175,13 @@ export async function shareRoutes(fastify: FastifyInstance) {
         message,
         expiresAt: tokenData.expires_at,
         invoiceNumber: invoice.invoice_number,
+        bankDetails: hasBankDetails
+          ? {
+              accountName: profile.account_name,
+              sortCode,
+              accountNumber: profile.account_number,
+            }
+          : null,
       });
     } catch (error: any) {
       fastify.log.error(error, 'Failed to generate invoice share link');
