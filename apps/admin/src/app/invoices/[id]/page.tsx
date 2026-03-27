@@ -76,7 +76,7 @@ export default function InvoiceDetailPage() {
     bankDetails?: { accountName: string; sortCode: string; accountNumber: string } | null;
   } | null>(null);
   const [shareLoading, setShareLoading] = useState(false);
-  const [copied, setCopied] = useState(false);
+  const [copied, setCopied] = useState<string | null>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const [paymentForm, setPaymentForm] = useState({
     amount: '',
@@ -274,12 +274,13 @@ export default function InvoiceDetailPage() {
     }
   };
 
-  const copyShareLink = async () => {
-    if (!shareData) return;
-    await navigator.clipboard.writeText(shareData.shareUrl);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+  const copyToClipboard = async (text: string, field: string) => {
+    await navigator.clipboard.writeText(text);
+    setCopied(field);
+    setTimeout(() => setCopied(null), 2000);
   };
+
+  const copyShareLink = () => copyToClipboard(shareData?.shareUrl ?? '', 'link');
 
   const voidPayment = async () => {
     if (!invoice) return;
@@ -699,23 +700,31 @@ export default function InvoiceDetailPage() {
                 Your client will receive the message below. It includes your bank details so they can pay straight away — no portal login needed.
               </p>
 
-              {/* Bank details preview */}
+              {/* Bank details preview with per-field copy */}
               {shareData.bankDetails ? (
                 <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
-                  <p className="text-xs font-semibold text-blue-700 uppercase tracking-wide mb-2">Payment details included in message</p>
-                  <div className="space-y-1 text-sm text-gray-800 font-mono">
-                    <div className="flex justify-between">
-                      <span className="text-gray-500">Account name</span>
-                      <span className="font-medium">{shareData.bankDetails.accountName}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-500">Sort code</span>
-                      <span className="font-medium">{shareData.bankDetails.sortCode}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-500">Account no</span>
-                      <span className="font-medium">{shareData.bankDetails.accountNumber}</span>
-                    </div>
+                  <p className="text-xs font-semibold text-blue-700 uppercase tracking-wide mb-3">Payment details included in message</p>
+                  <div className="space-y-2">
+                    {(
+                      [
+                        { label: 'Account name', value: shareData.bankDetails.accountName, field: 'accountName' },
+                        { label: 'Sort code',    value: shareData.bankDetails.sortCode,    field: 'sortCode' },
+                        { label: 'Account no',   value: shareData.bankDetails.accountNumber, field: 'accountNumber' },
+                      ] as const
+                    ).map(({ label, value, field }) => (
+                      <div key={field} className="flex items-center gap-2">
+                        <span className="w-24 shrink-0 text-xs text-gray-500">{label}</span>
+                        <span className="flex-1 px-2 py-1 bg-white border border-blue-200 rounded text-sm font-mono font-medium text-gray-900 select-all">
+                          {value}
+                        </span>
+                        <button
+                          onClick={() => copyToClipboard(value, field)}
+                          className="shrink-0 px-2 py-1 text-xs rounded bg-blue-100 hover:bg-blue-200 text-blue-700 font-medium whitespace-nowrap"
+                        >
+                          {copied === field ? 'Copied!' : 'Copy'}
+                        </button>
+                      </div>
+                    ))}
                   </div>
                 </div>
               ) : (
@@ -735,7 +744,7 @@ export default function InvoiceDetailPage() {
                   onClick={copyShareLink}
                   className="px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-md text-sm font-medium whitespace-nowrap"
                 >
-                  {copied ? 'Copied!' : 'Copy link'}
+                  {copied === 'link' ? 'Copied!' : 'Copy link'}
                 </button>
               </div>
 
