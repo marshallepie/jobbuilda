@@ -76,7 +76,7 @@ export default function EditInvoicePage() {
       setClientId(data.client_id || '');
       setSiteId(data.site_id || '');
       setInvoiceDate(data.invoice_date?.split('T')[0] || new Date().toISOString().split('T')[0]);
-      setPaymentTermsDays(data.payment_terms_days || 30);
+      setPaymentTermsDays(data.payment_terms_days ?? 30);
       setNotes(data.notes || '');
 
       // Load sites for the client
@@ -262,14 +262,47 @@ export default function EditInvoicePage() {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Payment Terms (days)</label>
-                <input
-                  type="number"
-                  min="0"
-                  value={paymentTermsDays}
-                  onChange={(e) => setPaymentTermsDays(parseInt(e.target.value) || 30)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
-                />
+                <label className="block text-sm font-medium text-gray-700 mb-1">Payment Terms</label>
+                {(() => {
+                  const presets = [0, 7, 14, 30, 60, 90];
+                  const isCustom = !presets.includes(paymentTermsDays);
+                  return (
+                    <div className="space-y-2">
+                      <select
+                        value={isCustom ? 'custom' : String(paymentTermsDays)}
+                        onChange={(e) => {
+                          if (e.target.value !== 'custom') setPaymentTermsDays(parseInt(e.target.value));
+                          else setPaymentTermsDays(1);
+                        }}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                      >
+                        <option value="0">Due immediately</option>
+                        <option value="7">7 days</option>
+                        <option value="14">14 days</option>
+                        <option value="30">30 days</option>
+                        <option value="60">60 days</option>
+                        <option value="90">90 days</option>
+                        <option value="custom">Custom…</option>
+                      </select>
+                      {isCustom && (
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="number"
+                            min="1"
+                            max="90"
+                            value={paymentTermsDays}
+                            onChange={(e) => {
+                              const v = parseInt(e.target.value);
+                              if (!isNaN(v)) setPaymentTermsDays(Math.min(90, Math.max(1, v)));
+                            }}
+                            className="w-24 px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                          />
+                          <span className="text-sm text-gray-500">days (1–90)</span>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
               </div>
             </div>
             <div className="mt-4">

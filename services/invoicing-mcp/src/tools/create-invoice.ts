@@ -49,7 +49,7 @@ export async function createInvoice(
       const invoiceNumber = numberResult.rows[0].number;
 
       const invoiceDate = input.invoice_date || new Date().toISOString().split('T')[0];
-      const paymentTermsDays = input.payment_terms_days || 30;
+      const paymentTermsDays = input.payment_terms_days ?? 30;
       const dueDate = new Date(invoiceDate);
       dueDate.setDate(dueDate.getDate() + paymentTermsDays);
 
