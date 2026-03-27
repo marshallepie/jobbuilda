@@ -191,4 +191,54 @@ export async function shareRoutes(fastify: FastifyInstance) {
       });
     }
   });
+
+  /**
+   * GET /api/share/invoice/:invoiceId/details
+   * Returns invoice data + bank details for the portal view page.
+   * Called by the portal after decoding the share token client-side.
+   */
+  fastify.get('/api/share/invoice/:invoiceId/details', async (request, reply) => {
+    const { invoiceId } = request.params as { invoiceId: string };
+    const context = extractAuthContext(request);
+
+    try {
+      const [invoiceResource, profileResource] = await Promise.all([
+        fastify.mcp.invoicing.readResource(
+          `res://invoicing/invoices/${invoiceId}`,
+          context
+        ),
+        fastify.mcp.identity.readResource(
+          `res://identity/tenants/${context.tenant_id}`,
+          context
+        ),
+      ]);
+
+      const invoice = (invoiceResource.data as any).data || invoiceResource.data;
+      const profile = (profileResource.data as any).data || profileResource.data;
+
+      // Format sort code with dashes if stored without them
+      const rawSortCode: string = profile?.sort_code || '';
+      const sortCode = rawSortCode.includes('-')
+        ? rawSortCode
+        : rawSortCode.replace(/(\d{2})(\d{2})(\d{2})/, '$1-$2-$3');
+
+      const bankDetails =
+        profile?.account_number && profile?.sort_code && profile?.account_name
+          ? {
+              accountName: profile.account_name as string,
+              sortCode,
+              accountNumber: profile.account_number as string,
+              bankName: profile.bank_name as string | undefined,
+            }
+          : null;
+
+      return reply.send({ invoice, bankDetails });
+    } catch (error: any) {
+      fastify.log.error(error, 'Failed to load invoice details for portal view');
+      return reply.status(500).send({
+        error: 'Failed to load invoice',
+        message: error.message,
+      });
+    }
+  });
 }

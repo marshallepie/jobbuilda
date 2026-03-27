@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { formatCurrency, formatDate } from '@/lib/utils';
 
@@ -63,6 +63,13 @@ interface Invoice {
   items?: InvoiceItem[];
 }
 
+interface BankDetails {
+  accountName: string;
+  sortCode: string;
+  accountNumber: string;
+  bankName?: string;
+}
+
 function decodeToken(token: string): {
   tenant_id: string;
   user_id: string;
@@ -71,11 +78,45 @@ function decodeToken(token: string): {
   exp: number;
 } | null {
   try {
-    const payload = JSON.parse(atob(token.split('.')[1]));
-    return payload;
+    return JSON.parse(atob(token.split('.')[1]));
   } catch {
     return null;
   }
+}
+
+function CopyField({ label, value }: { label: string; value: string }) {
+  const [copied, setCopied] = useState(false);
+
+  const copy = useCallback(async () => {
+    try {
+      await navigator.clipboard.writeText(value);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // Fallback for browsers that block clipboard without user gesture
+    }
+  }, [value]);
+
+  return (
+    <div className="flex items-center gap-3">
+      <span className="w-28 shrink-0 text-sm text-gray-500">{label}</span>
+      <button
+        onClick={copy}
+        className="flex-1 flex items-center justify-between gap-2 px-3 py-2 bg-white border-2 border-blue-200 rounded-lg text-left group hover:border-blue-400 active:scale-95 transition-all"
+      >
+        <span className="font-mono font-semibold text-gray-900 text-base tracking-wide">
+          {value}
+        </span>
+        <span className={`shrink-0 text-xs font-medium px-2 py-0.5 rounded-full transition-colors ${
+          copied
+            ? 'bg-green-100 text-green-700'
+            : 'bg-blue-100 text-blue-600 group-hover:bg-blue-200'
+        }`}>
+          {copied ? 'Copied!' : 'Tap to copy'}
+        </span>
+      </button>
+    </div>
+  );
 }
 
 export default function ViewPage() {
@@ -84,6 +125,7 @@ export default function ViewPage() {
   const [error, setError] = useState<string | null>(null);
   const [quote, setQuote] = useState<Quote | null>(null);
   const [invoice, setInvoice] = useState<Invoice | null>(null);
+  const [bankDetails, setBankDetails] = useState<BankDetails | null>(null);
 
   useEffect(() => {
     const token = searchParams.get('token');
@@ -121,17 +163,17 @@ export default function ViewPage() {
             { headers }
           );
           if (!res.ok) throw new Error('Could not load quote');
-          const data: Quote = await res.json();
-          setQuote(data);
+          setQuote(await res.json());
           setState('quote');
         } else if (claims.purpose === 'invoice_payment') {
           const res = await fetch(
-            `${API_BASE_URL}/api/invoices/${claims.resource_id}`,
+            `${API_BASE_URL}/api/share/invoice/${claims.resource_id}/details`,
             { headers }
           );
           if (!res.ok) throw new Error('Could not load invoice');
-          const data: Invoice = await res.json();
-          setInvoice(data);
+          const { invoice: inv, bankDetails: bd } = await res.json();
+          setInvoice(inv);
+          setBankDetails(bd);
           setState('invoice');
         } else {
           setError('This link type is not supported for web viewing.');
@@ -176,7 +218,6 @@ export default function ViewPage() {
     return (
       <div className="min-h-screen bg-gray-50 py-8 px-4">
         <div className="max-w-3xl mx-auto">
-          {/* Header */}
           <div className="bg-white rounded-xl shadow-sm p-6 mb-4">
             <div className="flex items-start justify-between mb-4">
               <div>
@@ -198,7 +239,6 @@ export default function ViewPage() {
             )}
           </div>
 
-          {/* Line items */}
           {quote.items && quote.items.length > 0 && (
             <div className="bg-white rounded-xl shadow-sm p-6 mb-4">
               <h2 className="text-lg font-semibold text-gray-900 mb-4">Items</h2>
@@ -227,7 +267,6 @@ export default function ViewPage() {
             </div>
           )}
 
-          {/* Totals */}
           <div className="bg-white rounded-xl shadow-sm p-6 mb-4">
             <div className="space-y-2 max-w-xs ml-auto">
               <div className="flex justify-between text-sm text-gray-600">
@@ -245,7 +284,6 @@ export default function ViewPage() {
             </div>
           </div>
 
-          {/* Notes / Terms */}
           {(quote.notes || quote.terms) && (
             <div className="bg-white rounded-xl shadow-sm p-6 mb-4 space-y-3">
               {quote.notes && (
@@ -277,8 +315,9 @@ export default function ViewPage() {
 
     return (
       <div className="min-h-screen bg-gray-50 py-8 px-4">
-        <div className="max-w-3xl mx-auto">
-          {/* Header */}
+        <div className="max-w-2xl mx-auto">
+
+          {/* Invoice header */}
           <div className="bg-white rounded-xl shadow-sm p-6 mb-4">
             <div className="flex items-start justify-between mb-4">
               <div>
@@ -307,17 +346,41 @@ export default function ViewPage() {
             </div>
           </div>
 
+          {/* Amount due — prominent */}
+          {!isPaid && (
+            <div className="bg-green-600 rounded-xl p-6 mb-4 text-white text-center">
+              <p className="text-sm font-medium opacity-80 mb-1">Amount due</p>
+              <p className="text-4xl font-bold">{formatCurrency(invoice.amount_due)}</p>
+              <p className="text-sm opacity-75 mt-1">Due by {formatDate(invoice.due_date)}</p>
+            </div>
+          )}
+
+          {/* Bank transfer details with tap-to-copy fields */}
+          {bankDetails && !isPaid && (
+            <div className="bg-white rounded-xl shadow-sm p-6 mb-4">
+              <h2 className="text-base font-semibold text-gray-900 mb-1">Pay by bank transfer</h2>
+              <p className="text-xs text-gray-500 mb-4">
+                Tap any field below to copy it, then paste into your banking app.
+              </p>
+              <div className="space-y-3">
+                <CopyField label="Account name" value={bankDetails.accountName} />
+                <CopyField label="Sort code"    value={bankDetails.sortCode} />
+                <CopyField label="Account no"   value={bankDetails.accountNumber} />
+                <CopyField label="Reference"    value={invoice.invoice_number} />
+              </div>
+            </div>
+          )}
+
           {/* Line items */}
           {invoice.items && invoice.items.length > 0 && (
             <div className="bg-white rounded-xl shadow-sm p-6 mb-4">
-              <h2 className="text-lg font-semibold text-gray-900 mb-4">Items</h2>
+              <h2 className="text-base font-semibold text-gray-900 mb-4">Invoice breakdown</h2>
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b border-gray-200 text-left text-gray-500">
                       <th className="pb-2 font-medium">Description</th>
                       <th className="pb-2 font-medium text-right">Qty</th>
-                      <th className="pb-2 font-medium text-right">Unit price</th>
                       <th className="pb-2 font-medium text-right">Total (ex VAT)</th>
                     </tr>
                   </thead>
@@ -326,45 +389,40 @@ export default function ViewPage() {
                       <tr key={item.id}>
                         <td className="py-3 text-gray-900">{item.description}</td>
                         <td className="py-3 text-right text-gray-600">{item.quantity} {item.unit}</td>
-                        <td className="py-3 text-right text-gray-600">{formatCurrency(item.unit_price_ex_vat)}</td>
                         <td className="py-3 text-right font-medium">{formatCurrency(item.line_total_ex_vat)}</td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
               </div>
+              <div className="space-y-2 max-w-xs ml-auto mt-4 pt-4 border-t border-gray-100">
+                <div className="flex justify-between text-sm text-gray-600">
+                  <span>Subtotal (ex VAT)</span>
+                  <span>{formatCurrency(invoice.subtotal_ex_vat)}</span>
+                </div>
+                <div className="flex justify-between text-sm text-gray-600">
+                  <span>VAT</span>
+                  <span>{formatCurrency(invoice.vat_amount)}</span>
+                </div>
+                <div className="flex justify-between text-base font-bold text-gray-900 border-t border-gray-200 pt-2">
+                  <span>Total</span>
+                  <span>{formatCurrency(invoice.total_inc_vat)}</span>
+                </div>
+                {parseFloat(invoice.amount_paid as any) > 0 && (
+                  <div className="flex justify-between text-sm text-green-700">
+                    <span>Paid</span>
+                    <span>-{formatCurrency(invoice.amount_paid)}</span>
+                  </div>
+                )}
+                {!isPaid && (
+                  <div className="flex justify-between text-base font-bold text-red-700 border-t border-gray-200 pt-2">
+                    <span>Amount due</span>
+                    <span>{formatCurrency(invoice.amount_due)}</span>
+                  </div>
+                )}
+              </div>
             </div>
           )}
-
-          {/* Totals */}
-          <div className="bg-white rounded-xl shadow-sm p-6 mb-4">
-            <div className="space-y-2 max-w-xs ml-auto">
-              <div className="flex justify-between text-sm text-gray-600">
-                <span>Subtotal (ex VAT)</span>
-                <span>{formatCurrency(invoice.subtotal_ex_vat)}</span>
-              </div>
-              <div className="flex justify-between text-sm text-gray-600">
-                <span>VAT</span>
-                <span>{formatCurrency(invoice.vat_amount)}</span>
-              </div>
-              <div className="flex justify-between text-base font-bold text-gray-900 border-t border-gray-200 pt-2">
-                <span>Total</span>
-                <span>{formatCurrency(invoice.total_inc_vat)}</span>
-              </div>
-              {parseFloat(invoice.amount_paid as any) > 0 && (
-                <div className="flex justify-between text-sm text-green-700">
-                  <span>Paid</span>
-                  <span>-{formatCurrency(invoice.amount_paid)}</span>
-                </div>
-              )}
-              {!isPaid && (
-                <div className="flex justify-between text-base font-bold text-red-700 border-t border-gray-200 pt-2">
-                  <span>Amount due</span>
-                  <span>{formatCurrency(invoice.amount_due)}</span>
-                </div>
-              )}
-            </div>
-          </div>
 
           {invoice.notes && (
             <div className="bg-white rounded-xl shadow-sm p-6 mb-4">
