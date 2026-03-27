@@ -155,6 +155,8 @@ export async function clientsRoutes(fastify: FastifyInstance) {
       county?: string;
       postcode: string;
       country?: string;
+      contact_name?: string;
+      contact_phone?: string;
       access_notes?: string;
     };
   }>(

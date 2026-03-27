@@ -12,6 +12,8 @@ export interface Site {
   county?: string;
   postcode: string;
   country: string;
+  contact_name?: string;
+  contact_phone?: string;
   access_notes?: string;
   created_at: string;
   updated_at: string;
@@ -27,7 +29,8 @@ export async function getSite(siteId: string, tenantId: string): Promise<Site | 
 
     const result = await query<Site>(
       `SELECT id, tenant_id, client_id, name, address_line1, address_line2,
-              city, county, postcode, country, access_notes, created_at, updated_at
+              city, county, postcode, country, contact_name, contact_phone,
+              access_notes, created_at, updated_at
        FROM sites
        WHERE id = $1 AND tenant_id = $2`,
       [siteId, tenantId]
@@ -56,7 +59,8 @@ export async function listSitesByClient(clientId: string, tenantId: string): Pro
 
     const result = await query<Site>(
       `SELECT id, tenant_id, client_id, name, address_line1, address_line2,
-              city, county, postcode, country, access_notes, created_at, updated_at
+              city, county, postcode, country, contact_name, contact_phone,
+              access_notes, created_at, updated_at
        FROM sites
        WHERE client_id = $1 AND tenant_id = $2
        ORDER BY name ASC`,

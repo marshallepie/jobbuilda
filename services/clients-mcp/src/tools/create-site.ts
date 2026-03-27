@@ -13,6 +13,8 @@ export interface CreateSiteInput {
   county?: string;
   postcode: string;
   country?: string;
+  contact_name?: string;
+  contact_phone?: string;
   access_notes?: string;
 }
 
@@ -32,8 +34,8 @@ export async function createSite(
 
     await query(
       `INSERT INTO sites (id, tenant_id, client_id, name, address_line1, address_line2,
-                          city, county, postcode, country, access_notes)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
+                          city, county, postcode, country, contact_name, contact_phone, access_notes)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
       [
         siteId,
         context.tenant_id,
@@ -45,6 +47,8 @@ export async function createSite(
         input.county || null,
         input.postcode,
         input.country || 'United Kingdom',
+        input.contact_name || null,
+        input.contact_phone || null,
         input.access_notes || null
       ]
     );
