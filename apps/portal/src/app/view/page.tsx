@@ -78,7 +78,12 @@ function decodeToken(token: string): {
   exp: number;
 } | null {
   try {
-    return JSON.parse(atob(token.split('.')[1]));
+    const parts = token.split('.');
+    if (parts.length !== 3) return null;
+    // JWT uses base64url — convert to standard base64 before atob()
+    const base64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+    const padded = base64.padEnd(base64.length + (4 - base64.length % 4) % 4, '=');
+    return JSON.parse(atob(padded));
   } catch {
     return null;
   }
