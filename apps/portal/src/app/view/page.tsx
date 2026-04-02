@@ -131,6 +131,42 @@ function ViewPageContent() {
   const [quote, setQuote] = useState<Quote | null>(null);
   const [invoice, setInvoice] = useState<Invoice | null>(null);
   const [bankDetails, setBankDetails] = useState<BankDetails | null>(null);
+  const [authHeaders, setAuthHeaders] = useState<Record<string, string> | null>(null);
+  const [invoiceId, setInvoiceId] = useState<string | null>(null);
+  const [paymentLoading, setPaymentLoading] = useState(false);
+  const [paymentError, setPaymentError] = useState<string | null>(null);
+
+  const handlePayNow = useCallback(async () => {
+    if (!authHeaders || !invoiceId || !invoice) return;
+    setPaymentLoading(true);
+    setPaymentError(null);
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/payments/checkout-session`, {
+        method: 'POST',
+        headers: authHeaders,
+        body: JSON.stringify({
+          invoice_id: invoiceId,
+          amount: parseFloat(invoice.amount_due as any),
+          currency: 'gbp',
+          description: `Invoice ${invoice.invoice_number}`,
+          success_url: `${window.location.origin}/payment/success?invoice_id=${invoiceId}`,
+          cancel_url: window.location.href,
+          payment_method_types: ['card'],
+        }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.message || 'Could not start payment');
+      }
+      const data = await res.json();
+      const checkoutUrl = data.checkout_url || data.checkoutUrl || data.url;
+      if (!checkoutUrl) throw new Error('No checkout URL returned');
+      window.location.href = checkoutUrl;
+    } catch (err: any) {
+      setPaymentError(err.message || 'Payment failed. Please try again.');
+      setPaymentLoading(false);
+    }
+  }, [authHeaders, invoiceId, invoice]);
 
   useEffect(() => {
     const token = searchParams.get('token');
@@ -159,6 +195,7 @@ function ViewPageContent() {
       'x-tenant-id': claims.tenant_id,
       'x-user-id': claims.user_id,
     };
+    setAuthHeaders(headers);
 
     const load = async () => {
       try {
@@ -179,6 +216,7 @@ function ViewPageContent() {
           const { invoice: inv, bankDetails: bd } = await res.json();
           setInvoice(inv);
           setBankDetails(bd);
+          setInvoiceId(claims.resource_id);
           setState('invoice');
         } else {
           setError('This link type is not supported for web viewing.');
@@ -351,12 +389,36 @@ function ViewPageContent() {
             </div>
           </div>
 
-          {/* Amount due — prominent */}
+          {/* Amount due + Pay Now */}
           {!isPaid && (
             <div className="bg-green-600 rounded-xl p-6 mb-4 text-white text-center">
               <p className="text-sm font-medium opacity-80 mb-1">Amount due</p>
               <p className="text-4xl font-bold">{formatCurrency(invoice.amount_due)}</p>
               <p className="text-sm opacity-75 mt-1">Due by {formatDate(invoice.due_date)}</p>
+
+              <button
+                onClick={handlePayNow}
+                disabled={paymentLoading}
+                className="mt-5 w-full bg-white text-green-700 font-semibold text-base py-3 px-6 rounded-xl shadow hover:bg-green-50 active:scale-95 transition-all disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              >
+                {paymentLoading ? (
+                  <>
+                    <span className="inline-block animate-spin rounded-full h-4 w-4 border-b-2 border-green-700" />
+                    Preparing payment…
+                  </>
+                ) : (
+                  <>
+                    <span className="text-lg">💳</span>
+                    Pay now — Apple Pay · Google Pay · Card
+                  </>
+                )}
+              </button>
+
+              {paymentError && (
+                <p className="mt-3 text-sm bg-red-500/20 text-white rounded-lg px-3 py-2">
+                  {paymentError}
+                </p>
+              )}
             </div>
           )}
 
