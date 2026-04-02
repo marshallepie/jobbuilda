@@ -1,7 +1,10 @@
 import { FastifyInstance } from 'fastify';
 import { extractAuthContext } from '../lib/auth.js';
+import { createShortLink, resolveShortLink } from '../lib/shortLinks.js';
 
 const PORTAL_URL = process.env.PORTAL_URL || 'http://localhost:3001';
+const API_URL = process.env.API_URL || 'http://localhost:3000';
+const TTL_7_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
 
 export async function shareRoutes(fastify: FastifyInstance) {
   /**
@@ -39,13 +42,15 @@ export async function shareRoutes(fastify: FastifyInstance) {
       }
 
       const shareUrl = `${PORTAL_URL}/view?token=${tokenData.token}`;
+      const shortKey = createShortLink(shareUrl, TTL_7_DAYS_MS);
+      const shortUrl = `${API_URL}/s/${shortKey}`;
 
       const amount = quote.total_inc_vat
         ? `£${parseFloat(quote.total_inc_vat).toFixed(2)}`
         : '';
       const ref = quote.quote_number ? ` (${quote.quote_number})` : '';
       const amountPart = amount ? ` for ${amount}` : '';
-      const message = `Hi, please find your quote${ref}${amountPart} here: ${shareUrl}`;
+      const message = `Hi, please find your quote${ref}${amountPart} here: ${shortUrl}`;
       const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(message)}`;
 
       return reply.send({
@@ -108,6 +113,8 @@ export async function shareRoutes(fastify: FastifyInstance) {
       }
 
       const shareUrl = `${PORTAL_URL}/view?token=${tokenData.token}`;
+      const shortKey = createShortLink(shareUrl, TTL_7_DAYS_MS);
+      const shortUrl = `${API_URL}/s/${shortKey}`;
 
       // Format amounts
       const amountDue = invoice.amount_due
@@ -164,7 +171,7 @@ export async function shareRoutes(fastify: FastifyInstance) {
 
       // Portal link as small print
       lines.push('');
-      lines.push(`_View invoice online: ${shareUrl}_`);
+      lines.push(`_View invoice online: ${shortUrl}_`);
 
       const message = lines.join('\n');
       const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(message)}`;
@@ -240,5 +247,18 @@ export async function shareRoutes(fastify: FastifyInstance) {
         message: error.message,
       });
     }
+  });
+
+  /**
+   * GET /s/:key
+   * Redirect a short share link to its full portal URL.
+   */
+  fastify.get('/s/:key', async (request, reply) => {
+    const { key } = request.params as { key: string };
+    const target = resolveShortLink(key);
+    if (!target) {
+      return reply.status(410).send({ error: 'Link expired or not found' });
+    }
+    return reply.redirect(target, 302);
   });
 }
