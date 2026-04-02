@@ -223,6 +223,20 @@ export async function shareRoutes(fastify: FastifyInstance) {
       const invoice = (invoiceResource.data as any).data || invoiceResource.data;
       const profile = (profileResource.data as any).data || profileResource.data;
 
+      // Fetch client details if we have a client_id
+      let client: Record<string, any> | null = null;
+      if (invoice?.client_id) {
+        try {
+          const clientResource = await fastify.mcp.clients.readResource(
+            `res://clients/clients/${invoice.client_id}`,
+            context
+          );
+          client = (clientResource.data as any).data || clientResource.data || null;
+        } catch {
+          // Non-fatal — invoice renders without client block
+        }
+      }
+
       // Format sort code with dashes if stored without them
       const rawSortCode: string = profile?.sort_code || '';
       const sortCode = rawSortCode.includes('-')
@@ -239,7 +253,21 @@ export async function shareRoutes(fastify: FastifyInstance) {
             }
           : null;
 
-      return reply.send({ invoice, bankDetails });
+      const company = {
+        name: (profile?.trading_name || profile?.name) as string | undefined,
+        companyNumber: profile?.company_number as string | undefined,
+        vatNumber: profile?.vat_number as string | undefined,
+        addressLine1: profile?.address_line1 as string | undefined,
+        addressLine2: profile?.address_line2 as string | undefined,
+        city: profile?.city as string | undefined,
+        county: profile?.county as string | undefined,
+        postcode: profile?.postcode as string | undefined,
+        phone: profile?.phone as string | undefined,
+        email: profile?.email as string | undefined,
+        logoUrl: profile?.logo_url as string | undefined,
+      };
+
+      return reply.send({ invoice, bankDetails, company, client });
     } catch (error: any) {
       fastify.log.error(error, 'Failed to load invoice details for portal view');
       return reply.status(500).send({
