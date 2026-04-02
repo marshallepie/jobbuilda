@@ -36,8 +36,6 @@ interface ScanReceiptBody {
 }
 
 export async function receiptsRoutes(fastify: FastifyInstance) {
-  const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-
   fastify.post<{ Body: ScanReceiptBody }>(
     '/api/receipts/scan',
     {
@@ -47,11 +45,21 @@ export async function receiptsRoutes(fastify: FastifyInstance) {
     async (request, reply) => {
       extractAuthContext(request);
 
+      const apiKey = process.env.ANTHROPIC_API_KEY;
+      if (!apiKey) {
+        fastify.log.error('ANTHROPIC_API_KEY is not set');
+        return reply.status(503).send({
+          error: 'Receipt scanning is not configured. Please contact your administrator.',
+        });
+      }
+
       const { imageBase64, mimeType } = request.body;
 
       if (!imageBase64 || !mimeType) {
         return reply.status(400).send({ error: 'imageBase64 and mimeType are required' });
       }
+
+      const client = new Anthropic({ apiKey });
 
       try {
         const message = await client.messages.create({
