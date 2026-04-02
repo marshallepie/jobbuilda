@@ -6,6 +6,7 @@ import Link from 'next/link';
 import AppLayout from '@/components/AppLayout';
 import { api } from '@/lib/api';
 import { formatCurrency } from '@/lib/utils';
+import ReceiptScanModal, { LineItemDraft } from '@/components/ReceiptScanModal';
 
 interface Quote {
   id: string;
@@ -79,6 +80,7 @@ export default function NewInvoicePage() {
   const [paymentTermsDays, setPaymentTermsDays] = useState(30);
   const [notes, setNotes] = useState('');
   const [lineItems, setLineItems] = useState<LineItem[]>([blankItem()]);
+  const [showScanModal, setShowScanModal] = useState(false);
 
   const [defaultVatRate, setDefaultVatRate] = useState(20);
   const [loading, setLoading] = useState(true);
@@ -756,14 +758,42 @@ export default function NewInvoicePage() {
         <div className="bg-white shadow rounded-lg p-6">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-semibold text-gray-900">Line Items</h2>
-            <button
-              type="button"
-              onClick={addItem}
-              className="px-3 py-1.5 text-sm bg-primary-600 text-white rounded-md hover:bg-primary-700"
-            >
-              + Add Item
-            </button>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => setShowScanModal(true)}
+                className="px-3 py-1.5 text-sm bg-white border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 flex items-center gap-1"
+              >
+                📷 Scan Receipt
+              </button>
+              <button
+                type="button"
+                onClick={addItem}
+                className="px-3 py-1.5 text-sm bg-primary-600 text-white rounded-md hover:bg-primary-700"
+              >
+                + Add Item
+              </button>
+            </div>
           </div>
+
+          <ReceiptScanModal
+            isOpen={showScanModal}
+            onClose={() => setShowScanModal(false)}
+            onItemsConfirmed={(items: LineItemDraft[]) => {
+              setLineItems(prev => [
+                ...prev.filter(i => i.description.trim() !== ''),
+                ...items.map(i => ({
+                  item_type: i.item_type as LineItem['item_type'],
+                  description: i.description,
+                  quantity: String(i.quantity),
+                  unit: i.unit,
+                  unit_price_ex_vat: String(i.unit_price_ex_vat),
+                  vat_rate: String(i.vat_rate),
+                })),
+              ]);
+              setShowScanModal(false);
+            }}
+          />
 
           <div className="space-y-3">
             {lineItems.map((item, idx) => (

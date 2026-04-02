@@ -9,6 +9,7 @@ interface InvoiceItem {
   unit?: string;
   unit_price_ex_vat: number;
   vat_rate?: number;
+  receipt_url?: string;
 }
 
 export interface UpdateInvoiceInput {
@@ -92,8 +93,8 @@ export async function updateInvoice(
           await query(
             `INSERT INTO invoice_items (
               tenant_id, invoice_id, item_type, description, quantity, unit,
-              unit_price_ex_vat, line_total_ex_vat, vat_rate, line_vat, line_total_inc_vat
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
+              unit_price_ex_vat, line_total_ex_vat, vat_rate, line_vat, line_total_inc_vat, receipt_url
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
             [
               context.tenant_id,
               input.invoice_id,
@@ -106,6 +107,7 @@ export async function updateInvoice(
               vatRate,
               lineVat,
               lineTotalIncVat,
+              item.receipt_url || null,
             ]
           );
         }

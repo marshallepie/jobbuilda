@@ -15,6 +15,7 @@ interface InvoiceItem {
   vat_rate?: number;
   job_item_id?: string;
   variation_id?: string;
+  receipt_url?: string;
 }
 
 interface CreateInvoiceInput {
@@ -91,8 +92,8 @@ export async function createInvoice(
           `INSERT INTO invoice_items (
             tenant_id, invoice_id, item_type, description, quantity, unit,
             unit_price_ex_vat, line_total_ex_vat, vat_rate, line_vat,
-            line_total_inc_vat, job_item_id, variation_id
-          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+            line_total_inc_vat, job_item_id, variation_id, receipt_url
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
           RETURNING *`,
           [
             context.tenant_id,
@@ -108,6 +109,7 @@ export async function createInvoice(
             lineTotalIncVat,
             item.job_item_id || null,
             item.variation_id || null,
+            item.receipt_url || null,
           ]
         );
 

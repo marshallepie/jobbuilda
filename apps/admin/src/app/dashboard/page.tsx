@@ -5,6 +5,7 @@ import AppLayout from '@/components/AppLayout';
 import { api, ApiError } from '@/lib/api';
 import { formatCurrency, formatDate, getStatusColor } from '@/lib/utils';
 import Link from 'next/link';
+import ReceiptScanModal from '@/components/ReceiptScanModal';
 
 interface DashboardStats {
   activeJobs: number;
@@ -32,6 +33,7 @@ interface Quote {
 }
 
 export default function DashboardPage() {
+  const [showScanModal, setShowScanModal] = useState(false);
   const [stats, setStats] = useState<DashboardStats>({
     activeJobs: 0,
     pendingQuotes: 0,
@@ -133,12 +135,26 @@ export default function DashboardPage() {
     <AppLayout>
       <div className="space-y-8">
         {/* Header */}
-        <div>
-          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Dashboard</h1>
-          <p className="mt-2 text-sm sm:text-base text-gray-600">
-            Welcome back! Here&apos;s what&apos;s happening with your business.
-          </p>
+        <div className="flex items-start justify-between gap-4 flex-wrap">
+          <div>
+            <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Dashboard</h1>
+            <p className="mt-2 text-sm sm:text-base text-gray-600">
+              Welcome back! Here&apos;s what&apos;s happening with your business.
+            </p>
+          </div>
+          <button
+            onClick={() => setShowScanModal(true)}
+            className="inline-flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-lg shadow-sm text-sm font-medium text-gray-700 hover:bg-gray-50 shrink-0"
+          >
+            📷 Scan Receipt
+          </button>
         </div>
+
+        <ReceiptScanModal
+          isOpen={showScanModal}
+          onClose={() => setShowScanModal(false)}
+          onItemsConfirmed={() => setShowScanModal(false)}
+        />
 
         {/* Stats Grid */}
         <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
