@@ -70,20 +70,71 @@ export async function paymentsRoutes(fastify: FastifyInstance) {
   );
 
   // POST /api/payments/checkout-session - Create Stripe checkout session
-  fastify.post<{ Body: Record<string, unknown> }>(
+  fastify.post<{
+    Body: {
+      invoice_id: string;
+      amount: number;
+      currency?: string;
+      description?: string;
+      success_url: string;
+      cancel_url: string;
+      payment_method_types?: string[];
+    };
+  }>(
     '/api/payments/checkout-session',
     async (request, reply) => {
       const context = extractAuthContext(request);
+      const {
+        invoice_id,
+        amount,
+        currency = 'gbp',
+        description,
+        success_url,
+        cancel_url,
+        payment_method_types,
+      } = request.body;
+
+      if (!process.env.STRIPE_SECRET_KEY) {
+        return reply.status(503).send({
+          error: 'Payments not configured',
+          message: 'STRIPE_SECRET_KEY is not set. Please contact your administrator.',
+        });
+      }
+
+      if (!invoice_id || !amount || !success_url || !cancel_url) {
+        return reply.status(400).send({ error: 'invoice_id, amount, success_url and cancel_url are required' });
+      }
+
       try {
-        const result = await fastify.mcp.payments.callTool(
-          'create_checkout_session',
-          request.body,
-          context
-        );
-        const data = JSON.parse(result.content[0]?.text || '{}');
-        return data;
+        const session = await stripe.checkout.sessions.create({
+          ...(payment_method_types ? { payment_method_types: payment_method_types as any } : {}),
+          line_items: [
+            {
+              price_data: {
+                currency,
+                product_data: {
+                  name: description || 'Invoice Payment',
+                  description: `Payment for invoice ${invoice_id}`,
+                },
+                unit_amount: Math.round(amount * 100),
+              },
+              quantity: 1,
+            },
+          ],
+          mode: 'payment',
+          success_url,
+          cancel_url,
+          metadata: {
+            tenant_id: context.tenant_id,
+            invoice_id,
+            created_by: context.user_id,
+          },
+        });
+
+        return reply.send({ checkout_url: session.url });
       } catch (error: any) {
-        reply.status(500).send({ error: 'Failed to create checkout session', message: error.message });
+        fastify.log.error({ error, invoice_id }, 'Stripe checkout session creation failed');
+        return reply.status(500).send({ error: 'Failed to create checkout session', message: error.message });
       }
     }
   );

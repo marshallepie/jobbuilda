@@ -151,7 +151,6 @@ function ViewPageContent() {
           description: `Invoice ${invoice.invoice_number}`,
           success_url: `${window.location.origin}/payment/success?invoice_id=${invoiceId}`,
           cancel_url: window.location.href,
-          payment_method_types: ['card'],
         }),
       });
       if (!res.ok) {
