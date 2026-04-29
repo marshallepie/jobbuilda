@@ -46,6 +46,22 @@ export async function invoicingRoutes(fastify: FastifyInstance) {
     }
   );
 
+  // GET /api/invoices/quote/:quoteId - Get invoices + balance ledger for a quote
+  fastify.get<{ Params: { quoteId: string } }>(
+    '/api/invoices/quote/:quoteId',
+    async (request, reply) => {
+      const context = extractAuthContext(request);
+      const { quoteId } = request.params;
+      const uri = `res://invoicing/quote-invoices/${quoteId}`;
+      try {
+        const result = await fastify.mcp.invoicing.readResource(uri, context);
+        return result.data;
+      } catch (error: any) {
+        reply.status(500).send({ error: 'Failed to fetch quote invoices', message: error.message });
+      }
+    }
+  );
+
   // POST /api/invoices - Create new invoice
   fastify.post<{ Body: Record<string, unknown> }>(
     '/api/invoices',

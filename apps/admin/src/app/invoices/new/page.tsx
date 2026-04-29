@@ -270,6 +270,7 @@ export default function NewInvoicePage() {
         method: 'POST',
         body: JSON.stringify({
           job_id: job.job_id,
+          quote_id: quote.id,
           client_id: quote.client_id,
           site_id: quote.site_id,
           invoice_type: 'deposit',
@@ -374,6 +375,7 @@ export default function NewInvoicePage() {
           client_id: clientId,
           site_id: selectedSiteId || undefined,
           job_id: jobId || undefined,
+          quote_id: quoteId || undefined,
           invoice_type: invoiceType,
           invoice_date: invoiceDate,
           payment_terms_days: paymentTermsDays,

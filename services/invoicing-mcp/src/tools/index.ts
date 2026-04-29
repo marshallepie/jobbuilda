@@ -23,6 +23,7 @@ export function registerTools(server: Server) {
           type: 'object',
           properties: {
             job_id: { type: 'string', description: 'Job UUID (optional for standalone invoices)' },
+            quote_id: { type: 'string', description: 'Quote UUID — links invoice to originating quote for balance tracking' },
             client_id: { type: 'string', description: 'Client UUID' },
             site_id: { type: 'string', description: 'Site UUID (optional for standalone invoices)' },
             invoice_type: {

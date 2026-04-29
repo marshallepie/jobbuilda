@@ -60,6 +60,28 @@ interface Quote {
   items?: QuoteItem[];
 }
 
+interface QuoteInvoice {
+  id: string;
+  invoice_number: string;
+  invoice_type: string;
+  invoice_date: string;
+  due_date: string;
+  status: string;
+  total_inc_vat: string;
+  amount_paid: string;
+  amount_due: string;
+}
+
+interface QuoteInvoiceSummary {
+  invoices: QuoteInvoice[];
+  summary: {
+    total_invoices: number;
+    total_invoiced: number;
+    total_paid: number;
+    total_outstanding: number;
+  };
+}
+
 export default function QuoteDetailPage() {
   const router = useRouter();
   const params = useParams();
@@ -67,6 +89,7 @@ export default function QuoteDetailPage() {
 
   const [quote, setQuote] = useState<Quote | null>(null);
   const [businessProfile, setBusinessProfile] = useState<BusinessProfile | null>(null);
+  const [invoiceSummary, setInvoiceSummary] = useState<QuoteInvoiceSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
   const [shareData, setShareData] = useState<{
@@ -122,6 +145,14 @@ export default function QuoteDetailPage() {
       }
 
       setQuote(data);
+
+      // Fetch invoice ledger for this quote (non-fatal)
+      try {
+        const ledger = await api.request(`/api/invoices/quote/${quoteId}`) as any;
+        if (ledger?.summary) setInvoiceSummary(ledger);
+      } catch {
+        // No invoices yet — summary stays null
+      }
 
       // Fetch business profile for print header
       try {
@@ -691,6 +722,94 @@ export default function QuoteDetailPage() {
             </div>
           </div>
         </div>
+
+        {/* Invoicing Summary */}
+        {invoiceSummary && invoiceSummary.summary.total_invoices > 0 && (
+          <div className="bg-white shadow rounded-lg overflow-hidden">
+            <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
+              <h2 className="text-lg font-semibold text-gray-900">Invoicing</h2>
+              <Link
+                href={`/invoices/new?quote_id=${quoteId}`}
+                className="text-sm text-primary-600 hover:text-primary-700 font-medium"
+              >
+                + New Invoice
+              </Link>
+            </div>
+
+            {/* Balance summary */}
+            <div className="px-6 py-4 bg-gray-50 border-b border-gray-200">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-sm">
+                <div>
+                  <p className="text-gray-500">Quote Total</p>
+                  <p className="text-lg font-bold text-gray-900">{formatCurrency(quote!.total_inc_vat)}</p>
+                </div>
+                <div>
+                  <p className="text-gray-500">Total Invoiced</p>
+                  <p className="text-lg font-bold text-gray-900">{formatCurrency(invoiceSummary.summary.total_invoiced)}</p>
+                </div>
+                <div>
+                  <p className="text-gray-500">Total Paid</p>
+                  <p className="text-lg font-bold text-green-700">{formatCurrency(invoiceSummary.summary.total_paid)}</p>
+                </div>
+                <div>
+                  <p className="text-gray-500">Balance Remaining</p>
+                  <p className={`text-lg font-bold ${(quote!.total_inc_vat - invoiceSummary.summary.total_invoiced) > 0 ? 'text-amber-700' : 'text-gray-400'}`}>
+                    {formatCurrency(Math.max(quote!.total_inc_vat - invoiceSummary.summary.total_invoiced, 0))}
+                  </p>
+                </div>
+              </div>
+              {invoiceSummary.summary.total_outstanding > 0 && (
+                <p className="mt-3 text-sm text-red-700 font-medium">
+                  {formatCurrency(invoiceSummary.summary.total_outstanding)} invoiced but not yet paid
+                </p>
+              )}
+            </div>
+
+            {/* Invoice list */}
+            <div className="divide-y divide-gray-100">
+              {invoiceSummary.invoices.map((inv) => (
+                <div key={inv.id} className="px-6 py-3 flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <Link href={`/invoices/${inv.id}`} className="text-sm font-medium text-primary-600 hover:underline">
+                      {inv.invoice_number}
+                    </Link>
+                    <span className="px-2 py-0.5 text-xs font-medium rounded bg-purple-100 text-purple-800 capitalize">
+                      {inv.invoice_type}
+                    </span>
+                    <span className={`px-2 py-0.5 text-xs font-medium rounded capitalize ${getStatusColor(inv.status)}`}>
+                      {inv.status}
+                    </span>
+                  </div>
+                  <div className="text-right text-sm">
+                    <p className="font-semibold text-gray-900">{formatCurrency(parseFloat(inv.total_inc_vat))}</p>
+                    {parseFloat(inv.amount_paid) > 0 && (
+                      <p className="text-xs text-green-700">{formatCurrency(parseFloat(inv.amount_paid))} paid</p>
+                    )}
+                    {parseFloat(inv.amount_due) > 0 && (
+                      <p className="text-xs text-red-600">{formatCurrency(parseFloat(inv.amount_due))} due</p>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* No invoices yet — prompt */}
+        {(!invoiceSummary || invoiceSummary.summary.total_invoices === 0) && (quote?.status === 'approved') && (
+          <div className="bg-white shadow rounded-lg p-6 flex items-center justify-between">
+            <div>
+              <h2 className="text-lg font-semibold text-gray-900">Invoicing</h2>
+              <p className="text-sm text-gray-500 mt-1">No invoices raised yet against this quote.</p>
+            </div>
+            <Link
+              href={`/invoices/new?quote_id=${quoteId}`}
+              className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 text-sm font-medium"
+            >
+              Create Invoice
+            </Link>
+          </div>
+        )}
 
         {/* Terms & Notes */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

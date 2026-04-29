@@ -20,6 +20,7 @@ interface InvoiceItem {
 
 interface CreateInvoiceInput {
   job_id?: string;
+  quote_id?: string;
   client_id: string;
   site_id?: string;
   invoice_type?: 'deposit' | 'progress' | 'final' | 'credit_note';
@@ -38,6 +39,7 @@ export async function createInvoice(
       span.setAttributes({
         'tenant.id': context.tenant_id,
         'job.id': input.job_id,
+        'quote.id': input.quote_id,
       });
 
       const invoiceId = randomUUID();
@@ -55,17 +57,18 @@ export async function createInvoice(
       dueDate.setDate(dueDate.getDate() + paymentTermsDays);
 
       // Insert invoice
-      const invoiceResult = await query(
+      await query(
         `INSERT INTO invoices (
-          id, tenant_id, invoice_number, job_id, client_id, site_id, invoice_type,
+          id, tenant_id, invoice_number, job_id, quote_id, client_id, site_id, invoice_type,
           invoice_date, due_date, payment_terms_days, notes, status, created_by
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
         RETURNING *`,
         [
           invoiceId,
           context.tenant_id,
           invoiceNumber,
           input.job_id || null,
+          input.quote_id || null,
           input.client_id,
           input.site_id || null,
           input.invoice_type || 'final',
@@ -77,8 +80,6 @@ export async function createInvoice(
           context.user_id,
         ]
       );
-
-      const invoice = invoiceResult.rows[0];
 
       // Insert invoice items with VAT calculations
       const items = [];

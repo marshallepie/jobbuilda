@@ -93,6 +93,42 @@ export async function handleInvoiceResource(
         };
       }
 
+      // Get invoices for a quote + balance ledger: res://invoicing/quote-invoices/{quote_id}
+      // Returns all invoices linked to a quote plus a running balance against the quote total.
+      const quoteMatch = uri.match(/^res:\/\/invoicing\/quote-invoices\/([a-f0-9-]+)$/);
+      if (quoteMatch) {
+        const quoteId = quoteMatch[1];
+
+        const result = await query(
+          `SELECT id, invoice_number, invoice_type, invoice_date, due_date, status,
+                  subtotal_ex_vat, vat_amount, total_inc_vat, amount_paid, amount_due
+           FROM invoices
+           WHERE quote_id = $1 AND tenant_id = $2
+             AND status NOT IN ('cancelled', 'void')
+           ORDER BY invoice_date ASC, created_at ASC`,
+          [quoteId, context.tenant_id]
+        );
+
+        const invoices = result.rows;
+        const totalInvoiced = invoices.reduce((sum, i) => sum + parseFloat(i.total_inc_vat || 0), 0);
+        const totalPaid = invoices.reduce((sum, i) => sum + parseFloat(i.amount_paid || 0), 0);
+        const totalOutstanding = invoices.reduce((sum, i) => sum + parseFloat(i.amount_due || 0), 0);
+
+        return {
+          data: {
+            quote_id: quoteId,
+            invoices,
+            summary: {
+              total_invoices: invoices.length,
+              total_invoiced: Math.round(totalInvoiced * 100) / 100,
+              total_paid: Math.round(totalPaid * 100) / 100,
+              total_outstanding: Math.round(totalOutstanding * 100) / 100,
+            },
+          },
+          _meta: { context },
+        };
+      }
+
       throw new Error(`Unknown invoice resource URI: ${uri}`);
     } finally {
       span.end();
