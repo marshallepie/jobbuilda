@@ -4,6 +4,17 @@ import type { AuthContext } from '@jobbuilda/contracts';
 
 const tracer = trace.getTracer('invoicing-mcp');
 
+function computeInvoiceTotals(invoices: any[]) {
+  return invoices.reduce(
+    (acc, i) => ({
+      total_invoiced: acc.total_invoiced + parseFloat(i.total_inc_vat || 0),
+      total_paid: acc.total_paid + parseFloat(i.amount_paid || 0),
+      total_outstanding: acc.total_outstanding + parseFloat(i.amount_due || 0),
+    }),
+    { total_invoiced: 0, total_paid: 0, total_outstanding: 0 }
+  );
+}
+
 export async function handleInvoiceResource(
   uri: string,
   context: AuthContext
@@ -74,27 +85,28 @@ export async function handleInvoiceResource(
           [jobId, context.tenant_id]
         );
 
+        const rows = result.rows;
+        const totals = computeInvoiceTotals(rows);
+
         return {
           data: {
             job_id: jobId,
-            invoices: result.rows,
+            invoices: rows,
             summary: {
-              total_invoices: result.rows.length,
-              draft: result.rows.filter(i => i.status === 'draft').length,
-              sent: result.rows.filter(i => i.status === 'sent').length,
-              paid: result.rows.filter(i => i.status === 'paid').length,
-              overdue: result.rows.filter(i => i.status === 'overdue').length,
-              total_value: result.rows.reduce((sum, i) => sum + parseFloat(i.total_inc_vat || 0), 0),
-              total_paid: result.rows.reduce((sum, i) => sum + parseFloat(i.amount_paid || 0), 0),
-              total_outstanding: result.rows.reduce((sum, i) => sum + parseFloat(i.amount_due || 0), 0),
+              total_invoices: rows.length,
+              draft: rows.filter(i => i.status === 'draft').length,
+              sent: rows.filter(i => i.status === 'sent').length,
+              paid: rows.filter(i => i.status === 'paid').length,
+              overdue: rows.filter(i => i.status === 'overdue').length,
+              total_value: totals.total_invoiced,
+              total_paid: totals.total_paid,
+              total_outstanding: totals.total_outstanding,
             },
           },
           _meta: { context },
         };
       }
 
-      // Get invoices for a quote + balance ledger: res://invoicing/quote-invoices/{quote_id}
-      // Returns all invoices linked to a quote plus a running balance against the quote total.
       const quoteMatch = uri.match(/^res:\/\/invoicing\/quote-invoices\/([a-f0-9-]+)$/);
       if (quoteMatch) {
         const quoteId = quoteMatch[1];
@@ -110,9 +122,7 @@ export async function handleInvoiceResource(
         );
 
         const invoices = result.rows;
-        const totalInvoiced = invoices.reduce((sum, i) => sum + parseFloat(i.total_inc_vat || 0), 0);
-        const totalPaid = invoices.reduce((sum, i) => sum + parseFloat(i.amount_paid || 0), 0);
-        const totalOutstanding = invoices.reduce((sum, i) => sum + parseFloat(i.amount_due || 0), 0);
+        const { total_invoiced, total_paid, total_outstanding } = computeInvoiceTotals(invoices);
 
         return {
           data: {
@@ -120,9 +130,9 @@ export async function handleInvoiceResource(
             invoices,
             summary: {
               total_invoices: invoices.length,
-              total_invoiced: Math.round(totalInvoiced * 100) / 100,
-              total_paid: Math.round(totalPaid * 100) / 100,
-              total_outstanding: Math.round(totalOutstanding * 100) / 100,
+              total_invoiced: Math.round(total_invoiced * 100) / 100,
+              total_paid: Math.round(total_paid * 100) / 100,
+              total_outstanding: Math.round(total_outstanding * 100) / 100,
             },
           },
           _meta: { context },

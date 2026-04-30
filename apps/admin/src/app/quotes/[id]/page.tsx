@@ -117,50 +117,33 @@ export default function QuoteDetailPage() {
 
       const data = await api.request(`/api/quotes/${quoteId}`) as any;
 
-      // Fetch client details if client_id exists
-      if (data.client_id) {
-        try {
-          const clientData = await api.request(`/api/clients/clients/${data.client_id}`) as any;
-          data.client_name = clientData.name;
-        } catch (err) {
-          console.error('Failed to load client:', err);
-        }
-      }
+      // All secondary fetches are independent — run in parallel
+      const [clientData, siteData, ledger, profileData] = await Promise.all([
+        data.client_id
+          ? api.request(`/api/clients/clients/${data.client_id}`).catch(() => null)
+          : Promise.resolve(null),
+        data.site_id
+          ? api.request(`/api/clients/sites/${data.site_id}`).catch(() => null)
+          : Promise.resolve(null),
+        api.request(`/api/invoices/quote/${quoteId}`).catch(() => null),
+        api.request('/api/identity/profile').catch(() => null),
+      ]) as any[];
 
-      // Fetch site details if site_id exists
-      if (data.site_id) {
-        try {
-          const siteData = await api.request(`/api/clients/sites/${data.site_id}`) as any;
-          data.site_name = siteData.name;
-          data.site_address = [
-            siteData.address_line1,
-            siteData.address_line2,
-            siteData.city,
-            siteData.county,
-            siteData.postcode
-          ].filter(Boolean).join(', ');
-        } catch (err) {
-          console.error('Failed to load site:', err);
-        }
+      if (clientData?.name) data.client_name = clientData.name;
+      if (siteData) {
+        data.site_name = siteData.name;
+        data.site_address = [
+          siteData.address_line1,
+          siteData.address_line2,
+          siteData.city,
+          siteData.county,
+          siteData.postcode,
+        ].filter(Boolean).join(', ');
       }
+      if (ledger?.summary) setInvoiceSummary(ledger);
+      if (profileData) setBusinessProfile(profileData.data || profileData);
 
       setQuote(data);
-
-      // Fetch invoice ledger for this quote (non-fatal)
-      try {
-        const ledger = await api.request(`/api/invoices/quote/${quoteId}`) as any;
-        if (ledger?.summary) setInvoiceSummary(ledger);
-      } catch {
-        // No invoices yet — summary stays null
-      }
-
-      // Fetch business profile for print header
-      try {
-        const profileData = await api.request('/api/identity/profile') as any;
-        setBusinessProfile(profileData.data || profileData);
-      } catch (err) {
-        console.error('Failed to load business profile:', err);
-      }
     } catch (err) {
       console.error('Failed to load quote:', err);
     } finally {
@@ -723,93 +706,86 @@ export default function QuoteDetailPage() {
           </div>
         </div>
 
-        {/* Invoicing Summary */}
-        {invoiceSummary && invoiceSummary.summary.total_invoices > 0 && (
-          <div className="bg-white shadow rounded-lg overflow-hidden">
-            <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
-              <h2 className="text-lg font-semibold text-gray-900">Invoicing</h2>
-              <Link
-                href={`/invoices/new?quote_id=${quoteId}`}
-                className="text-sm text-primary-600 hover:text-primary-700 font-medium"
-              >
-                + New Invoice
-              </Link>
-            </div>
+        {/* Invoicing — shown once quote is approved or invoices exist */}
+        {(quote.status === 'approved' || (invoiceSummary && invoiceSummary.summary.total_invoices > 0)) && (() => {
+          const newInvoiceHref = `/invoices/new?quote_id=${quoteId}`;
+          const hasInvoices = invoiceSummary && invoiceSummary.summary.total_invoices > 0;
+          const balanceRemaining = Math.max(quote.total_inc_vat - (invoiceSummary?.summary.total_invoiced ?? 0), 0);
 
-            {/* Balance summary */}
-            <div className="px-6 py-4 bg-gray-50 border-b border-gray-200">
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-sm">
-                <div>
-                  <p className="text-gray-500">Quote Total</p>
-                  <p className="text-lg font-bold text-gray-900">{formatCurrency(quote!.total_inc_vat)}</p>
-                </div>
-                <div>
-                  <p className="text-gray-500">Total Invoiced</p>
-                  <p className="text-lg font-bold text-gray-900">{formatCurrency(invoiceSummary.summary.total_invoiced)}</p>
-                </div>
-                <div>
-                  <p className="text-gray-500">Total Paid</p>
-                  <p className="text-lg font-bold text-green-700">{formatCurrency(invoiceSummary.summary.total_paid)}</p>
-                </div>
-                <div>
-                  <p className="text-gray-500">Balance Remaining</p>
-                  <p className={`text-lg font-bold ${(quote!.total_inc_vat - invoiceSummary.summary.total_invoiced) > 0 ? 'text-amber-700' : 'text-gray-400'}`}>
-                    {formatCurrency(Math.max(quote!.total_inc_vat - invoiceSummary.summary.total_invoiced, 0))}
-                  </p>
-                </div>
+          return (
+            <div className="bg-white shadow rounded-lg overflow-hidden">
+              <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
+                <h2 className="text-lg font-semibold text-gray-900">Invoicing</h2>
+                <Link href={newInvoiceHref} className="text-sm text-primary-600 hover:text-primary-700 font-medium">
+                  + New Invoice
+                </Link>
               </div>
-              {invoiceSummary.summary.total_outstanding > 0 && (
-                <p className="mt-3 text-sm text-red-700 font-medium">
-                  {formatCurrency(invoiceSummary.summary.total_outstanding)} invoiced but not yet paid
-                </p>
+
+              {hasInvoices ? (
+                <>
+                  <div className="px-6 py-4 bg-gray-50 border-b border-gray-200">
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-sm">
+                      <div>
+                        <p className="text-gray-500">Quote Total</p>
+                        <p className="text-lg font-bold text-gray-900">{formatCurrency(quote.total_inc_vat)}</p>
+                      </div>
+                      <div>
+                        <p className="text-gray-500">Total Invoiced</p>
+                        <p className="text-lg font-bold text-gray-900">{formatCurrency(invoiceSummary!.summary.total_invoiced)}</p>
+                      </div>
+                      <div>
+                        <p className="text-gray-500">Total Paid</p>
+                        <p className="text-lg font-bold text-green-700">{formatCurrency(invoiceSummary!.summary.total_paid)}</p>
+                      </div>
+                      <div>
+                        <p className="text-gray-500">Balance Remaining</p>
+                        <p className={`text-lg font-bold ${balanceRemaining > 0 ? 'text-amber-700' : 'text-gray-400'}`}>
+                          {formatCurrency(balanceRemaining)}
+                        </p>
+                      </div>
+                    </div>
+                    {invoiceSummary!.summary.total_outstanding > 0 && (
+                      <p className="mt-3 text-sm text-red-700 font-medium">
+                        {formatCurrency(invoiceSummary!.summary.total_outstanding)} invoiced but not yet paid
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="divide-y divide-gray-100">
+                    {invoiceSummary!.invoices.map((inv) => (
+                      <div key={inv.id} className="px-6 py-3 flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <Link href={`/invoices/${inv.id}`} className="text-sm font-medium text-primary-600 hover:underline">
+                            {inv.invoice_number}
+                          </Link>
+                          <span className="px-2 py-1 text-xs font-medium rounded bg-purple-100 text-purple-800 capitalize">
+                            {inv.invoice_type}
+                          </span>
+                          <span className={`px-2 py-1 text-xs font-medium rounded capitalize ${getStatusColor(inv.status)}`}>
+                            {inv.status}
+                          </span>
+                        </div>
+                        <div className="text-right text-sm">
+                          <p className="font-semibold text-gray-900">{formatCurrency(inv.total_inc_vat)}</p>
+                          {parseFloat(inv.amount_paid) > 0 && (
+                            <p className="text-xs text-green-700">{formatCurrency(inv.amount_paid)} paid</p>
+                          )}
+                          {parseFloat(inv.amount_due) > 0 && (
+                            <p className="text-xs text-red-600">{formatCurrency(inv.amount_due)} due</p>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              ) : (
+                <div className="px-6 py-8 text-center">
+                  <p className="text-sm text-gray-500">No invoices raised yet against this quote.</p>
+                </div>
               )}
             </div>
-
-            {/* Invoice list */}
-            <div className="divide-y divide-gray-100">
-              {invoiceSummary.invoices.map((inv) => (
-                <div key={inv.id} className="px-6 py-3 flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <Link href={`/invoices/${inv.id}`} className="text-sm font-medium text-primary-600 hover:underline">
-                      {inv.invoice_number}
-                    </Link>
-                    <span className="px-2 py-0.5 text-xs font-medium rounded bg-purple-100 text-purple-800 capitalize">
-                      {inv.invoice_type}
-                    </span>
-                    <span className={`px-2 py-0.5 text-xs font-medium rounded capitalize ${getStatusColor(inv.status)}`}>
-                      {inv.status}
-                    </span>
-                  </div>
-                  <div className="text-right text-sm">
-                    <p className="font-semibold text-gray-900">{formatCurrency(parseFloat(inv.total_inc_vat))}</p>
-                    {parseFloat(inv.amount_paid) > 0 && (
-                      <p className="text-xs text-green-700">{formatCurrency(parseFloat(inv.amount_paid))} paid</p>
-                    )}
-                    {parseFloat(inv.amount_due) > 0 && (
-                      <p className="text-xs text-red-600">{formatCurrency(parseFloat(inv.amount_due))} due</p>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* No invoices yet — prompt */}
-        {(!invoiceSummary || invoiceSummary.summary.total_invoices === 0) && (quote?.status === 'approved') && (
-          <div className="bg-white shadow rounded-lg p-6 flex items-center justify-between">
-            <div>
-              <h2 className="text-lg font-semibold text-gray-900">Invoicing</h2>
-              <p className="text-sm text-gray-500 mt-1">No invoices raised yet against this quote.</p>
-            </div>
-            <Link
-              href={`/invoices/new?quote_id=${quoteId}`}
-              className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 text-sm font-medium"
-            >
-              Create Invoice
-            </Link>
-          </div>
-        )}
+          );
+        })()}
 
         {/* Terms & Notes */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
