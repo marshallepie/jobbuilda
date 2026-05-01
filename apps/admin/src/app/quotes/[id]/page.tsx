@@ -58,6 +58,16 @@ interface Quote {
   site_address?: string;
   job_id?: string;
   items?: QuoteItem[];
+  is_digital?: boolean;
+  digital_site?: string;
+  engagement_type?: string;
+  option_b_percent?: number;
+  option_c_equity_percent?: number;
+  option_b_label?: string;
+  option_c_label?: string;
+  engagement_selected_at?: string;
+  engagement_selected_by?: string;
+  project_urls?: Array<{ label: string; url: string }>;
 }
 
 interface QuoteInvoice {
@@ -99,6 +109,16 @@ export default function QuoteDetailPage() {
   } | null>(null);
   const [shareLoading, setShareLoading] = useState(false);
   const [copied, setCopied] = useState(false);
+
+  // Project URLs editing
+  const [urlDraft, setUrlDraft] = useState<Array<{ label: string; url: string }>>([]);
+  const [urlsEditing, setUrlsEditing] = useState(false);
+  const [urlsSaving, setUrlsSaving] = useState(false);
+  const [newUrlLabel, setNewUrlLabel] = useState('');
+  const [newUrlValue, setNewUrlValue] = useState('');
+
+  // Engagement option change
+  const [engagementSaving, setEngagementSaving] = useState(false);
 
   useEffect(() => {
     if (quoteId) {
@@ -296,6 +316,41 @@ export default function QuoteDetailPage() {
     if (!quote) return;
     const url = `${apiBase}/api/preview/quote?quote_id=${quoteId}&tenant_id=550e8400-e29b-41d4-a716-446655440000`;
     window.open(url, '_blank');
+  };
+
+  const changeEngagement = async (engagement_type: string) => {
+    if (!quote) return;
+    setEngagementSaving(true);
+    try {
+      api.setAuth({ token: 'mock-jwt-token', tenant_id: '550e8400-e29b-41d4-a716-446655440000', user_id: '550e8400-e29b-41d4-a716-446655440001' });
+      await api.request(`/api/quotes/${quoteId}/engagement`, {
+        method: 'POST',
+        body: JSON.stringify({ engagement_type, selected_by: 'admin' }),
+      });
+      setQuote(prev => prev ? { ...prev, engagement_type, engagement_selected_by: 'admin', engagement_selected_at: new Date().toISOString() } : prev);
+    } catch (err: any) {
+      alert(err.message || 'Failed to change engagement option');
+    } finally {
+      setEngagementSaving(false);
+    }
+  };
+
+  const saveProjectUrls = async () => {
+    if (!quote) return;
+    setUrlsSaving(true);
+    try {
+      api.setAuth({ token: 'mock-jwt-token', tenant_id: '550e8400-e29b-41d4-a716-446655440000', user_id: '550e8400-e29b-41d4-a716-446655440001' });
+      await api.request(`/api/quotes/${quoteId}/project-urls`, {
+        method: 'PUT',
+        body: JSON.stringify({ urls: urlDraft }),
+      });
+      setQuote(prev => prev ? { ...prev, project_urls: [...urlDraft] } : prev);
+      setUrlsEditing(false);
+    } catch (err: any) {
+      alert(err.message || 'Failed to save project URLs');
+    } finally {
+      setUrlsSaving(false);
+    }
   };
 
   const generateShareLink = async () => {
@@ -612,13 +667,192 @@ export default function QuoteDetailPage() {
           </div>
 
           <div className="bg-white shadow rounded-lg p-6">
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">Site Location</h2>
+            <h2 className="text-lg font-semibold text-gray-900 mb-4">
+              {quote.is_digital ? 'Digital Site' : 'Site Location'}
+            </h2>
             <div className="space-y-2 text-sm">
-              <p className="font-medium text-gray-900">{quote.site_name}</p>
-              {quote.site_address && <p className="text-gray-600">{quote.site_address}</p>}
+              {quote.is_digital ? (
+                quote.digital_site ? (
+                  <a
+                    href={quote.digital_site.startsWith('http') ? quote.digital_site : `https://${quote.digital_site}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="font-medium text-blue-600 hover:underline"
+                  >
+                    {quote.digital_site}
+                  </a>
+                ) : (
+                  <p className="text-gray-400">No digital site set</p>
+                )
+              ) : (
+                <>
+                  <p className="font-medium text-gray-900">{quote.site_name}</p>
+                  {quote.site_address && <p className="text-gray-600">{quote.site_address}</p>}
+                </>
+              )}
             </div>
           </div>
         </div>
+
+        {/* Engagement Options */}
+        {(quote.option_b_percent || quote.option_c_equity_percent) && (
+          <div className="bg-white shadow rounded-lg p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-semibold text-gray-900">Engagement option</h2>
+              {quote.engagement_selected_at && (
+                <span className="text-xs text-gray-400">
+                  Selected by {quote.engagement_selected_by} · {formatDate(quote.engagement_selected_at)}
+                </span>
+              )}
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              {[
+                {
+                  key: 'option_a',
+                  label: 'Option A',
+                  sub: 'Full cash payment',
+                  color: 'gray',
+                },
+                ...(quote.option_b_percent ? [{
+                  key: 'option_b',
+                  label: 'Option B',
+                  sub: `${quote.option_b_percent}%/month retainer${quote.option_b_label ? ` — ${quote.option_b_label}` : ''}`,
+                  color: 'blue',
+                }] : []),
+                ...(quote.option_c_equity_percent ? [{
+                  key: 'option_c',
+                  label: 'Option C',
+                  sub: `${quote.option_c_equity_percent}% equity deal${quote.option_c_label ? ` — ${quote.option_c_label}` : ''}`,
+                  color: 'purple',
+                }] : []),
+              ].map(({ key, label, sub, color }) => {
+                const isSelected = (quote.engagement_type || 'option_a') === key;
+                const colorMap: Record<string, string> = {
+                  gray: isSelected ? 'border-gray-800 bg-gray-50' : 'border-gray-200',
+                  blue: isSelected ? 'border-blue-500 bg-blue-50' : 'border-gray-200',
+                  purple: isSelected ? 'border-purple-500 bg-purple-50' : 'border-gray-200',
+                };
+                return (
+                  <button
+                    key={key}
+                    disabled={engagementSaving || quote.status === 'approved'}
+                    onClick={() => changeEngagement(key)}
+                    className={`text-left p-4 rounded-xl border-2 transition-all disabled:cursor-default ${colorMap[color]} ${!isSelected && quote.status !== 'approved' ? 'hover:border-gray-300 cursor-pointer' : ''}`}
+                  >
+                    <p className="font-semibold text-sm text-gray-900">{label}</p>
+                    <p className="text-xs text-gray-500 mt-0.5">{sub}</p>
+                    {isSelected && <p className="text-xs font-medium text-green-700 mt-1">Selected</p>}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Project URLs — digital projects only */}
+        {quote.is_digital && (
+          <div className="bg-white shadow rounded-lg p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-semibold text-gray-900">Project links</h2>
+              {!urlsEditing && (
+                <button
+                  onClick={() => { setUrlDraft(quote.project_urls ? [...quote.project_urls] : []); setUrlsEditing(true); }}
+                  className="text-sm text-indigo-600 hover:text-indigo-700 font-medium"
+                >
+                  Edit
+                </button>
+              )}
+            </div>
+
+            {urlsEditing ? (
+              <div className="space-y-3">
+                {urlDraft.map((entry, i) => (
+                  <div key={i} className="flex gap-2 items-center">
+                    <input
+                      type="text"
+                      value={entry.label}
+                      onChange={(e) => setUrlDraft(d => d.map((u, j) => j === i ? { ...u, label: e.target.value } : u))}
+                      placeholder="Label (e.g. Production)"
+                      className="w-28 px-2 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                    />
+                    <input
+                      type="text"
+                      value={entry.url}
+                      onChange={(e) => setUrlDraft(d => d.map((u, j) => j === i ? { ...u, url: e.target.value } : u))}
+                      placeholder="URL"
+                      className="flex-1 px-2 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                    />
+                    <button onClick={() => setUrlDraft(d => d.filter((_, j) => j !== i))} className="text-red-400 hover:text-red-600 text-sm px-1">✕</button>
+                  </div>
+                ))}
+                <div className="flex gap-2 items-center pt-1 border-t border-gray-100">
+                  <input
+                    type="text"
+                    value={newUrlLabel}
+                    onChange={(e) => setNewUrlLabel(e.target.value)}
+                    placeholder="Label"
+                    className="w-28 px-2 py-1.5 text-sm border border-dashed border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                  />
+                  <input
+                    type="text"
+                    value={newUrlValue}
+                    onChange={(e) => setNewUrlValue(e.target.value)}
+                    placeholder="URL (e.g. staging.myapp.netlify.app)"
+                    className="flex-1 px-2 py-1.5 text-sm border border-dashed border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                  />
+                  <button
+                    onClick={() => {
+                      if (!newUrlLabel.trim() || !newUrlValue.trim()) return;
+                      setUrlDraft(d => [...d, { label: newUrlLabel.trim(), url: newUrlValue.trim() }]);
+                      setNewUrlLabel('');
+                      setNewUrlValue('');
+                    }}
+                    className="text-indigo-600 hover:text-indigo-700 text-sm font-medium px-1"
+                  >
+                    + Add
+                  </button>
+                </div>
+                <div className="flex gap-2 pt-2">
+                  <button
+                    onClick={saveProjectUrls}
+                    disabled={urlsSaving}
+                    className="px-4 py-2 bg-indigo-600 text-white text-sm rounded-md hover:bg-indigo-700 disabled:opacity-50"
+                  >
+                    {urlsSaving ? 'Saving…' : 'Save links'}
+                  </button>
+                  <button
+                    onClick={() => setUrlsEditing(false)}
+                    className="px-4 py-2 text-gray-600 text-sm rounded-md hover:bg-gray-50 border border-gray-300"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <>
+                {quote.project_urls && quote.project_urls.length > 0 ? (
+                  <div className="space-y-2">
+                    {quote.project_urls.map((entry, i) => (
+                      <div key={i} className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
+                        <span className="text-sm text-gray-500 w-24 shrink-0">{entry.label}</span>
+                        <a
+                          href={entry.url.startsWith('http') ? entry.url : `https://${entry.url}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-sm text-blue-600 hover:underline truncate"
+                        >
+                          {entry.url}
+                        </a>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm text-gray-400">No project links added yet.</p>
+                )}
+              </>
+            )}
+          </div>
+        )}
 
         {/* Quote Details */}
         {quote.description && (

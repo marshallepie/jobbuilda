@@ -29,6 +29,13 @@ export interface CreateQuoteInput {
   items: QuoteLineItem[];
   deposit_percent?: number;
   deposit_fixed_amount?: number;
+  is_digital?: boolean;
+  digital_site?: string;
+  engagement_type?: 'option_a' | 'option_b' | 'option_c';
+  option_b_percent?: number;
+  option_c_equity_percent?: number;
+  option_b_label?: string;
+  option_c_label?: string;
 }
 
 export interface CreateQuoteOutput {
@@ -70,8 +77,11 @@ export async function createQuote(
     await query(
       `INSERT INTO quotes (id, tenant_id, quote_number, lead_id, client_id, site_id, title,
                            description, status, valid_until, terms, notes, created_by, created_at, updated_at,
-                           deposit_percent, deposit_fixed_amount)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)`,
+                           deposit_percent, deposit_fixed_amount,
+                           is_digital, digital_site, engagement_type,
+                           option_b_percent, option_c_equity_percent, option_b_label, option_c_label)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17,
+               $18, $19, $20, $21, $22, $23, $24)`,
       [
         quoteId,
         context.tenant_id,
@@ -90,6 +100,13 @@ export async function createQuote(
         now,
         input.deposit_percent || null,
         input.deposit_fixed_amount || null,
+        input.is_digital ?? false,
+        input.digital_site || null,
+        input.engagement_type || 'option_a',
+        input.option_b_percent || null,
+        input.option_c_equity_percent || null,
+        input.option_b_label || null,
+        input.option_c_label || null,
       ]
     );
 

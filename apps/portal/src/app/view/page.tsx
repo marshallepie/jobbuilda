@@ -34,6 +34,15 @@ interface Quote {
   notes?: string;
   terms?: string;
   items?: QuoteItem[];
+  is_digital?: boolean;
+  digital_site?: string;
+  engagement_type?: string;
+  option_b_percent?: number;
+  option_c_equity_percent?: number;
+  option_b_label?: string;
+  option_c_label?: string;
+  engagement_selected_at?: string;
+  project_urls?: Array<{ label: string; url: string }>;
 }
 
 interface InvoiceItem {
@@ -159,6 +168,9 @@ function ViewPageContent() {
   const [invoiceId, setInvoiceId] = useState<string | null>(null);
   const [paymentLoading, setPaymentLoading] = useState(false);
   const [paymentError, setPaymentError] = useState<string | null>(null);
+  const [selectedEngagement, setSelectedEngagement] = useState<string | null>(null);
+  const [engagementSaving, setEngagementSaving] = useState(false);
+  const [engagementSaved, setEngagementSaved] = useState(false);
 
   const handlePayNow = useCallback(async () => {
     if (!authHeaders || !invoiceId || !invoice) return;
@@ -228,7 +240,9 @@ function ViewPageContent() {
             { headers }
           );
           if (!res.ok) throw new Error('Could not load quote');
-          setQuote(await res.json());
+          const q = await res.json();
+          setQuote(q);
+          setSelectedEngagement(q.engagement_type || 'option_a');
           setState('quote');
         } else if (claims.purpose === 'invoice_payment') {
           const res = await fetch(
@@ -255,6 +269,25 @@ function ViewPageContent() {
 
     load();
   }, [searchParams]);
+
+  const handleEngagementConfirm = useCallback(async () => {
+    if (!authHeaders || !quote || !selectedEngagement) return;
+    setEngagementSaving(true);
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/quotes/${quote.id}/engagement`, {
+        method: 'POST',
+        headers: authHeaders,
+        body: JSON.stringify({ engagement_type: selectedEngagement, selected_by: 'client' }),
+      });
+      if (!res.ok) throw new Error('Could not save selection');
+      setQuote(prev => prev ? { ...prev, engagement_type: selectedEngagement, engagement_selected_at: new Date().toISOString() } : prev);
+      setEngagementSaved(true);
+    } catch {
+      // Non-fatal — show nothing, user can try again
+    } finally {
+      setEngagementSaving(false);
+    }
+  }, [authHeaders, quote, selectedEngagement]);
 
   if (state === 'loading') {
     return (
@@ -351,6 +384,132 @@ function ViewPageContent() {
               </div>
             </div>
           </div>
+
+          {/* Engagement options — shown when B or C is configured */}
+          {(quote.option_b_percent || quote.option_c_equity_percent) && (
+            <div className="bg-white rounded-xl shadow-sm p-6 mb-4">
+              <h2 className="text-lg font-semibold text-gray-900 mb-1">Engagement options</h2>
+              <p className="text-sm text-gray-500 mb-4">Choose how you'd like to work together. You can change this at any time before the quote is approved.</p>
+
+              <div className="space-y-3">
+                {/* Option A */}
+                <button
+                  onClick={() => { if (!engagementSaved) setSelectedEngagement('option_a'); }}
+                  className={`w-full text-left p-4 rounded-xl border-2 transition-all ${
+                    selectedEngagement === 'option_a'
+                      ? 'border-green-500 bg-green-50'
+                      : 'border-gray-200 hover:border-gray-300'
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 ${
+                      selectedEngagement === 'option_a' ? 'border-green-500' : 'border-gray-300'
+                    }`}>
+                      {selectedEngagement === 'option_a' && <div className="w-2.5 h-2.5 rounded-full bg-green-500" />}
+                    </div>
+                    <div>
+                      <p className="font-semibold text-gray-900 text-sm">Option A — Full cash payment</p>
+                      <p className="text-xs text-gray-500 mt-0.5">Pay the full project fee on standard terms.</p>
+                    </div>
+                  </div>
+                </button>
+
+                {/* Option B — monthly retainer */}
+                {quote.option_b_percent && (
+                  <button
+                    onClick={() => { if (!engagementSaved) setSelectedEngagement('option_b'); }}
+                    className={`w-full text-left p-4 rounded-xl border-2 transition-all ${
+                      selectedEngagement === 'option_b'
+                        ? 'border-blue-500 bg-blue-50'
+                        : 'border-gray-200 hover:border-gray-300'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 ${
+                        selectedEngagement === 'option_b' ? 'border-blue-500' : 'border-gray-300'
+                      }`}>
+                        {selectedEngagement === 'option_b' && <div className="w-2.5 h-2.5 rounded-full bg-blue-500" />}
+                      </div>
+                      <div>
+                        <p className="font-semibold text-gray-900 text-sm">
+                          Option B — Monthly retainer ({quote.option_b_percent}%/month)
+                        </p>
+                        <p className="text-xs text-gray-500 mt-0.5">
+                          {quote.option_b_label || `Pay ${quote.option_b_percent}% of the project value per month instead of upfront.`}
+                        </p>
+                      </div>
+                    </div>
+                  </button>
+                )}
+
+                {/* Option C — equity deal */}
+                {quote.option_c_equity_percent && (
+                  <button
+                    onClick={() => { if (!engagementSaved) setSelectedEngagement('option_c'); }}
+                    className={`w-full text-left p-4 rounded-xl border-2 transition-all ${
+                      selectedEngagement === 'option_c'
+                        ? 'border-purple-500 bg-purple-50'
+                        : 'border-gray-200 hover:border-gray-300'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 ${
+                        selectedEngagement === 'option_c' ? 'border-purple-500' : 'border-gray-300'
+                      }`}>
+                        {selectedEngagement === 'option_c' && <div className="w-2.5 h-2.5 rounded-full bg-purple-500" />}
+                      </div>
+                      <div>
+                        <p className="font-semibold text-gray-900 text-sm">
+                          Option C — Equity deal ({quote.option_c_equity_percent}% equity)
+                        </p>
+                        <p className="text-xs text-gray-500 mt-0.5">
+                          {quote.option_c_label || `Give ${quote.option_c_equity_percent}% equity in exchange for a discounted project rate.`}
+                        </p>
+                      </div>
+                    </div>
+                  </button>
+                )}
+              </div>
+
+              {!engagementSaved && selectedEngagement !== quote.engagement_type && (
+                <button
+                  onClick={handleEngagementConfirm}
+                  disabled={engagementSaving}
+                  className="mt-4 w-full py-3 bg-gray-900 text-white rounded-xl font-semibold text-sm hover:bg-gray-800 active:scale-95 transition-all disabled:opacity-60"
+                >
+                  {engagementSaving ? 'Saving…' : 'Confirm selection'}
+                </button>
+              )}
+
+              {engagementSaved && (
+                <p className="mt-4 text-center text-sm text-green-700 font-medium">
+                  Selection saved. Your contractor has been notified.
+                </p>
+              )}
+            </div>
+          )}
+
+          {/* Project URLs */}
+          {quote.is_digital && quote.project_urls && quote.project_urls.length > 0 && (
+            <div className="bg-white rounded-xl shadow-sm p-6 mb-4">
+              <h2 className="text-lg font-semibold text-gray-900 mb-3">Project links</h2>
+              <div className="space-y-2">
+                {quote.project_urls.map((entry, i) => (
+                  <div key={i} className="flex items-center justify-between gap-3 p-3 bg-gray-50 rounded-lg">
+                    <span className="text-sm text-gray-500 w-24 shrink-0">{entry.label}</span>
+                    <a
+                      href={entry.url.startsWith('http') ? entry.url : `https://${entry.url}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-sm text-blue-600 hover:underline truncate"
+                    >
+                      {entry.url}
+                    </a>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {(quote.notes || quote.terms) && (
             <div className="bg-white rounded-xl shadow-sm p-6 mb-4 space-y-3">

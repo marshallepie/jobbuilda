@@ -28,6 +28,16 @@ export interface Quote {
   created_by: string;
   created_at: string;
   updated_at: string;
+  is_digital: boolean;
+  digital_site?: string;
+  engagement_type: string;
+  option_b_percent?: number;
+  option_c_equity_percent?: number;
+  option_b_label?: string;
+  option_c_label?: string;
+  engagement_selected_at?: string;
+  engagement_selected_by?: string;
+  project_urls: Array<{ label: string; url: string }>;
   items?: QuoteItem[];
 }
 
@@ -64,7 +74,10 @@ export async function getQuote(quoteId: string, tenantId: string, includeItems =
               status, subtotal_ex_vat, vat_amount, total_inc_vat,
               deposit_percent, deposit_fixed_amount, deposit_amount,
               valid_until, sent_at, viewed_at, approved_at, rejected_at, rejection_reason,
-              terms, notes, created_by, created_at, updated_at
+              terms, notes, created_by, created_at, updated_at,
+              is_digital, digital_site, engagement_type,
+              option_b_percent, option_c_equity_percent, option_b_label, option_c_label,
+              engagement_selected_at, engagement_selected_by, project_urls
        FROM quotes
        WHERE id = $1 AND tenant_id = $2`,
       [quoteId, tenantId]
@@ -111,7 +124,10 @@ export async function listQuotesByClient(clientId: string, tenantId: string): Pr
               status, subtotal_ex_vat, vat_amount, total_inc_vat,
               deposit_percent, deposit_fixed_amount, deposit_amount,
               valid_until, sent_at, viewed_at, approved_at, rejected_at, rejection_reason,
-              terms, notes, created_by, created_at, updated_at
+              terms, notes, created_by, created_at, updated_at,
+              is_digital, digital_site, engagement_type,
+              option_b_percent, option_c_equity_percent, option_b_label, option_c_label,
+              engagement_selected_at, engagement_selected_by, project_urls
        FROM quotes
        WHERE client_id = $1 AND tenant_id = $2
        ORDER BY created_at DESC`,
@@ -147,7 +163,10 @@ export async function listQuotes(tenantId: string, status?: string): Promise<Quo
               status, subtotal_ex_vat, vat_amount, total_inc_vat,
               deposit_percent, deposit_fixed_amount, deposit_amount,
               valid_until, sent_at, viewed_at, approved_at, rejected_at, rejection_reason,
-              terms, notes, created_by, created_at, updated_at
+              terms, notes, created_by, created_at, updated_at,
+              is_digital, digital_site, engagement_type,
+              option_b_percent, option_c_equity_percent, option_b_label, option_c_label,
+              engagement_selected_at, engagement_selected_by, project_urls
        FROM quotes
        ${whereClause}
        ORDER BY created_at DESC`,

@@ -1,5 +1,6 @@
 import { FastifyInstance, FastifyRequest } from 'fastify';
 import { extractAuthContext } from '../lib/auth.js';
+import { sendEmail } from '../lib/email.js';
 
 export async function quotingRoutes(fastify: FastifyInstance) {
   // ===== LEADS =====
@@ -253,6 +254,80 @@ export async function quotingRoutes(fastify: FastifyInstance) {
         return data;
       } catch (error: any) {
         reply.status(500).send({ error: 'Failed to delete quote', message: error.message });
+      }
+    }
+  );
+
+  // POST /api/quotes/:id/engagement — select engagement option (client or admin)
+  fastify.post<{ Params: { id: string }; Body: { engagement_type: string; selected_by?: string } }>(
+    '/api/quotes/:id/engagement',
+    async (request, reply) => {
+      const context = extractAuthContext(request);
+      const { id } = request.params;
+      const { engagement_type, selected_by = 'admin' } = request.body;
+
+      try {
+        const result = await fastify.mcp.quoting.callTool(
+          'select_engagement_option',
+          { quote_id: id, engagement_type, selected_by },
+          context
+        );
+        const data = JSON.parse(result.content[0]?.text || '{}');
+
+        // Send admin notification when the client makes the selection
+        if (selected_by === 'client') {
+          try {
+            const [quoteResource, profileResource] = await Promise.all([
+              fastify.mcp.quoting.readResource(`res://quoting/quotes/${id}`, context),
+              fastify.mcp.identity.readResource(`res://identity/tenants/${context.tenant_id}`, context),
+            ]);
+            const quote = (quoteResource.data as any).data || quoteResource.data;
+            const profile = (profileResource.data as any).data || profileResource.data;
+
+            if (profile?.email) {
+              const labels: Record<string, string> = {
+                option_a: 'Option A — Full cash payment',
+                option_b: `Option B — Monthly retainer (${quote.option_b_percent}%/month)`,
+                option_c: `Option C — Equity deal (${quote.option_c_equity_percent}% equity)`,
+              };
+              const label = labels[engagement_type] || engagement_type;
+              await sendEmail({
+                to: profile.email,
+                subject: `Client selected engagement option — ${quote.quote_number}`,
+                html: `<p>Your client has selected <strong>${label}</strong> for quote <strong>${quote.quote_number}</strong> (${quote.title}).</p><p>Log in to JobBuilda to review and approve the quote.</p>`,
+                text: `Your client has selected ${label} for quote ${quote.quote_number} (${quote.title}).\n\nLog in to JobBuilda to review and approve the quote.`,
+              });
+            }
+          } catch (emailErr) {
+            fastify.log.warn(emailErr, 'Failed to send engagement notification email');
+          }
+        }
+
+        return data;
+      } catch (error: any) {
+        reply.status(500).send({ error: 'Failed to select engagement option', message: error.message });
+      }
+    }
+  );
+
+  // PUT /api/quotes/:id/project-urls — replace the project URLs list
+  fastify.put<{ Params: { id: string }; Body: { urls: Array<{ label: string; url: string }> } }>(
+    '/api/quotes/:id/project-urls',
+    async (request, reply) => {
+      const context = extractAuthContext(request);
+      const { id } = request.params;
+      const { urls } = request.body;
+
+      try {
+        const result = await fastify.mcp.quoting.callTool(
+          'update_quote',
+          { quote_id: id, project_urls: urls },
+          context
+        );
+        const data = JSON.parse(result.content[0]?.text || '{}');
+        return data;
+      } catch (error: any) {
+        reply.status(500).send({ error: 'Failed to update project URLs', message: error.message });
       }
     }
   );

@@ -14,6 +14,14 @@ export interface UpdateQuoteInput {
   deposit_percent?: number;
   deposit_fixed_amount?: number;
   deposit_amount?: number;
+  is_digital?: boolean;
+  digital_site?: string;
+  engagement_type?: 'option_a' | 'option_b' | 'option_c';
+  option_b_percent?: number;
+  option_c_equity_percent?: number;
+  option_b_label?: string;
+  option_c_label?: string;
+  project_urls?: Array<{ label: string; url: string }>;
 }
 
 export interface UpdateQuoteOutput {
@@ -75,6 +83,38 @@ export async function updateQuote(
     if (input.deposit_amount !== undefined) {
       updates.push(`deposit_amount = $${paramIndex++}`);
       values.push(input.deposit_amount);
+    }
+    if (input.is_digital !== undefined) {
+      updates.push(`is_digital = $${paramIndex++}`);
+      values.push(input.is_digital);
+    }
+    if (input.digital_site !== undefined) {
+      updates.push(`digital_site = $${paramIndex++}`);
+      values.push(input.digital_site || null);
+    }
+    if (input.engagement_type !== undefined) {
+      updates.push(`engagement_type = $${paramIndex++}`);
+      values.push(input.engagement_type);
+    }
+    if (input.option_b_percent !== undefined) {
+      updates.push(`option_b_percent = $${paramIndex++}`);
+      values.push(input.option_b_percent || null);
+    }
+    if (input.option_c_equity_percent !== undefined) {
+      updates.push(`option_c_equity_percent = $${paramIndex++}`);
+      values.push(input.option_c_equity_percent || null);
+    }
+    if (input.option_b_label !== undefined) {
+      updates.push(`option_b_label = $${paramIndex++}`);
+      values.push(input.option_b_label || null);
+    }
+    if (input.option_c_label !== undefined) {
+      updates.push(`option_c_label = $${paramIndex++}`);
+      values.push(input.option_c_label || null);
+    }
+    if (input.project_urls !== undefined) {
+      updates.push(`project_urls = $${paramIndex++}`);
+      values.push(JSON.stringify(input.project_urls));
     }
 
     if (updates.length === 0) {

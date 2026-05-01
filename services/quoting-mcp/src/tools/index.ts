@@ -8,6 +8,7 @@ import { updateQuote, UpdateQuoteInput, UpdateQuoteOutput } from './update-quote
 import { deleteQuote, DeleteQuoteInput } from './delete-quote.js';
 import { addQuoteItem, AddQuoteItemInput } from './add-quote-item.js';
 import { removeQuoteItem, RemoveQuoteItemInput } from './remove-quote-item.js';
+import { selectEngagementOption, SelectEngagementOptionInput } from './select-engagement-option.js';
 
 export const tools = [
   {
@@ -62,7 +63,13 @@ export const tools = [
             },
             required: ['item_type', 'description', 'quantity', 'unit_price_ex_vat']
           }
-        }
+        },
+        is_digital: { type: 'boolean', description: 'Whether this is a digital project' },
+        digital_site: { type: 'string', description: 'Digital site URL (e.g. my-app.netlify.app)' },
+        option_b_percent: { type: 'number', description: 'Option B monthly % of project value' },
+        option_b_label: { type: 'string', description: 'Custom label for Option B' },
+        option_c_equity_percent: { type: 'number', description: 'Option C equity % offered' },
+        option_c_label: { type: 'string', description: 'Custom label for Option C' },
       },
       required: ['client_id', 'title', 'items']
     }
@@ -163,8 +170,29 @@ export const tools = [
         terms: { type: 'string', description: 'Terms and conditions' },
         notes: { type: 'string', description: 'Internal notes' },
         job_id: { type: 'string', description: 'Associated job ID (UUID)' },
+        is_digital: { type: 'boolean', description: 'Whether this is a digital project' },
+        digital_site: { type: 'string', description: 'Digital site URL (e.g. my-app.netlify.app)' },
+        engagement_type: { type: 'string', enum: ['option_a', 'option_b', 'option_c'], description: 'Selected engagement option' },
+        option_b_percent: { type: 'number', description: 'Option B monthly % of project value' },
+        option_c_equity_percent: { type: 'number', description: 'Option C equity % offered' },
+        option_b_label: { type: 'string', description: 'Custom label for Option B' },
+        option_c_label: { type: 'string', description: 'Custom label for Option C' },
+        project_urls: { type: 'array', description: 'Project URLs list', items: { type: 'object', properties: { label: { type: 'string' }, url: { type: 'string' } } } },
       },
       required: ['quote_id'],
+    }
+  },
+  {
+    name: 'select_engagement_option',
+    description: 'Select an engagement option for a quote (client or admin)',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        quote_id: { type: 'string', description: 'Quote UUID' },
+        engagement_type: { type: 'string', enum: ['option_a', 'option_b', 'option_c'], description: 'Engagement option to select' },
+        selected_by: { type: 'string', enum: ['client', 'admin'], description: 'Who is making the selection' },
+      },
+      required: ['quote_id', 'engagement_type', 'selected_by'],
     }
   }
 ];
@@ -202,6 +230,9 @@ export async function handleToolCall(name: string, args: any): Promise<any> {
 
     case 'remove_quote_item':
       return await removeQuoteItem(args as RemoveQuoteItemInput, context);
+
+    case 'select_engagement_option':
+      return await selectEngagementOption(args as SelectEngagementOptionInput, context);
 
     default:
       throw new Error(`Unknown tool: ${name}`);

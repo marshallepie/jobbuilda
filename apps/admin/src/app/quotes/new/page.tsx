@@ -79,6 +79,18 @@ export default function NewQuotePage() {
   const [depositType, setDepositType] = useState<'none' | 'percent' | 'fixed'>('none');
   const [depositValue, setDepositValue] = useState('');
 
+  // Digital project
+  const [isDigital, setIsDigital] = useState(false);
+  const [digitalSite, setDigitalSite] = useState('');
+
+  // Engagement options (snapshotted at quote creation)
+  const [enableOptionB, setEnableOptionB] = useState(false);
+  const [optionBPercent, setOptionBPercent] = useState('10');
+  const [optionBLabel, setOptionBLabel] = useState('');
+  const [enableOptionC, setEnableOptionC] = useState(false);
+  const [optionCPercent, setOptionCPercent] = useState('5');
+  const [optionCLabel, setOptionCLabel] = useState('');
+
   // Quote items
   const [items, setItems] = useState<QuoteItem[]>([]);
   const [showAddItem, setShowAddItem] = useState(false);
@@ -280,8 +292,16 @@ export default function NewQuotePage() {
   };
 
   const saveQuote = async (sendToClient = false) => {
-    if (!selectedClientId || !selectedSiteId || !title || items.length === 0) {
+    if (!selectedClientId || !title || items.length === 0) {
       alert('Please fill in all required fields and add at least one item');
+      return;
+    }
+    if (!isDigital && !selectedSiteId) {
+      alert('Please select a site for this physical project');
+      return;
+    }
+    if (isDigital && !digitalSite.trim()) {
+      alert('Please enter the digital site URL');
       return;
     }
 
@@ -289,7 +309,7 @@ export default function NewQuotePage() {
     try {
       const quoteData = {
         client_id: selectedClientId,
-        site_id: selectedSiteId,
+        site_id: isDigital ? undefined : selectedSiteId,
         ...(leadId ? { lead_id: leadId } : {}),
         title,
         description,
@@ -298,6 +318,12 @@ export default function NewQuotePage() {
         notes,
         deposit_percent: depositType === 'percent' ? (parseFloat(depositValue) || 0) : undefined,
         deposit_fixed_amount: depositType === 'fixed' ? (parseFloat(depositValue) || 0) : undefined,
+        is_digital: isDigital,
+        digital_site: isDigital ? digitalSite.trim() : undefined,
+        option_b_percent: enableOptionB ? (parseFloat(optionBPercent) || undefined) : undefined,
+        option_b_label: enableOptionB && optionBLabel.trim() ? optionBLabel.trim() : undefined,
+        option_c_equity_percent: enableOptionC ? (parseFloat(optionCPercent) || undefined) : undefined,
+        option_c_label: enableOptionC && optionCLabel.trim() ? optionCLabel.trim() : undefined,
         items: items.map(item => {
           // For labor items, unit_price_ex_vat is calculated as hours × rate
           const unitPrice = item.item_type === 'labor'
@@ -380,6 +406,29 @@ export default function NewQuotePage() {
             {/* Client & Site Selection */}
             <div className="bg-white shadow rounded-lg p-6">
               <h2 className="text-lg font-semibold text-gray-900 mb-4">Client & Location</h2>
+
+              {/* Project type toggle */}
+              <div className="flex gap-2 mb-4">
+                <button
+                  type="button"
+                  onClick={() => setIsDigital(false)}
+                  className={`px-4 py-2 rounded-lg text-sm font-medium border transition-colors ${
+                    !isDigital ? 'bg-gray-900 text-white border-gray-900' : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'
+                  }`}
+                >
+                  Physical project
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsDigital(true)}
+                  className={`px-4 py-2 rounded-lg text-sm font-medium border transition-colors ${
+                    isDigital ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'
+                  }`}
+                >
+                  Digital project
+                </button>
+              </div>
+
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -400,32 +449,146 @@ export default function NewQuotePage() {
                   </select>
                 </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Site <span className="text-red-500">*</span>
-                  </label>
-                  <select
-                    value={selectedSiteId}
-                    onChange={(e) => setSelectedSiteId(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
-                    required
-                    disabled={!selectedClientId}
-                  >
-                    <option value="">Select a site...</option>
-                    {sites.map((site) => (
-                      <option key={site.id} value={site.id}>
-                        {site.name} - {site.postcode}
-                      </option>
-                    ))}
-                  </select>
-                  {selectedClientId && (
-                    <button
-                      type="button"
-                      onClick={() => setShowNewSiteModal(true)}
-                      className="mt-2 text-sm text-primary-600 hover:text-primary-700 font-medium"
+                {isDigital ? (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Digital site URL <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={digitalSite}
+                      onChange={(e) => setDigitalSite(e.target.value)}
+                      placeholder="e.g. my-startup.netlify.app"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    />
+                  </div>
+                ) : (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Site <span className="text-red-500">*</span>
+                    </label>
+                    <select
+                      value={selectedSiteId}
+                      onChange={(e) => setSelectedSiteId(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+                      required
+                      disabled={!selectedClientId}
                     >
-                      + Create New Site
-                    </button>
+                      <option value="">Select a site...</option>
+                      {sites.map((site) => (
+                        <option key={site.id} value={site.id}>
+                          {site.name} - {site.postcode}
+                        </option>
+                      ))}
+                    </select>
+                    {selectedClientId && (
+                      <button
+                        type="button"
+                        onClick={() => setShowNewSiteModal(true)}
+                        className="mt-2 text-sm text-primary-600 hover:text-primary-700 font-medium"
+                      >
+                        + Create New Site
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Engagement Options */}
+            <div className="bg-white shadow rounded-lg p-6">
+              <h2 className="text-lg font-semibold text-gray-900 mb-1">Engagement options</h2>
+              <p className="text-sm text-gray-500 mb-4">
+                Option A (full cash) is always included. Enable B and/or C to offer alternatives — percentages are locked to this quote at creation.
+              </p>
+
+              <div className="space-y-4">
+                <div className="p-4 rounded-lg bg-gray-50 border border-gray-200">
+                  <p className="text-sm font-medium text-gray-900">Option A — Full cash payment</p>
+                  <p className="text-xs text-gray-500 mt-0.5">Always available. Default selection for the client.</p>
+                </div>
+
+                <div className={`p-4 rounded-lg border transition-colors ${enableOptionB ? 'bg-blue-50 border-blue-200' : 'bg-white border-gray-200'}`}>
+                  <div className="flex items-center justify-between mb-3">
+                    <div>
+                      <p className="text-sm font-medium text-gray-900">Option B — Monthly retainer</p>
+                      <p className="text-xs text-gray-500">Client pays X% of project value per month instead of upfront.</p>
+                    </div>
+                    <label className="relative inline-flex items-center cursor-pointer">
+                      <input type="checkbox" checked={enableOptionB} onChange={(e) => setEnableOptionB(e.target.checked)} className="sr-only peer" />
+                      <div className="w-10 h-6 bg-gray-200 peer-checked:bg-blue-600 rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all" />
+                    </label>
+                  </div>
+                  {enableOptionB && (
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-xs font-medium text-gray-700 mb-1">Monthly % of project value</label>
+                        <div className="relative">
+                          <input
+                            type="number"
+                            min="1"
+                            max="100"
+                            step="0.5"
+                            value={optionBPercent}
+                            onChange={(e) => setOptionBPercent(e.target.value)}
+                            className="w-full px-3 py-2 pr-8 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          />
+                          <span className="absolute right-3 top-2.5 text-sm text-gray-400">%</span>
+                        </div>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-700 mb-1">Custom description (optional)</label>
+                        <input
+                          type="text"
+                          value={optionBLabel}
+                          onChange={(e) => setOptionBLabel(e.target.value)}
+                          placeholder="e.g. 10% per month, no lock-in"
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <div className={`p-4 rounded-lg border transition-colors ${enableOptionC ? 'bg-purple-50 border-purple-200' : 'bg-white border-gray-200'}`}>
+                  <div className="flex items-center justify-between mb-3">
+                    <div>
+                      <p className="text-sm font-medium text-gray-900">Option C — Equity deal</p>
+                      <p className="text-xs text-gray-500">Client gives X% equity in exchange for a discounted rate.</p>
+                    </div>
+                    <label className="relative inline-flex items-center cursor-pointer">
+                      <input type="checkbox" checked={enableOptionC} onChange={(e) => setEnableOptionC(e.target.checked)} className="sr-only peer" />
+                      <div className="w-10 h-6 bg-gray-200 peer-checked:bg-purple-600 rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all" />
+                    </label>
+                  </div>
+                  {enableOptionC && (
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-xs font-medium text-gray-700 mb-1">Equity % offered</label>
+                        <div className="relative">
+                          <input
+                            type="number"
+                            min="0.1"
+                            max="50"
+                            step="0.5"
+                            value={optionCPercent}
+                            onChange={(e) => setOptionCPercent(e.target.value)}
+                            className="w-full px-3 py-2 pr-8 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+                          />
+                          <span className="absolute right-3 top-2.5 text-sm text-gray-400">%</span>
+                        </div>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-700 mb-1">Custom description (optional)</label>
+                        <input
+                          type="text"
+                          value={optionCLabel}
+                          onChange={(e) => setOptionCLabel(e.target.value)}
+                          placeholder="e.g. 5% equity, no monthly fees"
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+                        />
+                      </div>
+                    </div>
                   )}
                 </div>
               </div>
