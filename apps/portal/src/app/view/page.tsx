@@ -12,6 +12,7 @@ type ViewState = 'loading' | 'error' | 'quote' | 'invoice';
 
 interface QuoteItem {
   id: string;
+  item_type: string;
   description: string;
   quantity: number;
   unit: string;
@@ -20,6 +21,8 @@ interface QuoteItem {
   vat_rate: number;
   line_vat: number;
   line_total_inc_vat: number;
+  estimated_hours?: number;
+  labor_rate?: number;
 }
 
 interface Quote {
@@ -354,14 +357,20 @@ function ViewPageContent() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100">
-                    {quote.items.map((item) => (
-                      <tr key={item.id}>
-                        <td className="py-3 text-gray-900">{item.description}</td>
-                        <td className="py-3 text-right text-gray-600">{item.quantity} {item.unit}</td>
-                        <td className="py-3 text-right text-gray-600">{formatCurrency(item.unit_price_ex_vat)}</td>
-                        <td className="py-3 text-right font-medium">{formatCurrency(item.line_total_ex_vat)}</td>
-                      </tr>
-                    ))}
+                    {quote.items.map((item) => {
+                      const hasBreakdown = item.item_type === 'labor' && item.estimated_hours;
+                      const displayQty = hasBreakdown ? item.estimated_hours : item.quantity;
+                      const displayUnit = hasBreakdown ? 'hrs' : item.unit;
+                      const displayRate = hasBreakdown ? item.labor_rate ?? 0 : item.unit_price_ex_vat;
+                      return (
+                        <tr key={item.id}>
+                          <td className="py-3 text-gray-900">{item.description}</td>
+                          <td className="py-3 text-right text-gray-600">{displayQty} {displayUnit}</td>
+                          <td className="py-3 text-right text-gray-600">{formatCurrency(displayRate)}</td>
+                          <td className="py-3 text-right font-medium">{formatCurrency(item.line_total_ex_vat)}</td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
