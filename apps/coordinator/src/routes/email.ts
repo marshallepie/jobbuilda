@@ -129,6 +129,7 @@ export async function emailRoutes(fastify: FastifyInstance) {
       const emailHTML = generateQuoteEmail({
         clientName: client.name,
         quoteNumber: quote.quote_number,
+        quoteTitle: quote.title || '',
         companyName: profile.name || 'Your Company',
         total,
         validUntil,

@@ -65,6 +65,7 @@ export async function sendEmail(options: SendEmailOptions): Promise<{ id: string
 export function generateQuoteEmail(data: {
   clientName: string;
   quoteNumber: string;
+  quoteTitle: string;
   companyName: string;
   total: string;
   validUntil: string;
@@ -205,6 +206,10 @@ export function generateQuoteEmail(data: {
         <div class="detail-row">
           <span class="detail-label">Quote Number:</span>
           <span class="detail-value">${data.quoteNumber}</span>
+        </div>
+        <div class="detail-row">
+          <span class="detail-label">Title:</span>
+          <span class="detail-value">${data.quoteTitle}</span>
         </div>
         <div class="detail-row">
           <span class="detail-label">Total Amount:</span>

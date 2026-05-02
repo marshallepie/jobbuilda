@@ -316,6 +316,7 @@ export function generateQuoteHTML(quote: any, profile: any): string {
       <div class="detail-block">
         <h3>Quote Details</h3>
         <p><strong>Quote #:</strong> ${quote.quote_number}</p>
+        ${quote.title ? `<p><strong>Title:</strong> ${quote.title}</p>` : ''}
         <p><strong>Date:</strong> ${quoteDate}</p>
         <p><strong>Valid Until:</strong> ${validUntil}</p>
       </div>
