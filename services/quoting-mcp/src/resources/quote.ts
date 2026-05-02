@@ -57,6 +57,8 @@ export interface QuoteItem {
   line_total_inc_vat: number;
   sort_order: number;
   notes?: string;
+  estimated_hours?: number;
+  labor_rate?: number;
   created_at: string;
   updated_at: string;
 }
@@ -93,7 +95,8 @@ export async function getQuote(quoteId: string, tenantId: string, includeItems =
       const itemsResult = await query<QuoteItem>(
         `SELECT id, quote_id, item_type, product_id, sku, description,
                 quantity, unit, unit_price_ex_vat, markup_percent, line_total_ex_vat,
-                vat_rate, line_total_inc_vat, sort_order, notes, created_at, updated_at
+                vat_rate, line_total_inc_vat, sort_order, notes,
+                estimated_hours, labor_rate, created_at, updated_at
          FROM quote_items
          WHERE quote_id = $1
          ORDER BY sort_order ASC, created_at ASC`,

@@ -202,15 +202,16 @@ export function generateQuoteHTML(quote: any, profile: any): string {
   // Generate line items HTML
   const lineItemsHTML = (quote.items || []).map((item: any) => {
     const isLabor = item.item_type === 'labor';
-    const qty = isLabor
-      ? (parseFloat(item.estimated_hours) || parseFloat(item.quantity) || 1)
+    const hasBreakdown = isLabor && item.estimated_hours;
+    const qty = hasBreakdown
+      ? parseFloat(item.estimated_hours)
       : (parseFloat(item.quantity) || 1);
-    const rate = isLabor
+    const rate = hasBreakdown
       ? (parseFloat(item.labor_rate) || 0)
       : (parseFloat(item.unit_price_ex_vat) || 0);
     const markup = parseFloat(item.markup_percent) || 0;
     const subtotal = parseFloat(item.line_total_inc_vat) || (qty * rate * (1 + markup / 100));
-    const unit = item.unit || (isLabor ? 'hr' : 'unit');
+    const unit = hasBreakdown ? 'hrs' : (item.unit || '');
 
     return `
       <tr>
@@ -323,6 +324,8 @@ export function generateQuoteHTML(quote: any, profile: any): string {
     <div class="validity-notice">
       <strong>⏱ Valid for 30 days</strong> - This quotation is valid until ${validUntil}
     </div>
+
+    ${quote.description ? `<p style="margin-bottom:24px;font-size:14px;color:#374151;white-space:pre-wrap;">${quote.description}</p>` : ''}
 
     <table>
       <thead>

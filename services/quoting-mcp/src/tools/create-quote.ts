@@ -15,6 +15,8 @@ export interface QuoteLineItem {
   markup_percent?: number;
   vat_rate?: number;
   notes?: string;
+  estimated_hours?: number;
+  labor_rate?: number;
 }
 
 export interface CreateQuoteInput {
@@ -132,8 +134,9 @@ export async function createQuote(
       await query(
         `INSERT INTO quote_items (id, quote_id, item_type, product_id, sku, description,
                                   quantity, unit, unit_price_ex_vat, markup_percent, line_total_ex_vat,
-                                  vat_rate, line_vat_amount, line_total_inc_vat, sort_order, notes, created_at, updated_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)`,
+                                  vat_rate, line_vat_amount, line_total_inc_vat, sort_order, notes,
+                                  estimated_hours, labor_rate, created_at, updated_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)`,
         [
           itemId,
           quoteId,
@@ -151,6 +154,8 @@ export async function createQuote(
           lineTotalIncVat,
           sortOrder++,
           item.notes || null,
+          item.item_type === 'labor' ? (item.estimated_hours || null) : null,
+          item.item_type === 'labor' ? (item.labor_rate || null) : null,
           now,
           now
         ]

@@ -99,17 +99,19 @@ function generateRealQuotePreview(quote: any, profile: any): string {
   const validUntil = quote.valid_until ? new Date(quote.valid_until).toLocaleDateString('en-GB') : '';
 
   const lineItemsHTML = (quote.items || []).map((item: any) => {
-    const qty = item.quantity || 1;
-    const rate = item.unit_price_ex_vat || 0;
-    const markup = item.markup_percent || 0;
-    const lineTotal = item.line_total_inc_vat || (qty * rate * (1 + markup / 100));
+    const isLabor = item.item_type === 'labor';
+    const hasBreakdown = isLabor && item.estimated_hours;
+    const qty = hasBreakdown ? Number(item.estimated_hours) : (Number(item.quantity) || 1);
+    const rate = hasBreakdown ? (Number(item.labor_rate) || 0) : (Number(item.unit_price_ex_vat) || 0);
+    const unit = hasBreakdown ? 'hrs' : (item.unit || '');
+    const lineTotal = item.line_total_inc_vat || 0;
     return `
       <tr>
         <td>
           <div><strong>${item.description || ''}</strong></div>
           ${showItemDescriptions && item.notes ? `<div style="color:#6b7280;font-size:12px;margin-top:3px;">${item.notes}</div>` : ''}
         </td>
-        <td style="text-align:right;">${qty} ${item.unit || ''}</td>
+        <td style="text-align:right;">${qty} ${unit}</td>
         <td style="text-align:right;">£${Number(rate).toFixed(2)}</td>
         <td style="text-align:right;">£${Number(lineTotal).toFixed(2)}</td>
       </tr>`;
@@ -185,7 +187,7 @@ function generateRealQuotePreview(quote: any, profile: any): string {
 
     ${validUntil ? `<div class="validity-notice"><strong>⏱ Valid until ${validUntil}</strong></div>` : ''}
 
-    ${quote.description ? `<p style="margin-bottom:24px;font-size:14px;color:#374151;">${quote.description}</p>` : ''}
+    ${quote.description ? `<p style="margin-bottom:24px;font-size:14px;color:#374151;white-space:pre-wrap;">${quote.description}</p>` : ''}
 
     <table>
       <thead>
