@@ -125,6 +125,28 @@ export async function emailRoutes(fastify: FastifyInstance) {
         formattedBalance = gbpFormatter.format(rawBalanceDue);
       }
 
+      // Generate a 7-day portal share token so clients can view/action the quote online
+      const portalBaseUrl = process.env.PORTAL_URL || 'http://localhost:3001';
+      let viewUrl: string | undefined;
+      try {
+        const tokenResult = await fastify.mcp.identity.callTool(
+          'issue_portal_token',
+          {
+            user_id: context.user_id,
+            purpose: 'quote_view',
+            resource_id: quoteId,
+            ttl_minutes: 10080, // 7 days
+          },
+          context
+        );
+        const tokenData = JSON.parse(tokenResult.content[0]?.text || '{}');
+        if (tokenData.token) {
+          viewUrl = `${portalBaseUrl}/view?token=${tokenData.token}`;
+        }
+      } catch (tokenErr) {
+        fastify.log.warn(tokenErr, 'Failed to generate portal share token for quote email');
+      }
+
       // Generate email content
       const emailHTML = generateQuoteEmail({
         clientName: client.name,
@@ -133,7 +155,7 @@ export async function emailRoutes(fastify: FastifyInstance) {
         companyName: profile.name || 'Your Company',
         total,
         validUntil,
-        viewUrl: undefined, // TODO: Add client portal URL when available
+        viewUrl,
         depositAmount: formattedDeposit,
         balanceDue: formattedBalance,
         payDepositUrl,

@@ -310,6 +310,45 @@ export async function quotingRoutes(fastify: FastifyInstance) {
     }
   );
 
+  // POST /api/quotes/:id/client-message — client sends a message (request changes or decline note)
+  fastify.post<{ Params: { id: string }; Body: { message: string; action?: string } }>(
+    '/api/quotes/:id/client-message',
+    async (request, reply) => {
+      const context = extractAuthContext(request);
+      const { id } = request.params;
+      const { message, action = 'request_changes' } = request.body;
+
+      try {
+        const [quoteResource, profileResource] = await Promise.all([
+          fastify.mcp.quoting.readResource(`res://quoting/quotes/${id}`, context),
+          fastify.mcp.identity.readResource(`res://identity/tenants/${context.tenant_id}`, context),
+        ]);
+        const quote = (quoteResource.data as any).data || quoteResource.data;
+        const profile = (profileResource.data as any).data || profileResource.data;
+
+        if (!profile?.email) {
+          return reply.status(400).send({ error: 'No admin email configured' });
+        }
+
+        const actionLabel = action === 'decline' ? 'declined the quote' : 'requested changes on the quote';
+        const subject = action === 'decline'
+          ? `Client declined quote — ${quote.quote_number}`
+          : `Client requested changes — ${quote.quote_number}`;
+
+        await sendEmail({
+          to: profile.email,
+          subject,
+          html: `<p>Your client has ${actionLabel} <strong>${quote.quote_number}</strong>${quote.title ? ` (${quote.title})` : ''}.</p><blockquote style="border-left:3px solid #ccc;padding-left:12px;color:#555">${message || '(No message provided)'}</blockquote><p>Log in to JobBuilda to review and respond.</p>`,
+          text: `Your client has ${actionLabel} ${quote.quote_number}${quote.title ? ` (${quote.title})` : ''}.\n\n${message || '(No message provided)'}\n\nLog in to JobBuilda to review and respond.`,
+        });
+
+        return reply.send({ success: true });
+      } catch (error: any) {
+        reply.status(500).send({ error: 'Failed to send client message', message: error.message });
+      }
+    }
+  );
+
   // PUT /api/quotes/:id/project-urls — replace the project URLs list
   fastify.put<{ Params: { id: string }; Body: { urls: Array<{ label: string; url: string }> } }>(
     '/api/quotes/:id/project-urls',

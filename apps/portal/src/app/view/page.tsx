@@ -174,6 +174,11 @@ function ViewPageContent() {
   const [selectedEngagement, setSelectedEngagement] = useState<string | null>(null);
   const [engagementSaving, setEngagementSaving] = useState(false);
   const [engagementSaved, setEngagementSaved] = useState(false);
+  const [quoteAction, setQuoteAction] = useState<'request_changes' | 'decline' | null>(null);
+  const [actionMessage, setActionMessage] = useState('');
+  const [actionSubmitting, setActionSubmitting] = useState(false);
+  const [actionDone, setActionDone] = useState<'accepted' | 'request_changes' | 'decline' | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
 
   const handlePayNow = useCallback(async () => {
     if (!authHeaders || !invoiceId || !invoice) return;
@@ -292,6 +297,53 @@ function ViewPageContent() {
     }
   }, [authHeaders, quote, selectedEngagement]);
 
+  const handleAcceptQuote = useCallback(async () => {
+    if (!authHeaders || !quote) return;
+    setActionSubmitting(true);
+    setActionError(null);
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/quotes/${quote.id}/approve`, {
+        method: 'POST',
+        headers: authHeaders,
+        body: JSON.stringify({}),
+      });
+      if (!res.ok) throw new Error('Could not approve quote');
+      setQuote(prev => prev ? { ...prev, status: 'approved' } : prev);
+      setActionDone('accepted');
+    } catch (err: any) {
+      setActionError(err.message || 'Something went wrong. Please try again.');
+    } finally {
+      setActionSubmitting(false);
+    }
+  }, [authHeaders, quote]);
+
+  const handleSubmitAction = useCallback(async () => {
+    if (!authHeaders || !quote || !quoteAction) return;
+    setActionSubmitting(true);
+    setActionError(null);
+    try {
+      if (quoteAction === 'decline') {
+        await fetch(`${API_BASE_URL}/api/quotes/${quote.id}/reject`, {
+          method: 'POST',
+          headers: authHeaders,
+          body: JSON.stringify({ reason: actionMessage }),
+        });
+        setQuote(prev => prev ? { ...prev, status: 'rejected' } : prev);
+      }
+      const res = await fetch(`${API_BASE_URL}/api/quotes/${quote.id}/client-message`, {
+        method: 'POST',
+        headers: authHeaders,
+        body: JSON.stringify({ message: actionMessage, action: quoteAction }),
+      });
+      if (!res.ok) throw new Error('Could not send message');
+      setActionDone(quoteAction);
+    } catch (err: any) {
+      setActionError(err.message || 'Something went wrong. Please try again.');
+    } finally {
+      setActionSubmitting(false);
+    }
+  }, [authHeaders, quote, quoteAction, actionMessage]);
+
   if (state === 'loading') {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -393,6 +445,98 @@ function ViewPageContent() {
               </div>
             </div>
           </div>
+
+          {/* Client actions — shown while quote is awaiting a decision */}
+          {(quote.status === 'sent' || quote.status === 'viewed') && !actionDone && (
+            <div className="bg-white rounded-xl shadow-sm p-6 mb-4">
+              <h2 className="text-lg font-semibold text-gray-900 mb-1">Your decision</h2>
+              <p className="text-sm text-gray-500 mb-4">Ready to proceed, or need something changed?</p>
+
+              {!quoteAction ? (
+                <div className="space-y-3">
+                  <button
+                    onClick={handleAcceptQuote}
+                    disabled={actionSubmitting}
+                    className="w-full py-3 bg-green-600 text-white rounded-xl font-semibold text-sm hover:bg-green-700 active:scale-95 transition-all disabled:opacity-60"
+                  >
+                    {actionSubmitting ? 'Processing…' : '✓ Accept this quote'}
+                  </button>
+                  <button
+                    onClick={() => setQuoteAction('request_changes')}
+                    className="w-full py-3 bg-white border-2 border-gray-200 text-gray-700 rounded-xl font-semibold text-sm hover:border-gray-300 active:scale-95 transition-all"
+                  >
+                    Request changes
+                  </button>
+                  <button
+                    onClick={() => setQuoteAction('decline')}
+                    className="w-full py-3 bg-white border-2 border-red-100 text-red-600 rounded-xl font-semibold text-sm hover:border-red-200 active:scale-95 transition-all"
+                  >
+                    Decline
+                  </button>
+                  {actionError && (
+                    <p className="text-sm text-red-600 text-center">{actionError}</p>
+                  )}
+                </div>
+              ) : (
+                <div>
+                  <p className="text-sm font-medium text-gray-700 mb-2">
+                    {quoteAction === 'request_changes' ? 'What would you like changed?' : 'Let us know why (optional):'}
+                  </p>
+                  <textarea
+                    value={actionMessage}
+                    onChange={e => setActionMessage(e.target.value)}
+                    rows={4}
+                    placeholder={quoteAction === 'request_changes'
+                      ? 'Describe the changes you need…'
+                      : 'Any reason for declining…'}
+                    className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm resize-none focus:outline-none focus:border-gray-400"
+                  />
+                  <div className="flex gap-3 mt-3">
+                    <button
+                      onClick={handleSubmitAction}
+                      disabled={actionSubmitting || (quoteAction === 'request_changes' && !actionMessage.trim())}
+                      className={`flex-1 py-3 rounded-xl font-semibold text-sm transition-all active:scale-95 disabled:opacity-60 ${
+                        quoteAction === 'decline'
+                          ? 'bg-red-600 text-white hover:bg-red-700'
+                          : 'bg-gray-900 text-white hover:bg-gray-800'
+                      }`}
+                    >
+                      {actionSubmitting ? 'Sending…' : quoteAction === 'decline' ? 'Decline quote' : 'Send message'}
+                    </button>
+                    <button
+                      onClick={() => { setQuoteAction(null); setActionMessage(''); setActionError(null); }}
+                      className="px-4 py-3 bg-white border border-gray-200 rounded-xl text-sm text-gray-600 hover:bg-gray-50 transition-all"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                  {actionError && (
+                    <p className="text-sm text-red-600 mt-2">{actionError}</p>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Confirmation banners shown after client acts */}
+          {actionDone === 'accepted' && (
+            <div className="bg-green-50 border border-green-200 rounded-xl p-6 mb-4 text-center">
+              <p className="text-xl font-bold text-green-800 mb-1">Quote accepted!</p>
+              <p className="text-sm text-green-700">Your contractor has been notified and will be in touch shortly.</p>
+            </div>
+          )}
+          {actionDone === 'request_changes' && (
+            <div className="bg-blue-50 border border-blue-200 rounded-xl p-6 mb-4 text-center">
+              <p className="text-xl font-bold text-blue-800 mb-1">Message sent</p>
+              <p className="text-sm text-blue-700">Your feedback has been sent. Your contractor will review and get back to you.</p>
+            </div>
+          )}
+          {actionDone === 'decline' && (
+            <div className="bg-gray-50 border border-gray-200 rounded-xl p-6 mb-4 text-center">
+              <p className="text-xl font-bold text-gray-800 mb-1">Quote declined</p>
+              <p className="text-sm text-gray-600">Your contractor has been notified. Feel free to get in touch if you change your mind.</p>
+            </div>
+          )}
 
           {/* Engagement options — shown when B or C is configured */}
           {(quote.option_b_percent || quote.option_c_equity_percent) && (
