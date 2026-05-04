@@ -24,7 +24,7 @@ async function createSupabaseUser(
     body: JSON.stringify({
       email,
       password,
-      email_confirm: false,
+      email_confirm: true, // pre-confirm so no verification email is sent; user signs in after Stripe checkout
       user_metadata: metadata,
     }),
   });
