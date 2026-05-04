@@ -49,6 +49,22 @@ export async function subscriptionWebhookRoutes(fastify: FastifyInstance) {
 
     try {
       switch (event.type) {
+        case 'checkout.session.completed': {
+          // Fires when a Stripe Checkout Session (subscription mode) completes.
+          // Links the new subscription to the tenant and advances status to 'trialing'.
+          const session = event.data.object;
+          const tenantId = (session.metadata?.tenant_id || session.client_reference_id) as string;
+          if (!tenantId || !session.subscription) break;
+          await pool.query(
+            `UPDATE tenants
+             SET stripe_subscription_id = $1, subscription_status = 'trialing', updated_at = NOW()
+             WHERE id = $2`,
+            [session.subscription as string, tenantId]
+          );
+          fastify.log.info({ tenantId, subscriptionId: session.subscription }, 'Subscription activated via Checkout');
+          break;
+        }
+
         case 'customer.subscription.updated': {
           const sub = event.data.object;
           const tenantId = sub.metadata?.tenant_id;

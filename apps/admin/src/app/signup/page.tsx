@@ -1,11 +1,11 @@
 'use client';
 
 import { useState } from 'react';
-import { useAuth } from '@/contexts/AuthContext';
 import Link from 'next/link';
 
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
+
 export default function SignupPage() {
-  const { signUp } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [companyName, setCompanyName] = useState('');
@@ -18,17 +18,27 @@ export default function SignupPage() {
     setLoading(true);
 
     try {
-      // Create tenant_id from email or company name
-      const tenantId = crypto.randomUUID();
-
-      await signUp(email, password, {
-        company_name: companyName,
-        tenant_id: tenantId,
-        role: 'admin',
+      const res = await fetch(`${API_BASE_URL}/api/auth/register`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password, company_name: companyName }),
       });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.error || 'Registration failed. Please try again.');
+      }
+
+      // Store credentials so the onboarding page can sign the user in after
+      // they return from Stripe Checkout.
+      sessionStorage.setItem('signup_email', email);
+      sessionStorage.setItem('signup_password', password);
+
+      // Redirect to Stripe's hosted checkout page
+      window.location.href = data.checkout_url;
     } catch (err: any) {
-      setError(err.message || 'Failed to sign up');
-    } finally {
+      setError(err.message || 'Something went wrong. Please try again.');
       setLoading(false);
     }
   };
@@ -41,7 +51,7 @@ export default function SignupPage() {
             Create your account
           </h2>
           <p className="mt-2 text-center text-sm text-gray-600">
-            Get started with JobBuilda
+            14-day free trial — no charge until your trial ends
           </p>
         </div>
         <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
@@ -107,7 +117,7 @@ export default function SignupPage() {
               disabled={loading}
               className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 disabled:opacity-50"
             >
-              {loading ? 'Creating account...' : 'Sign up'}
+              {loading ? 'Setting up your account…' : 'Get started →'}
             </button>
           </div>
 

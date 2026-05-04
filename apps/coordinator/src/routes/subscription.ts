@@ -1,4 +1,5 @@
 import { FastifyInstance } from 'fastify';
+import { randomUUID } from 'crypto';
 import { stripe } from '../lib/stripe.js';
 import { getPool } from '../lib/db.js';
 import { extractAuthContext } from '../lib/auth.js';
@@ -6,8 +7,13 @@ import { extractAuthContext } from '../lib/auth.js';
 const SUPABASE_URL = process.env.SUPABASE_URL!;
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 const APP_URL = process.env.APP_URL || 'https://jobbuilda.co.uk';
+const ADMIN_URL = process.env.ADMIN_URL || 'https://admin.jobbuilda.co.uk';
 
-async function createSupabaseUser(email: string, password: string): Promise<{ id: string; email: string }> {
+async function createSupabaseUser(
+  email: string,
+  password: string,
+  metadata: { tenant_id: string; role: string; company_name: string }
+): Promise<{ id: string; email: string }> {
   const res = await fetch(`${SUPABASE_URL}/auth/v1/admin/users`, {
     method: 'POST',
     headers: {
@@ -19,9 +25,7 @@ async function createSupabaseUser(email: string, password: string): Promise<{ id
       email,
       password,
       email_confirm: false,
-      options: {
-        email_redirect_to: `${APP_URL}/onboarding`,
-      },
+      user_metadata: metadata,
     }),
   });
 
@@ -38,7 +42,9 @@ export async function subscriptionRoutes(fastify: FastifyInstance) {
 
   /**
    * POST /api/auth/register
-   * Public. Creates Supabase auth user, inserts tenant row, creates Stripe customer + SetupIntent.
+   * Public. Creates Supabase auth user, inserts tenant row, creates Stripe customer and
+   * a hosted Checkout Session (subscription mode, 14-day trial). Returns the Stripe
+   * checkout URL — the frontend redirects there to collect card details.
    */
   fastify.post<{
     Body: { email: string; password: string; company_name?: string };
@@ -49,104 +55,64 @@ export async function subscriptionRoutes(fastify: FastifyInstance) {
       return reply.status(400).send({ error: 'email and password are required' });
     }
 
+    if (!process.env.STRIPE_PRICE_ID) {
+      return reply.status(503).send({ error: 'Subscription pricing not configured. Please contact support.' });
+    }
+
+    // Pre-generate tenant ID so it can be embedded in the Supabase user's metadata
+    // before the row is committed to the DB.
+    const tenantId = randomUUID();
+    const trialDays = 14;
+
     try {
-      // 1. Create Supabase auth user
-      const supabaseUser = await createSupabaseUser(email, password);
+      // 1. Create Supabase auth user (confirmed, no email verification step)
+      const supabaseUser = await createSupabaseUser(email, password, {
+        tenant_id: tenantId,
+        role: 'admin',
+        company_name: company_name || '',
+      });
 
       // 2. Create Stripe customer
       const customer = await stripe.customers.create({
         email,
         name: company_name,
-        metadata: { supabase_user_id: supabaseUser.id },
-      });
-
-      // 3. Create Stripe SetupIntent (to collect card details upfront)
-      const setupIntent = await stripe.setupIntents.create({
-        customer: customer.id,
-        payment_method_types: ['card'],
-        usage: 'off_session',
-        metadata: { supabase_user_id: supabaseUser.id },
-      });
-
-      // 4. Insert tenant row
-      const trialEndsAt = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString();
-      const result = await db.query(
-        `INSERT INTO tenants (name, plan, stripe_customer_id, trial_ends_at, subscription_status, billing_email, seats_count)
-         VALUES ($1, 'trial', $2, $3, 'incomplete', $4, 1)
-         RETURNING id`,
-        [company_name || email, customer.id, trialEndsAt, email]
-      );
-      const tenantId = result.rows[0].id;
-
-      // 5. Store tenant_id in Stripe customer metadata
-      await stripe.customers.update(customer.id, {
         metadata: { supabase_user_id: supabaseUser.id, tenant_id: tenantId },
       });
 
+      // 3. Create hosted Checkout Session (subscription + trial, no Stripe.js needed)
+      const checkoutSession = await stripe.checkout.sessions.create({
+        mode: 'subscription',
+        customer: customer.id,
+        client_reference_id: tenantId,
+        line_items: [{ price: process.env.STRIPE_PRICE_ID!, quantity: 1 }],
+        subscription_data: {
+          trial_period_days: trialDays,
+          metadata: { tenant_id: tenantId },
+        },
+        allow_promotion_codes: true,
+        success_url: `${ADMIN_URL}/onboarding?session_id={CHECKOUT_SESSION_ID}`,
+        cancel_url: `${ADMIN_URL}/signup`,
+        metadata: { tenant_id: tenantId },
+      });
+
+      // 4. Insert tenant row (subscription_status = 'incomplete' until webhook confirms)
+      const trialEndsAt = new Date(Date.now() + trialDays * 24 * 60 * 60 * 1000).toISOString();
+      await db.query(
+        `INSERT INTO tenants (id, name, plan, stripe_customer_id, trial_ends_at, subscription_status, billing_email, seats_count)
+         VALUES ($1, $2, 'trial', $3, $4, 'incomplete', $5, 1)`,
+        [tenantId, company_name || email, customer.id, trialEndsAt, email]
+      );
+
+      fastify.log.info({ tenantId, customerId: customer.id }, 'New tenant registered, Stripe checkout created');
+
       return {
-        setup_intent_client_secret: setupIntent.client_secret,
+        checkout_url: checkoutSession.url,
         tenant_id: tenantId,
         user_id: supabaseUser.id,
       };
     } catch (error: any) {
       fastify.log.error({ err: error }, 'Registration failed');
       return reply.status(400).send({ error: error.message || 'Registration failed' });
-    }
-  });
-
-  /**
-   * POST /api/auth/confirm-subscription
-   * Public. Attaches payment method to Stripe customer and creates subscription with 14-day trial.
-   */
-  fastify.post<{
-    Body: { payment_method_id: string; tenant_id: string };
-  }>('/api/auth/confirm-subscription', async (request, reply) => {
-    const { payment_method_id, tenant_id } = request.body;
-
-    if (!payment_method_id || !tenant_id) {
-      return reply.status(400).send({ error: 'payment_method_id and tenant_id are required' });
-    }
-
-    try {
-      // 1. Get tenant's Stripe customer ID
-      const tenantResult = await db.query(
-        'SELECT stripe_customer_id FROM tenants WHERE id = $1',
-        [tenant_id]
-      );
-      if (!tenantResult.rows[0]) {
-        return reply.status(404).send({ error: 'Tenant not found' });
-      }
-      const customerId = tenantResult.rows[0].stripe_customer_id;
-
-      // 2. Attach payment method to customer
-      await stripe.paymentMethods.attach(payment_method_id, { customer: customerId });
-
-      // 3. Set as default payment method
-      await stripe.customers.update(customerId, {
-        invoice_settings: { default_payment_method: payment_method_id },
-      });
-
-      // 4. Create subscription with 14-day trial
-      const subscription = await stripe.subscriptions.create({
-        customer: customerId,
-        items: [{ price: process.env.STRIPE_PRICE_ID! }],
-        trial_period_days: 14,
-        default_payment_method: payment_method_id,
-        metadata: { tenant_id },
-      });
-
-      // 5. Update tenant row
-      await db.query(
-        `UPDATE tenants
-         SET stripe_subscription_id = $1, subscription_status = 'trialing', updated_at = NOW()
-         WHERE id = $2`,
-        [subscription.id, tenant_id]
-      );
-
-      return { subscription_id: subscription.id, status: 'trialing' };
-    } catch (error: any) {
-      fastify.log.error({ err: error }, 'Confirm subscription failed');
-      return reply.status(400).send({ error: error.message || 'Failed to confirm subscription' });
     }
   });
 
@@ -173,7 +139,8 @@ export async function subscriptionRoutes(fastify: FastifyInstance) {
 
   /**
    * POST /api/subscription/portal
-   * Authenticated. Creates Stripe Customer Portal session.
+   * Authenticated. Creates Stripe Customer Portal session so the user can manage
+   * their subscription, update payment method, view invoices, etc.
    */
   fastify.post('/api/subscription/portal', async (request, reply) => {
     const context = extractAuthContext(request);
@@ -189,7 +156,7 @@ export async function subscriptionRoutes(fastify: FastifyInstance) {
 
       const session = await stripe.billingPortal.sessions.create({
         customer: result.rows[0].stripe_customer_id,
-        return_url: `${process.env.ADMIN_URL || 'https://admin.jobbuilda.co.uk'}/settings/billing`,
+        return_url: `${ADMIN_URL}/settings/billing`,
       });
 
       return { url: session.url };
@@ -197,5 +164,4 @@ export async function subscriptionRoutes(fastify: FastifyInstance) {
       return reply.status(500).send({ error: error.message });
     }
   });
-
 }
