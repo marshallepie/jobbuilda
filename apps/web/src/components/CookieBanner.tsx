@@ -14,7 +14,9 @@ export default function CookieBanner() {
   }, []);
 
   const accept = (level: 'all' | 'essential') => {
-    localStorage.setItem(CONSENT_KEY, JSON.stringify({ level, date: new Date().toISOString() }));
+    const value = JSON.stringify({ level, date: new Date().toISOString() });
+    localStorage.setItem(CONSENT_KEY, value);
+    window.dispatchEvent(new CustomEvent('cookie-consent-updated', { detail: JSON.parse(value) }));
     setVisible(false);
   };
 
@@ -26,7 +28,8 @@ export default function CookieBanner() {
         <div className="flex-1 text-sm text-gray-700">
           <p>
             <strong>We use cookies</strong> to keep you signed in and make this site work properly.
-            We currently use <strong>essential cookies only</strong> — no tracking or advertising.{' '}
+            You can choose <strong>essential cookies only</strong> or allow <strong>analytics cookies</strong>
+            so we can understand which pages and journeys are helping visitors most.{' '}
             <a
               href="/privacy"
               className="underline text-sky-600 hover:text-sky-700 whitespace-nowrap"

@@ -173,9 +173,10 @@ export default function PrivacyPage() {
           <section>
             <h2 className="text-xl font-semibold text-gray-900 mb-3">7. Cookies</h2>
             <p>
-              We currently use <strong>essential cookies only</strong>. These are strictly necessary
-              to keep you signed in and make the platform function correctly. We do not use tracking,
-              analytics, or advertising cookies.
+              We use essential cookies to keep you signed in and make the platform function correctly.
+              If you choose <strong>Accept All</strong> in the cookie banner, we also enable Google
+              Analytics 4 cookies to measure page views, cross-domain journeys, and onboarding
+              performance across the Marshall ecosystem. We do not use advertising cookies.
             </p>
             <div className="mt-4 overflow-x-auto">
               <table className="min-w-full text-sm border border-gray-200 rounded-lg overflow-hidden">
@@ -196,6 +197,11 @@ export default function PrivacyPage() {
                     <td className="px-4 py-2 font-mono text-xs">jb_cookie_consent</td>
                     <td className="px-4 py-2">Records your cookie preference</td>
                     <td className="px-4 py-2">1 year (localStorage)</td>
+                  </tr>
+                  <tr>
+                    <td className="px-4 py-2 font-mono text-xs">_ga / _ga_*</td>
+                    <td className="px-4 py-2">Google Analytics 4 measurement and cross-domain attribution</td>
+                    <td className="px-4 py-2">Up to 2 years (only when analytics consent is granted)</td>
                   </tr>
                 </tbody>
               </table>
