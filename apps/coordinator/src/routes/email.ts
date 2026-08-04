@@ -368,13 +368,15 @@ export async function emailRoutes(fastify: FastifyInstance) {
         ],
       });
 
-      // Only advance status to "sent" if the invoice is still a draft
+      // Only advance status to "sent" if the invoice is still a draft.
+      // Use the dedicated send_invoice tool so status + sent_at are actually
+      // persisted and the invoice_sent event is emitted. update_invoice only
+      // edits draft metadata/items and ignores an ad-hoc status field.
       if (invoice.status === 'draft') {
         await fastify.mcp.invoicing.callTool(
-          'update_invoice',
+          'send_invoice',
           {
             invoice_id: invoiceId,
-            status: 'sent',
           },
           context
         );
