@@ -351,10 +351,16 @@ export async function emailRoutes(fastify: FastifyInstance) {
       const invoiceDefaultAddr = process.env.EMAIL_FROM_ADDRESS || 'noreply@jobbuilda.com';
       const invoiceAddrMatch = invoiceDefaultAddr.match(/<([^>]+)>/);
       const invoiceSendingEmail = invoiceAddrMatch ? invoiceAddrMatch[1] : invoiceDefaultAddr;
+      const businessEmail = typeof profile.email === 'string' ? profile.email.trim() : '';
+      const clientEmail = typeof client.email === 'string' ? client.email.trim() : '';
+      const cc = businessEmail && businessEmail.toLowerCase() !== clientEmail.toLowerCase()
+        ? businessEmail
+        : undefined;
 
       // Send email with PDF attachment
       const emailResult = await sendEmail({
         to: client.email,
+        cc,
         from: `${invoiceFromName} <${invoiceSendingEmail}>`,
         subject: `Invoice ${invoice.invoice_number} from ${invoiceFromName}`,
         html: emailHTML,
@@ -382,13 +388,14 @@ export async function emailRoutes(fastify: FastifyInstance) {
         );
       }
 
-      fastify.log.info({ invoiceId, emailId: emailResult.id, clientEmail: client.email }, 'Invoice sent via email');
+      fastify.log.info({ invoiceId, emailId: emailResult.id, clientEmail: client.email, ccSent: Boolean(cc) }, 'Invoice sent via email');
 
       return reply.send({
         success: true,
         message: 'Invoice sent successfully',
         emailId: emailResult.id,
         sentTo: client.email,
+        ccSent: Boolean(cc),
       });
     } catch (error: any) {
       fastify.log.error({ error, invoiceId }, 'Failed to send invoice email');

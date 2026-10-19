@@ -30,14 +30,15 @@ export async function updateInvoice(
     try {
       span.setAttributes({ 'tenant.id': context.tenant_id, 'invoice.id': input.invoice_id });
 
-      // Verify invoice exists and is draft
+      // Draft and unpaid sent invoices may be amended. Paid and partially paid
+      // invoices remain immutable so payment accounting cannot be changed.
       const check = await query(
-        `SELECT id, status FROM invoices WHERE id = $1 AND tenant_id = $2`,
+        `SELECT id, status, amount_paid FROM invoices WHERE id = $1 AND tenant_id = $2`,
         [input.invoice_id, context.tenant_id]
       );
       if (check.rows.length === 0) throw new Error('Invoice not found');
-      if (check.rows[0].status !== 'draft') {
-        throw new Error('Only draft invoices can be edited');
+      if (!['draft', 'sent'].includes(check.rows[0].status) || Number(check.rows[0].amount_paid) > 0) {
+        throw new Error('Only unpaid draft or sent invoices can be edited');
       }
 
       // Update header fields

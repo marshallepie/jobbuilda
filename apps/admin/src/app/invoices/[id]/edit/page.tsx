@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import Link from 'next/link';
 import AppLayout from '@/components/AppLayout';
@@ -48,6 +48,8 @@ export default function EditInvoicePage() {
   const [notes, setNotes] = useState('');
   const [lineItems, setLineItems] = useState<LineItem[]>([blankItem()]);
   const [showScanModal, setShowScanModal] = useState(false);
+  const [focusNewestLineItem, setFocusNewestLineItem] = useState(false);
+  const newestLineItemDescriptionRef = useRef<HTMLInputElement>(null);
   const [defaultVatRate, setDefaultVatRate] = useState(20);
 
   const [loading, setLoading] = useState(true);
@@ -57,6 +59,14 @@ export default function EditInvoicePage() {
   useEffect(() => {
     if (invoiceId) loadInvoice();
   }, [invoiceId]);
+
+  useEffect(() => {
+    if (!focusNewestLineItem || !newestLineItemDescriptionRef.current) return;
+
+    newestLineItemDescriptionRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    newestLineItemDescriptionRef.current.focus();
+    setFocusNewestLineItem(false);
+  }, [focusNewestLineItem, lineItems.length]);
 
   const loadInvoice = async () => {
     try {
@@ -142,7 +152,10 @@ export default function EditInvoicePage() {
     setLineItems(prev => prev.map((item, i) => i === idx ? { ...item, [field]: value } : item));
   };
 
-  const addItem = () => setLineItems(prev => [...prev, blankItem(defaultVatRate)]);
+  const addItem = () => {
+    setFocusNewestLineItem(true);
+    setLineItems(prev => [...prev, blankItem(defaultVatRate)]);
+  };
   const removeItem = (idx: number) => setLineItems(prev => prev.filter((_, i) => i !== idx));
 
   const handleSave = async (e: React.FormEvent) => {
@@ -194,7 +207,7 @@ export default function EditInvoicePage() {
     );
   }
 
-  if (invoiceStatus && invoiceStatus !== 'draft') {
+  if (invoiceStatus && invoiceStatus !== 'draft' && invoiceStatus !== 'sent') {
     return (
       <AppLayout>
         <div className="max-w-2xl mx-auto text-center py-12">
@@ -219,7 +232,7 @@ export default function EditInvoicePage() {
             ← Back to Invoice
           </Link>
           <h1 className="text-2xl font-bold text-gray-900">Edit Invoice {invoiceNumber}</h1>
-          <p className="text-gray-500 text-sm mt-1">Changes will update the draft invoice.</p>
+          <p className="text-gray-500 text-sm mt-1">Changes will update this invoice.</p>
         </div>
 
         {error && (
@@ -346,6 +359,7 @@ export default function EditInvoicePage() {
               onClose={() => setShowScanModal(false)}
               invoiceId={invoiceId}
               onItemsConfirmed={(items: LineItemDraft[]) => {
+                if (items.length > 0) setFocusNewestLineItem(true);
                 setLineItems(prev => [
                   ...prev.filter(i => i.description.trim() !== ''),
                   ...items.map(i => ({
@@ -381,6 +395,7 @@ export default function EditInvoicePage() {
                       <label className="block text-xs font-medium text-gray-600 mb-1">Description *</label>
                       <input
                         type="text"
+                        ref={idx === lineItems.length - 1 ? newestLineItemDescriptionRef : undefined}
                         value={item.description}
                         onChange={(e) => updateItem(idx, 'description', e.target.value)}
                         required

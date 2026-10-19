@@ -89,7 +89,7 @@ export function registerTools(server: Server) {
       },
       {
         name: 'update_invoice',
-        description: 'Update a draft invoice (header fields and/or line items)',
+        description: 'Update an unpaid draft or sent invoice (header fields and/or line items)',
         inputSchema: {
           type: 'object',
           properties: {

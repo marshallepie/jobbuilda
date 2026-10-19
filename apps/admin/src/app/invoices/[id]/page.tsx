@@ -641,7 +641,7 @@ export default function InvoiceDetailPage() {
                   {actionLoading ? 'Voiding...' : 'Void Payment'}
                 </button>
               )}
-              {invoice.status === 'draft' && (
+              {(invoice.status === 'draft' || invoice.status === 'sent') && (
                 <button
                   onClick={() => router.push(`/invoices/${invoiceId}/edit`)}
                   className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 text-sm font-medium"

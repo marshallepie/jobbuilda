@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import AppLayout from '@/components/AppLayout';
@@ -81,6 +81,8 @@ export default function NewInvoicePage() {
   const [notes, setNotes] = useState('');
   const [lineItems, setLineItems] = useState<LineItem[]>([blankItem()]);
   const [showScanModal, setShowScanModal] = useState(false);
+  const [focusNewestLineItem, setFocusNewestLineItem] = useState(false);
+  const newestLineItemDescriptionRef = useRef<HTMLInputElement>(null);
 
   const [defaultVatRate, setDefaultVatRate] = useState(20);
   const [loading, setLoading] = useState(true);
@@ -103,6 +105,14 @@ export default function NewInvoicePage() {
       loadClients();
     }
   }, [quoteId, jobId]);
+
+  useEffect(() => {
+    if (!focusNewestLineItem || !newestLineItemDescriptionRef.current) return;
+
+    newestLineItemDescriptionRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    newestLineItemDescriptionRef.current.focus();
+    setFocusNewestLineItem(false);
+  }, [focusNewestLineItem, lineItems.length]);
 
   const loadQuote = async () => {
     try {
@@ -290,7 +300,10 @@ export default function NewInvoicePage() {
 
   // ─── Standalone invoice creation ─────────────────────────────────────────
 
-  const addItem = () => setLineItems(prev => [...prev, blankItem(defaultVatRate)]);
+  const addItem = () => {
+    setFocusNewestLineItem(true);
+    setLineItems(prev => [...prev, blankItem(defaultVatRate)]);
+  };
 
   const removeItem = (idx: number) =>
     setLineItems(prev => prev.filter((_, i) => i !== idx));
@@ -782,6 +795,7 @@ export default function NewInvoicePage() {
             isOpen={showScanModal}
             onClose={() => setShowScanModal(false)}
             onItemsConfirmed={(items: LineItemDraft[]) => {
+              if (items.length > 0) setFocusNewestLineItem(true);
               setLineItems(prev => [
                 ...prev.filter(i => i.description.trim() !== ''),
                 ...items.map(i => ({
@@ -806,6 +820,7 @@ export default function NewInvoicePage() {
                     <label className="block text-xs font-medium text-gray-500 mb-1">Description</label>
                     <input
                       type="text"
+                      ref={idx === lineItems.length - 1 ? newestLineItemDescriptionRef : undefined}
                       value={item.description}
                       onChange={(e) => updateItem(idx, 'description', e.target.value)}
                       placeholder="Item description"
