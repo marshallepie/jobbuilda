@@ -39,6 +39,7 @@ export default function EditInvoicePage() {
 
   const [invoiceNumber, setInvoiceNumber] = useState('');
   const [invoiceStatus, setInvoiceStatus] = useState('');
+  const [amountPaid, setAmountPaid] = useState<number | null>(null);
   const [clientId, setClientId] = useState('');
   const [clientName, setClientName] = useState('');
   const [siteId, setSiteId] = useState('');
@@ -85,6 +86,8 @@ export default function EditInvoicePage() {
       const data = invoiceData.data || invoiceData;
       setInvoiceNumber(data.invoice_number || '');
       setInvoiceStatus(data.status || '');
+      const numericAmountPaid = Number(data.amount_paid);
+      setAmountPaid(Number.isFinite(numericAmountPaid) ? numericAmountPaid : null);
       setClientId(data.client_id || '');
       setSiteId(data.site_id || '');
       setInvoiceDate(data.invoice_date?.split('T')[0] || new Date().toISOString().split('T')[0]);
@@ -207,13 +210,20 @@ export default function EditInvoicePage() {
     );
   }
 
-  if (invoiceStatus && invoiceStatus !== 'draft' && invoiceStatus !== 'sent') {
+  const canEditInvoice =
+    (invoiceStatus === 'draft' || invoiceStatus === 'sent') && amountPaid === 0;
+
+  if (!canEditInvoice) {
     return (
       <AppLayout>
         <div className="max-w-2xl mx-auto text-center py-12">
           <h2 className="text-2xl font-bold text-gray-900 mb-2">Invoice Cannot Be Edited</h2>
           <p className="text-gray-600 mb-6">
-            Invoice {invoiceNumber} has status <strong>{invoiceStatus}</strong> and can no longer be edited.
+            {amountPaid !== null && amountPaid > 0 ? (
+              <>Invoice {invoiceNumber} has payments recorded and can no longer be edited.</>
+            ) : (
+              <>Invoice {invoiceNumber} has status <strong>{invoiceStatus || 'unknown'}</strong> and can no longer be edited.</>
+            )}
           </p>
           <Link href={`/invoices/${invoiceId}`} className="inline-block px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700">
             Back to Invoice

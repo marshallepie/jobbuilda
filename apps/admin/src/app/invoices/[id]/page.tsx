@@ -44,7 +44,7 @@ interface Invoice {
   subtotal_ex_vat: number;
   vat_amount: number;
   total_inc_vat: number;
-  amount_paid: number;
+  amount_paid: number | string;
   amount_due: number;
   notes?: string;
   created_at: string;
@@ -375,6 +375,12 @@ export default function InvoiceDetailPage() {
     );
   }
 
+  const amountPaid = Number(invoice.amount_paid);
+  const canEditInvoice =
+    (invoice.status === 'draft' || invoice.status === 'sent') &&
+    Number.isFinite(amountPaid) &&
+    amountPaid === 0;
+
   return (
     <AppLayout>
       <style jsx global>{`
@@ -641,7 +647,7 @@ export default function InvoiceDetailPage() {
                   {actionLoading ? 'Voiding...' : 'Void Payment'}
                 </button>
               )}
-              {(invoice.status === 'draft' || invoice.status === 'sent') && (
+              {canEditInvoice && (
                 <button
                   onClick={() => router.push(`/invoices/${invoiceId}/edit`)}
                   className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 text-sm font-medium"
