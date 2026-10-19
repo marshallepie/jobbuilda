@@ -502,6 +502,12 @@ export function generateInvoiceHTML(invoice: any, profile: any): string {
         <p><strong>${invoice.client_name || 'Client'}</strong></p>
         ${invoice.client_address ? `<p style="color:#6b7280;">${invoice.client_address}</p>` : ''}
         ${invoice.client_email ? `<p style="color:#6b7280;">${invoice.client_email}</p>` : ''}
+        ${invoice.site_name ? `
+        <div style="margin-top:10px;">
+          <span style="font-size:11px;text-transform:uppercase;color:#6b7280;letter-spacing:0.05em;">Site</span>
+          <p><strong>${invoice.site_name}</strong></p>
+          ${invoice.site_address ? `<p style="color:#6b7280;">${invoice.site_address}</p>` : ''}
+        </div>` : ''}
       </div>
       <div class="detail-block" style="text-align:right;">
         <h3>Invoice Details</h3>
@@ -509,12 +515,6 @@ export function generateInvoiceHTML(invoice: any, profile: any): string {
         <p><strong>Invoice Date:</strong> ${invoiceDate}</p>
         <p><strong>Due Date:</strong> ${dueDate}</p>
         ${invoice.payment_terms_days ? `<p><strong>Payment Terms:</strong> ${invoice.payment_terms_days} days</p>` : ''}
-        ${(invoice.site_name || invoice.site_address) ? `
-        <div style="margin-top:10px;padding-top:10px;border-top:1px solid #e5e7eb;">
-          <span style="font-size:11px;text-transform:uppercase;color:#6b7280;letter-spacing:0.05em;">Site Location</span>
-          ${invoice.site_name ? `<p><strong>${invoice.site_name}</strong></p>` : ''}
-          ${invoice.site_address ? `<p style="color:#6b7280;">${invoice.site_address}</p>` : ''}
-        </div>` : ''}
       </div>
     </div>
 
