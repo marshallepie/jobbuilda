@@ -607,9 +607,16 @@ export default function InvoiceDetailPage() {
               <p className="text-sm font-semibold text-gray-700 mb-1">Invoice Date:</p>
               <p className="text-base">{formatDate(invoice.invoice_date)}</p>
             </div>
-            <div>
+            <div className="text-right">
               <p className="text-sm font-semibold text-gray-700 mb-1">Due Date:</p>
               <p className="text-base">{formatDate(invoice.due_date)}</p>
+              {(invoice.site_name || invoice.site_address) && (
+                <div className="mt-4 pt-3 border-t border-gray-200">
+                  <p className="text-sm font-semibold text-gray-700 mb-1">Site Location:</p>
+                  {invoice.site_name && <p className="text-base font-medium">{invoice.site_name}</p>}
+                  {invoice.site_address && <p className="text-sm text-gray-600">{invoice.site_address}</p>}
+                </div>
+              )}
             </div>
           </div>
         </div>
