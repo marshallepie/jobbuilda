@@ -5,9 +5,9 @@ import GoogleAnalytics from '@/components/GoogleAnalytics';
 
 export const metadata: Metadata = {
   metadataBase: new URL('https://jobbuilda.co.uk'),
-  title: 'JobBuilda — Software for Electrical Contractors',
+  title: 'JobBuilda | Quotes, Invoices & Job Management for Tradespeople',
   description:
-    'The all-in-one app for electrical contractors. Manage quotes, jobs, invoices, and payments — all in one place.',
+    'Manage jobs, create quotes, send invoices and track payments with JobBuilda. Built for electricians, plumbers, carpenters, builders and other tradespeople.',
   icons: {
     icon: [
       { url: '/favicon.ico' },
@@ -21,21 +21,23 @@ export const metadata: Metadata = {
     url: 'https://jobbuilda.co.uk',
     siteName: 'JobBuilda',
     locale: 'en_GB',
-    title: 'JobBuilda — Software for Electrical Contractors',
-    description: 'The all-in-one app for electrical contractors. Manage quotes, jobs, invoices, and payments — all in one place.',
+    title: 'JobBuilda | Quotes, Invoices & Job Management for Tradespeople',
+    description:
+      'Manage jobs, create quotes, send invoices and track payments with JobBuilda. Built for electricians, plumbers, carpenters, builders and other tradespeople.',
     images: [
       {
         url: '/og_image.png',
         width: 1200,
         height: 630,
-        alt: 'JobBuilda',
+        alt: 'JobBuilda for tradespeople',
       },
     ],
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'JobBuilda — Software for Electrical Contractors',
-    description: 'The all-in-one app for electrical contractors. Manage quotes, jobs, invoices, and payments — all in one place.',
+    title: 'JobBuilda | Quotes, Invoices & Job Management for Tradespeople',
+    description:
+      'Manage jobs, create quotes, send invoices and track payments with JobBuilda. Built for electricians, plumbers, carpenters, builders and other tradespeople.',
     images: ['/og_image.png'],
   },
 };

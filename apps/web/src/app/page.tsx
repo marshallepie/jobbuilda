@@ -7,7 +7,7 @@ const features = [
     icon: '📋',
     title: 'Professional Quoting',
     description:
-      'Create detailed quotes with materials and labour. Send to clients for online approval — no printing, no chasing.',
+      'Create detailed quotes with materials and labour, then send them to clients for approval — no printing, no chasing.',
   },
   {
     icon: '🔧',
@@ -19,7 +19,7 @@ const features = [
     icon: '📄',
     title: 'Instant Invoicing',
     description:
-      'Generate invoices directly from completed jobs. Send professional PDFs and get paid faster.',
+      'Generate invoices directly from completed jobs, send professional PDFs, and track what is paid.',
   },
   {
     icon: '📦',
@@ -37,7 +37,13 @@ const features = [
     icon: '🔒',
     title: 'Client Portal',
     description:
-      'Give clients their own secure portal to view job progress, approve quotes, and pay invoices online.',
+      'Give clients a secure portal to view job progress and approve quotes. Take online payments when your Stripe account is connected.',
+  },
+  {
+    icon: '⚡',
+    title: 'Electrical Testing & Certificates',
+    description:
+      'For electricians: record electrical tests and produce electrical certificates alongside your jobs.',
   },
 ];
 
@@ -69,15 +75,16 @@ export default function HomePage() {
       <section className="pt-20 pb-24 px-4 sm:px-6 lg:px-8 text-center bg-gradient-to-b from-blue-50 to-white">
         <div className="max-w-3xl mx-auto">
           <div className="inline-block bg-blue-100 text-blue-700 text-sm font-medium px-3 py-1 rounded-full mb-6">
-            Built for UK electrical contractors
+            Built for UK tradespeople
           </div>
           <h1 className="text-4xl sm:text-5xl font-bold text-gray-900 leading-tight mb-6">
-            The all-in-one app for
-            <span className="text-blue-600"> electrical contractors</span>
+            Quotes, invoices and job management for
+            <span className="text-blue-600"> every trade.</span>
           </h1>
           <p className="text-xl text-gray-600 mb-8 leading-relaxed">
-            Quotes, jobs, invoices, materials, and payments — all in one place. Stop juggling
-            spreadsheets and paper and start running your business properly.
+            For electricians, plumbers, carpenters, builders and other tradespeople. Keep jobs,
+            quotes, invoices and payments together, so you can run your business without juggling
+            spreadsheets and paper.
           </p>
           <div className="flex flex-col sm:flex-row gap-3 justify-center">
             <Link
@@ -104,8 +111,8 @@ export default function HomePage() {
             Everything you need, nothing you don&apos;t
           </h2>
           <p className="text-lg text-gray-600 text-center mb-12 max-w-2xl mx-auto">
-            Designed specifically for electrical contractors. Every feature solves a real problem
-            you face on the job.
+            Built around the work every trades business needs to do: create a job, prepare and send
+            a quote, issue and send an invoice, then track or collect payment.
           </p>
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-8">
             {features.map((f) => (
@@ -130,14 +137,14 @@ export default function HomePage() {
             <PricingCard
               name="Standard"
               price={29}
-              description="For sole traders and small electrical businesses"
+              description="For sole traders and small trades businesses"
               features={[
                 'Unlimited quotes & invoices',
                 'Job management & time tracking',
                 'Materials scanning & tracking',
                 'Client portal',
                 'VAT returns (HMRC-compliant)',
-                'PDF certificates',
+                'Electrical testing & certificates for electricians',
                 'Email support',
               ]}
               highlight
@@ -148,7 +155,7 @@ export default function HomePage() {
               name="Additional Seats"
               price={9}
               priceNote="per extra team member / month"
-              description="Add technicians to your account"
+              description="Add team members to your account"
               features={[
                 'Time tracking',
                 'Materials scanning',
@@ -172,7 +179,8 @@ export default function HomePage() {
         <div className="max-w-2xl mx-auto">
           <h2 className="text-3xl font-bold mb-4">Ready to get started?</h2>
           <p className="text-blue-100 text-lg mb-8">
-            Join electrical contractors who use JobBuilda to win more jobs and get paid faster.
+            Join tradespeople who use JobBuilda to manage jobs, send quotes and invoices, and keep
+            payments on track.
           </p>
           <Link
             href="/signup"
