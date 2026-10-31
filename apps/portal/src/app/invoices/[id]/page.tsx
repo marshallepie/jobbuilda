@@ -5,7 +5,6 @@ import { useParams } from 'next/navigation';
 import { api, ApiError } from '@/lib/api';
 import ProtectedLayout from '@/components/ProtectedLayout';
 import { formatCurrency, formatDate, getInvoiceStatusColor } from '@/lib/utils';
-import Link from 'next/link';
 
 interface Invoice {
   id: string;
@@ -45,6 +44,8 @@ export default function InvoiceDetailPage() {
   const [transactions, setTransactions] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [paymentError, setPaymentError] = useState<string | null>(null);
+  const [startingPayment, setStartingPayment] = useState(false);
 
   useEffect(() => {
     const loadInvoice = async () => {
@@ -88,7 +89,19 @@ export default function InvoiceDetailPage() {
     );
   }
 
-  const canPay = invoice.status === 'sent' && parseFloat(invoice.amount_due) > 0;
+  const canPay = ['sent', 'viewed', 'partial', 'overdue'].includes(invoice.status) && parseFloat(invoice.amount_due) > 0;
+  const startPayment = async () => {
+    setStartingPayment(true);
+    setPaymentError(null);
+    try {
+      const { checkout_url } = await api.createCheckoutSession(invoice.id);
+      if (!checkout_url) throw new Error('Payment checkout is unavailable.');
+      window.location.assign(checkout_url);
+    } catch (err) {
+      setPaymentError(err instanceof ApiError ? err.message : 'Unable to start payment. Please try again.');
+      setStartingPayment(false);
+    }
+  };
 
   return (
     <ProtectedLayout>
@@ -113,12 +126,17 @@ export default function InvoiceDetailPage() {
               </span>
               <a href={api.downloadInvoice(invoice.id)} className="mt-4 block underline text-primary-700">Download PDF</a>
               {canPay && (
-                <Link
-                  href={`/payment/${invoice.id}`}
-                  className="mt-4 block bg-primary-600 hover:bg-primary-700 text-white px-6 py-2 rounded-md font-medium"
-                >
-                  Pay Now
-                </Link>
+                <>
+                  <button
+                    type="button"
+                    onClick={startPayment}
+                    disabled={startingPayment}
+                    className="mt-4 block bg-primary-600 hover:bg-primary-700 disabled:opacity-50 text-white px-6 py-2 rounded-md font-medium"
+                  >
+                    {startingPayment ? 'Starting payment…' : 'Pay Now'}
+                  </button>
+                  {paymentError && <p className="mt-2 text-sm text-red-700" role="alert">{paymentError}</p>}
+                </>
               )}
             </div>
           </div>

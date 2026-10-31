@@ -52,10 +52,7 @@ export default function PaymentPage() {
     setError(null);
 
     try {
-      const { checkout_url } = await api.createCheckoutSession(
-        invoice.id,
-        parseFloat(invoice.amount_due)
-      ) as { checkout_url: string };
+      const { checkout_url } = await api.createCheckoutSession(invoice.id) as { checkout_url: string };
 
       // Redirect to Stripe Checkout
       window.location.href = checkout_url;
