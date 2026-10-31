@@ -22,6 +22,7 @@ import { subscriptionWebhookRoutes } from './routes/subscription-webhook.js';
 import { quoteDepositWebhookRoutes } from './routes/quote-deposit-webhook.js';
 import { shareRoutes } from './routes/share.js';
 import { receiptsRoutes } from './routes/receipts.js';
+import { clientPortalRoutes } from './routes/client-portal.js';
 import { getPool } from './lib/db.js';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -354,6 +355,7 @@ export async function createServer() {
   await fastify.register(quoteDepositWebhookRoutes);
   await fastify.register(shareRoutes);
   await fastify.register(receiptsRoutes);
+  await fastify.register(clientPortalRoutes);
 
   return fastify;
 }
