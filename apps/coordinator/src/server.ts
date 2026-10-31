@@ -56,9 +56,12 @@ export async function createServer() {
     }
   });
 
-  // Enable CORS
+  // Portal credentials are cross-origin only from the configured portal, never a reflected Origin.
+  const portalOrigin = process.env.PORTAL_URL || 'http://localhost:3001';
   await fastify.register(cors, {
-    origin: true
+    origin: (origin, callback) => callback(null, !origin || origin === portalOrigin),
+    credentials: true,
+    allowedHeaders: ['Content-Type', 'X-CSRF-Token'],
   });
 
   // Initialize MCP clients

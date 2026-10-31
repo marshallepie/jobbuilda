@@ -111,6 +111,7 @@ export default function InvoiceDetailPage() {
               <span className={`px-3 py-1 text-sm font-medium rounded-full ${getInvoiceStatusColor(invoice.status)}`}>
                 {invoice.status}
               </span>
+              <a href={api.downloadInvoice(invoice.id)} className="mt-4 block underline text-primary-700">Download PDF</a>
               {canPay && (
                 <Link
                   href={`/payment/${invoice.id}`}
