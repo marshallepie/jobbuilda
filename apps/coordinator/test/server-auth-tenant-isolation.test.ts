@@ -170,4 +170,3 @@ test('configured verifier uses the server-only project key and caller bearer tok
     else process.env.SUPABASE_ANON_KEY = previousAnonKey;
   }
 });
-
