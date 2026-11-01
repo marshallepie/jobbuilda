@@ -12,6 +12,7 @@ export function coordinatorCorsOptions(env: NodeJS.ProcessEnv = process.env): Fa
   const allowedOrigins = new Set([
     env.ADMIN_URL || 'http://localhost:3002',
     env.PORTAL_URL || 'http://localhost:3001',
+    env.APP_URL || 'https://jobbuilda.co.uk',
   ]);
 
   return {

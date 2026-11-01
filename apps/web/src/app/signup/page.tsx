@@ -12,7 +12,6 @@ export default function SignupPage() {
   const [companyName, setCompanyName] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [done, setDone] = useState(false);
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -33,44 +32,16 @@ export default function SignupPage() {
 
       const data = await res.json();
 
-      // Store signup data for the onboarding step
-      sessionStorage.setItem(
-        'jobbuilda_signup',
-        JSON.stringify({
-          setup_intent_client_secret: data.setup_intent_client_secret,
-          tenant_id: data.tenant_id,
-          user_id: data.user_id,
-          email,
-        })
-      );
+      if (!data.checkout_url) {
+        throw new Error('Checkout is unavailable. Please try again.');
+      }
 
-      setDone(true);
+      window.location.assign(data.checkout_url);
     } catch (err: any) {
       setError(err.message || 'Something went wrong. Please try again.');
     } finally {
       setLoading(false);
     }
-  }
-
-  if (done) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
-        <div className="max-w-md w-full bg-white rounded-2xl shadow-sm border border-gray-200 p-8 text-center">
-          <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
-            <svg className="w-8 h-8 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-            </svg>
-          </div>
-          <h2 className="text-xl font-semibold text-gray-900 mb-2">Check your email</h2>
-          <p className="text-gray-600 mb-2">
-            We&apos;ve sent a verification link to <strong>{email}</strong>.
-          </p>
-          <p className="text-gray-500 text-sm">
-            Click the link in the email to continue setting up your account.
-          </p>
-        </div>
-      </div>
-    );
   }
 
   return (
