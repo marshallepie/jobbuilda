@@ -1,25 +1,13 @@
 import { FastifyRequest } from 'fastify';
 import { AuthContext } from '@jobbuilda/contracts';
-import { randomUUID } from 'crypto';
 
 /**
- * Extract AuthContext from request headers (development mode)
- * In production, this would validate JWT tokens from Supabase Auth
+ * Emergency fail-closed guard for the account-isolation incident.
+ *
+ * This coordinator previously accepted tenant identity and scopes from caller
+ * headers. Do not restore this helper until a server-verified identity and
+ * durable tenant membership lookup replace those headers.
  */
-export function extractAuthContext(request: FastifyRequest): AuthContext {
-  const tenantId = request.headers['x-tenant-id'] as string;
-  const userId = request.headers['x-user-id'] as string;
-  const scopes = (request.headers['x-scopes'] as string)?.split(',') || [];
-  const requestId = (request.headers['x-request-id'] as string) || randomUUID();
-
-  if (!tenantId || !userId) {
-    throw new Error('Missing required auth headers: x-tenant-id, x-user-id');
-  }
-
-  return {
-    tenant_id: tenantId,
-    user_id: userId,
-    scopes,
-    x_request_id: requestId
-  };
+export function extractAuthContext(_request: FastifyRequest): AuthContext {
+  throw new Error('Account data access is temporarily unavailable');
 }

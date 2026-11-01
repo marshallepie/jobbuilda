@@ -3,7 +3,6 @@ import test from 'node:test';
 import Fastify from 'fastify';
 import { paymentsRoutes } from '../src/routes/payments.js';
 import { quoteDepositWebhookRoutes } from '../src/routes/quote-deposit-webhook.js';
-import { stripe } from '../src/lib/stripe.js';
 
 const disabledResponse = {
   error: 'Quote deposit checkout unavailable',
@@ -44,14 +43,7 @@ test('quote deposit checkout is contained before every MCP or payment effect', a
   await app.close();
 });
 
-test('invoice checkout remains separately registered and quote deposit webhook remains registered', async () => {
-  let invoiceCheckoutCalls = 0;
-  const originalCreate = stripe.checkout.sessions.create;
-  (stripe.checkout.sessions as any).create = async () => {
-    invoiceCheckoutCalls += 1;
-    return { url: 'https://checkout.example.test/invoice-session' };
-  };
-
+test('quote deposit webhook remains registered while quote deposit checkout is contained', async () => {
   const app = Fastify();
   (app as any).mcp = {
     identity: {},
@@ -66,21 +58,5 @@ test('invoice checkout remains separately registered and quote deposit webhook r
 
   assert.equal(app.hasRoute({ method: 'POST', url: '/api/payments/checkout-session' }), true);
   assert.equal(app.hasRoute({ method: 'POST', url: '/api/payments/quote-deposit/webhook' }), true);
-
-  const invoiceCheckout = await app.inject({
-    method: 'POST',
-    url: '/api/payments/checkout-session',
-    headers: { 'x-tenant-id': 'tenant-1', 'x-user-id': 'user-1' },
-    payload: {
-      invoice_id: 'invoice-1',
-      amount: 12.5,
-      success_url: 'https://portal.example.test/payment/success',
-      cancel_url: 'https://portal.example.test/payment/cancel',
-    },
-  });
-  assert.equal(invoiceCheckout.statusCode, 200, JSON.stringify(invoiceCheckout.json()));
-  assert.deepEqual(invoiceCheckout.json(), { checkout_url: 'https://checkout.example.test/invoice-session' });
-  assert.equal(invoiceCheckoutCalls, 1);
   await app.close();
-  (stripe.checkout.sessions as any).create = originalCreate;
 });
