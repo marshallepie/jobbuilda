@@ -15,12 +15,20 @@ export default function PrivacyPage() {
           <Link href="/" className="text-xl font-bold text-blue-600">
             JobBuilda
           </Link>
-          <a
-            href={`${process.env.NEXT_PUBLIC_ADMIN_URL || 'https://admin.jobbuilda.co.uk'}/login`}
-            className="text-sm text-gray-600 hover:text-gray-900"
-          >
-            Sign in
-          </a>
+          <div className="flex items-center gap-4">
+            <a
+              href={`${process.env.NEXT_PUBLIC_ADMIN_URL || 'https://admin.jobbuilda.co.uk'}/login`}
+              className="text-sm text-gray-600 hover:text-gray-900"
+            >
+              Sign in
+            </a>
+            <Link
+              href="/signup"
+              className="bg-blue-600 text-white text-sm px-4 py-2 rounded-lg font-medium hover:bg-blue-700 transition-colors"
+            >
+              Start free trial
+            </Link>
+          </div>
         </div>
       </nav>
 

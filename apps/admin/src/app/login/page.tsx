@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { isSupabaseConfigured } from '@/lib/supabase';
-import { MAINTENANCE_MESSAGE } from '@/components/MaintenanceNotice';
+import Link from 'next/link';
 
 export default function LoginPage() {
   const { signIn } = useAuth();
@@ -29,9 +29,6 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-md w-full space-y-8">
-        <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-center" role="status">
-          <p className="text-sm text-gray-700">{MAINTENANCE_MESSAGE}</p>
-        </div>
         <div>
           <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
             JobBuilda Admin
@@ -89,6 +86,12 @@ export default function LoginPage() {
             >
               {loading ? 'Signing in...' : 'Sign in'}
             </button>
+          </div>
+
+          <div className="text-center">
+            <Link href="/signup" className="text-sm text-primary-600 hover:text-primary-700">
+              Don&apos;t have an account? Sign up
+            </Link>
           </div>
 
           {!isSupabaseConfigured() && (

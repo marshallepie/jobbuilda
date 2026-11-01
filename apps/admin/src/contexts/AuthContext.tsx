@@ -10,7 +10,7 @@ interface AuthContextType {
   session: Session | null;
   loading: boolean;
   signIn: (email: string, password: string) => Promise<void>;
-  signUp: () => Promise<never>;
+  signUp: (email: string, password: string, metadata?: any) => Promise<void>;
   signOut: () => Promise<void>;
   tenantId: string | null;
 }
@@ -91,8 +91,47 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const signUp = async (): Promise<never> => {
-    throw new Error('Self-service signup is unavailable while JobBuilda is under maintenance.');
+  const signUp = async (email: string, password: string, metadata?: any) => {
+    // Development mode: if Supabase not configured, use mock auth
+    if (!isSupabaseConfigured()) {
+      console.warn('Supabase not configured - using development mode');
+      // Create mock session with provided metadata
+      const mockUser: any = {
+        id: crypto.randomUUID(),
+        email,
+        user_metadata: {
+          ...metadata,
+          tenant_id: metadata?.tenant_id || crypto.randomUUID(),
+          role: metadata?.role || 'admin',
+        },
+      };
+      const mockSession: any = {
+        access_token: 'mock-jwt-token',
+        user: mockUser,
+      };
+      setSession(mockSession);
+      setUser(mockUser);
+      setTenantId(mockUser.user_metadata.tenant_id);
+      router.push('/dashboard');
+      return;
+    }
+
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        data: metadata,
+      },
+    });
+
+    if (error) throw error;
+
+    if (data.session) {
+      setSession(data.session);
+      setUser(data.user);
+      setTenantId(data.user?.user_metadata?.tenant_id ?? null);
+      router.push('/dashboard');
+    }
   };
 
   const signOut = async () => {
