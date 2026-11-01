@@ -8,6 +8,8 @@ const SUPABASE_URL = process.env.SUPABASE_URL!;
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 const APP_URL = process.env.APP_URL || 'https://jobbuilda.co.uk';
 const ADMIN_URL = process.env.ADMIN_URL || 'https://admin.jobbuilda.co.uk';
+export const MAINTENANCE_MESSAGE =
+  'New JobBuilda registrations, free trials, and subscription checkout are temporarily paused for maintenance. Existing account access, customer invoice and quote-deposit payments, payment history, and billing portal remain available.';
 
 async function createSupabaseUser(
   email: string,
@@ -48,8 +50,15 @@ export async function subscriptionRoutes(fastify: FastifyInstance) {
    */
   fastify.post<{
     Body: { email: string; password: string; company_name?: string };
-  }>('/api/auth/register', async (request, reply) => {
-    const { email, password, company_name } = request.body;
+  }>('/api/auth/register', async (_request, reply) => {
+    return reply.status(503).send({ error: MAINTENANCE_MESSAGE });
+
+    /*
+     * Kept below for a reversible maintenance release. This code is unreachable
+     * while registration is disabled, so no Supabase, tenant, Stripe, Checkout,
+     * or subscription mutation can occur.
+     */
+    const { email, password, company_name } = _request.body;
 
     if (!email || !password) {
       return reply.status(400).send({ error: 'email and password are required' });
