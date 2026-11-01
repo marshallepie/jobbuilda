@@ -203,6 +203,15 @@ export async function paymentsRoutes(fastify: FastifyInstance) {
   fastify.post<{ Params: { quoteId: string } }>(
     '/api/payments/quote/:quoteId/deposit-checkout',
     async (request, reply) => {
+      // This anonymous payment path is intentionally paused. Keep this response before
+      // any tenant/quote lookup or payment-provider call so no supplied value can select
+      // a tenant or create a checkout while the flow is under containment.
+      return reply.status(503).send({
+        error: 'Quote deposit checkout unavailable',
+        code: 'QUOTE_DEPOSIT_CHECKOUT_DISABLED',
+        message: 'Quote deposit payments are temporarily unavailable for maintenance. Please contact the business directly.',
+      });
+
       const { quoteId } = request.params;
       const tenantId = (request.headers['x-tenant-id'] as string) ||
                        '550e8400-e29b-41d4-a716-446655440000';
