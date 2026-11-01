@@ -5,6 +5,7 @@ import { useRouter, useParams } from 'next/navigation';
 import Link from 'next/link';
 import AppLayout from '@/components/AppLayout';
 import { api } from '@/lib/api';
+import { useApi } from '@/hooks/useApi';
 import { formatDate, formatCurrency, getStatusColor } from '@/lib/utils';
 
 interface Site {
@@ -55,6 +56,7 @@ interface Client {
 }
 
 export default function ClientDetailPage() {
+  useApi();
   const router = useRouter();
   const params = useParams();
   const clientId = params?.id as string;
@@ -74,12 +76,6 @@ export default function ClientDetailPage() {
 
   const loadClientDetails = async () => {
     try {
-      const mockAuth = {
-        token: 'mock-jwt-token',
-        tenant_id: '550e8400-e29b-41d4-a716-446655440000',
-        user_id: '550e8400-e29b-41d4-a716-446655440001',
-      };
-      api.setAuth(mockAuth);
 
       // Load client details
       const clientData = await api.request(`/api/clients/clients/${clientId}`) as any;
@@ -138,12 +134,6 @@ export default function ClientDetailPage() {
     if (confirm(`Export all data for ${client.name}? This will generate a GDPR-compliant data export.`)) {
       setActionLoading(true);
       try {
-        const mockAuth = {
-          token: 'mock-jwt-token',
-          tenant_id: '550e8400-e29b-41d4-a716-446655440000',
-          user_id: '550e8400-e29b-41d4-a716-446655440001',
-        };
-        api.setAuth(mockAuth);
 
         const result = await api.request('/api/clients/gdpr/export', {
           method: 'POST',
@@ -191,12 +181,6 @@ Type "${client.name}" to confirm deletion:`;
     if (confirmation === client.name) {
       setActionLoading(true);
       try {
-        const mockAuth = {
-          token: 'mock-jwt-token',
-          tenant_id: '550e8400-e29b-41d4-a716-446655440000',
-          user_id: '550e8400-e29b-41d4-a716-446655440001',
-        };
-        api.setAuth(mockAuth);
 
         await api.request(`/api/clients/gdpr/${clientId}?confirm=true`, {
           method: 'DELETE',

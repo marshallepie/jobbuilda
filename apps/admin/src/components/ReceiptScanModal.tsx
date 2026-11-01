@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { api } from '@/lib/api';
+import { useApi } from '@/hooks/useApi';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 
 export interface LineItemDraft {
@@ -49,6 +50,7 @@ export default function ReceiptScanModal({
   invoiceId,
   onItemsConfirmed,
 }: ReceiptScanModalProps) {
+  useApi();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [step, setStep] = useState<Step>('capture');
   const [imageFile, setImageFile] = useState<File | null>(null);
@@ -97,23 +99,9 @@ export default function ReceiptScanModal({
           reader.readAsDataURL(file);
         });
 
-        // 2. Upload image to Supabase Storage for audit trail
-        let receiptUrl: string | null = null;
-        const auth = api.loadAuth();
-        if (isSupabaseConfigured() && auth?.tenant_id) {
-          const ext = file.name.split('.').pop() || 'jpg';
-          const path = `${auth.tenant_id}/receipts/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
-          const { error: uploadError } = await supabase.storage
-            .from('receipts')
-            .upload(path, file, { contentType: file.type, upsert: false });
-
-          if (!uploadError) {
-            const { data: signedData } = await supabase.storage
-              .from('receipts')
-              .createSignedUrl(path, 3600 * 24 * 365); // 1-year signed URL
-            receiptUrl = signedData?.signedUrl || null;
-          }
-        }
+        const receiptUrl: string | null = null;
+        // Tenant-scoped receipt storage requires server-derived tenant authority.
+        // Do not construct a client-selected storage path; defer the audit upload.
         setStoredReceiptUrl(receiptUrl);
 
         // 3. Call AI scan endpoint

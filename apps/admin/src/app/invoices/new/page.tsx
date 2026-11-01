@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import AppLayout from '@/components/AppLayout';
 import { api } from '@/lib/api';
+import { useApi } from '@/hooks/useApi';
 import { formatCurrency } from '@/lib/utils';
 import ReceiptScanModal, { LineItemDraft } from '@/components/ReceiptScanModal';
 
@@ -52,6 +53,7 @@ const blankItem = (vatRate = 20): LineItem => ({
 });
 
 export default function NewInvoicePage() {
+  useApi();
   const router = useRouter();
   const searchParams = useSearchParams();
   const quoteId = searchParams?.get('quote_id');
@@ -90,12 +92,6 @@ export default function NewInvoicePage() {
   const [error, setError] = useState('');
 
   useEffect(() => {
-    const mockAuth = {
-      token: 'mock-jwt-token',
-      tenant_id: '550e8400-e29b-41d4-a716-446655440000',
-      user_id: '550e8400-e29b-41d4-a716-446655440001',
-    };
-    api.setAuth(mockAuth);
 
     if (quoteId) {
       loadQuote();

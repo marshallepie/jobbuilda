@@ -6,6 +6,7 @@ import Link from 'next/link';
 import AppLayout from '@/components/AppLayout';
 import dynamic from 'next/dynamic';
 import { api } from '@/lib/api';
+import { useApi } from '@/hooks/useApi';
 import type { CircuitDetail } from '@/components/CircuitDetailsForm';
 
 const CircuitDetailsForm = dynamic(() => import('@/components/CircuitDetailsForm'), { ssr: false });
@@ -26,6 +27,7 @@ interface Site {
 }
 
 export default function NewJobPage() {
+  useApi();
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [clients, setClients] = useState<Client[]>([]);
@@ -63,12 +65,6 @@ export default function NewJobPage() {
 
   const loadClients = async () => {
     try {
-      const mockAuth = {
-        token: 'mock-jwt-token',
-        tenant_id: '550e8400-e29b-41d4-a716-446655440000',
-        user_id: '550e8400-e29b-41d4-a716-446655440001',
-      };
-      api.setAuth(mockAuth);
 
       const data = await api.request('/api/clients/clients') as any;
       const clientList = Array.isArray(data) ? data : (data.data || []);
@@ -114,12 +110,6 @@ export default function NewJobPage() {
 
     setLoading(true);
     try {
-      const mockAuth = {
-        token: 'mock-jwt-token',
-        tenant_id: '550e8400-e29b-41d4-a716-446655440000',
-        user_id: '550e8400-e29b-41d4-a716-446655440001',
-      };
-      api.setAuth(mockAuth);
 
       const jobData = {
         client_id: formData.client_id,

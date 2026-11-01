@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import AppLayout from '@/components/AppLayout';
 import { api } from '@/lib/api';
+import { useApi } from '@/hooks/useApi';
 import { formatCurrency, formatDate, getStatusColor } from '@/lib/utils';
 
 interface Invoice {
@@ -24,6 +25,7 @@ interface Invoice {
 }
 
 export default function InvoicesPage() {
+  useApi();
   const router = useRouter();
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [loading, setLoading] = useState(true);
@@ -37,12 +39,6 @@ export default function InvoicesPage() {
 
   const loadInvoices = async () => {
     try {
-      const mockAuth = {
-        token: 'mock-jwt-token',
-        tenant_id: '550e8400-e29b-41d4-a716-446655440000',
-        user_id: '550e8400-e29b-41d4-a716-446655440001',
-      };
-      api.setAuth(mockAuth);
 
       const data = await api.getInvoices() as any;
       const invoiceList = Array.isArray(data) ? data : (data.data || []);

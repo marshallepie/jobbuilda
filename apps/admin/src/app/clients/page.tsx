@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import AppLayout from '@/components/AppLayout';
 import { api } from '@/lib/api';
+import { useApi } from '@/hooks/useApi';
 
 interface Client {
   id: string;
@@ -17,6 +18,7 @@ interface Client {
 }
 
 export default function ClientsPage() {
+  useApi();
   const [clients, setClients] = useState<Client[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -26,12 +28,6 @@ export default function ClientsPage() {
 
   const loadClients = async () => {
     try {
-      const mockAuth = {
-        token: 'mock-jwt-token',
-        tenant_id: '550e8400-e29b-41d4-a716-446655440000',
-        user_id: '550e8400-e29b-41d4-a716-446655440001',
-      };
-      api.setAuth(mockAuth);
 
       const data = await api.request('/api/clients/clients') as Client[];
       setClients(data);

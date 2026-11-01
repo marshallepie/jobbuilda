@@ -25,6 +25,7 @@ import { shareRoutes } from './routes/share.js';
 import { receiptsRoutes } from './routes/receipts.js';
 import { clientPortalRoutes } from './routes/client-portal.js';
 import { registerAccountIsolationContainment } from './lib/account-isolation-containment.js';
+import { registerServerAuth } from './lib/auth.js';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
@@ -58,7 +59,10 @@ export async function createServer() {
   });
 
   await fastify.register(cors, coordinatorCorsOptions());
+  // Containment stays first: account-data routes remain paused until a separate
+  // route-by-route audit explicitly allows this server-authenticated context.
   registerAccountIsolationContainment(fastify);
+  registerServerAuth(fastify);
 
   // Initialize MCP clients
   const identityMcpCwd = process.env.IDENTITY_MCP_CWD ||

@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { api } from '@/lib/api';
+import { useApi } from '@/hooks/useApi';
 import { formatDate } from '@/lib/utils';
 
 interface Certificate {
@@ -27,6 +28,7 @@ export default function CertificateCard({
   onRegenerate,
   onDownloadSuccess,
 }: CertificateCardProps) {
+  useApi();
   const [downloading, setDownloading] = useState(false);
   const [regenerating, setRegenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -69,31 +71,7 @@ export default function CertificateCard({
     setError(null);
 
     try {
-      // If the storage_url is already a full URL (from Supabase), use it directly
-      if (certificate.storage_url.startsWith('http')) {
-        // Open in new tab
-        window.open(certificate.storage_url, '_blank');
-      } else {
-        // Otherwise, fetch through our API (which should generate presigned URL)
-        const mockAuth = {
-          token: 'mock-jwt-token',
-          tenant_id: '550e8400-e29b-41d4-a716-446655440000',
-          user_id: '550e8400-e29b-41d4-a716-446655440001',
-        };
-        api.setAuth(mockAuth);
-
-        // TODO: Implement presigned URL endpoint
-        // const response = await api.get(`/api/certificates/${certificate.id}/download`);
-        // window.open(response.download_url, '_blank');
-
-        // For now, use the storage URL directly
-        window.open(certificate.storage_url, '_blank');
-      }
-
-      onDownloadSuccess?.();
-    } catch (err: any) {
-      console.error('Failed to download certificate:', err);
-      setError(err.message || 'Failed to download certificate');
+      setError('Certificate download is temporarily unavailable because it requires an authenticated API request.');
     } finally {
       setDownloading(false);
     }
@@ -108,12 +86,6 @@ export default function CertificateCard({
     setError(null);
 
     try {
-      const mockAuth = {
-        token: 'mock-jwt-token',
-        tenant_id: '550e8400-e29b-41d4-a716-446655440000',
-        user_id: '550e8400-e29b-41d4-a716-446655440001',
-      };
-      api.setAuth(mockAuth);
 
       // Regenerate certificate (this will create a new version)
       await api.post(`/api/tests/${certificate.id}/certificate`, {

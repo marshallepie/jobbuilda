@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import AppLayout from '@/components/AppLayout';
 import { api } from '@/lib/api';
+import { useApi } from '@/hooks/useApi';
 import { useSearchParams } from 'next/navigation';
 
 interface BusinessProfile {
@@ -49,6 +50,7 @@ interface StripeStatus {
 }
 
 export default function SettingsPage() {
+  useApi();
   const [profile, setProfile] = useState<BusinessProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -77,12 +79,6 @@ export default function SettingsPage() {
 
   const loadStripeStatus = async () => {
     try {
-      const mockAuth = {
-        token: 'mock-jwt-token',
-        tenant_id: '550e8400-e29b-41d4-a716-446655440000',
-        user_id: '550e8400-e29b-41d4-a716-446655440001',
-      };
-      api.setAuth(mockAuth);
       const data = await api.request('/api/payments/connect/status') as StripeStatus;
       setStripeStatus(data);
     } catch (err) {
@@ -92,12 +88,6 @@ export default function SettingsPage() {
 
   const loadProfile = async () => {
     try {
-      const mockAuth = {
-        token: 'mock-jwt-token',
-        tenant_id: '550e8400-e29b-41d4-a716-446655440000',
-        user_id: '550e8400-e29b-41d4-a716-446655440001',
-      };
-      api.setAuth(mockAuth);
 
       const data = await api.request('/api/identity/profile') as BusinessProfile;
       setProfile(data);
@@ -113,12 +103,6 @@ export default function SettingsPage() {
     setStripeLoading(true);
     setStripeMessage(null);
     try {
-      const mockAuth = {
-        token: 'mock-jwt-token',
-        tenant_id: '550e8400-e29b-41d4-a716-446655440000',
-        user_id: '550e8400-e29b-41d4-a716-446655440001',
-      };
-      api.setAuth(mockAuth);
       const data = await api.request('/api/payments/connect/authorize') as { url: string };
       window.location.href = data.url;
     } catch (err: any) {
@@ -133,12 +117,6 @@ export default function SettingsPage() {
     setStripeLoading(true);
     setStripeMessage(null);
     try {
-      const mockAuth = {
-        token: 'mock-jwt-token',
-        tenant_id: '550e8400-e29b-41d4-a716-446655440000',
-        user_id: '550e8400-e29b-41d4-a716-446655440001',
-      };
-      api.setAuth(mockAuth);
       await api.request('/api/payments/connect/disconnect', { method: 'POST' });
       await loadStripeStatus();
       setStripeMessage({ type: 'success', text: 'Stripe account disconnected.' });
@@ -155,12 +133,6 @@ export default function SettingsPage() {
 
     setSaving(true);
     try {
-      const mockAuth = {
-        token: 'mock-jwt-token',
-        tenant_id: '550e8400-e29b-41d4-a716-446655440000',
-        user_id: '550e8400-e29b-41d4-a716-446655440001',
-      };
-      api.setAuth(mockAuth);
 
       await api.request('/api/identity/profile', {
         method: 'PUT',
@@ -852,14 +824,14 @@ export default function SettingsPage() {
               </p>
               <div className="flex gap-4">
                 <button
-                  onClick={() => window.open('http://localhost:3000/api/preview/invoice', '_blank')}
+                  onClick={() => alert('Invoice preview is temporarily unavailable because it requires an authenticated API request.')}
                   className="flex items-center gap-2 px-6 py-3 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors font-medium shadow-sm"
                 >
                   <span>👁️</span>
                   <span>Preview Invoice</span>
                 </button>
                 <button
-                  onClick={() => window.open('http://localhost:3000/api/preview/quote', '_blank')}
+                  onClick={() => alert('Quote preview is temporarily unavailable because it requires an authenticated API request.')}
                   className="flex items-center gap-2 px-6 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-medium shadow-sm"
                 >
                   <span>👁️</span>

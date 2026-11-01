@@ -5,6 +5,7 @@ import { useRouter, useParams } from 'next/navigation';
 import Link from 'next/link';
 import AppLayout from '@/components/AppLayout';
 import { api } from '@/lib/api';
+import { useApi } from '@/hooks/useApi';
 
 interface Site {
   id: string;
@@ -26,6 +27,7 @@ interface Client {
 }
 
 export default function EditSitePage() {
+  useApi();
   const router = useRouter();
   const params = useParams();
   const clientId = params?.id as string;
@@ -56,12 +58,6 @@ export default function EditSitePage() {
 
   const loadData = async () => {
     try {
-      const mockAuth = {
-        token: 'mock-jwt-token',
-        tenant_id: '550e8400-e29b-41d4-a716-446655440000',
-        user_id: '550e8400-e29b-41d4-a716-446655440001',
-      };
-      api.setAuth(mockAuth);
 
       // Load client and site data
       const [clientData, siteData] = await Promise.all([
@@ -101,12 +97,6 @@ export default function EditSitePage() {
 
     setSaving(true);
     try {
-      const mockAuth = {
-        token: 'mock-jwt-token',
-        tenant_id: '550e8400-e29b-41d4-a716-446655440000',
-        user_id: '550e8400-e29b-41d4-a716-446655440001',
-      };
-      api.setAuth(mockAuth);
 
       const siteData = {
         name: formData.name,

@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import AppLayout from '@/components/AppLayout';
 import { api } from '@/lib/api';
+import { useApi } from '@/hooks/useApi';
 import { formatCurrency } from '@/lib/utils';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -185,6 +186,7 @@ const COL_LABELS: Record<keyof ColMap, string> = {
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function ImportInvoicesPage() {
+  useApi();
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -213,12 +215,6 @@ export default function ImportInvoicesPage() {
   const [importError, setImportError] = useState('');
 
   useEffect(() => {
-    const mockAuth = {
-      token: 'mock-jwt-token',
-      tenant_id: '550e8400-e29b-41d4-a716-446655440000',
-      user_id: '550e8400-e29b-41d4-a716-446655440001',
-    };
-    api.setAuth(mockAuth);
     api.getClients().then((data: any) => {
       setClients(Array.isArray(data) ? data : (data?.data || []));
     }).catch(() => {});

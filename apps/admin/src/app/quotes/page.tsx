@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import AppLayout from '@/components/AppLayout';
 import { api, ApiError } from '@/lib/api';
+import { useApi } from '@/hooks/useApi';
 import { formatCurrency, formatDate, getStatusColor } from '@/lib/utils';
 
 interface Quote {
@@ -18,6 +19,7 @@ interface Quote {
 }
 
 export default function QuotesPage() {
+  useApi();
   const [quotes, setQuotes] = useState<Quote[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<string>('all');
@@ -28,12 +30,6 @@ export default function QuotesPage() {
 
   const loadQuotes = async () => {
     try {
-      const mockAuth = {
-        token: 'mock-jwt-token',
-        tenant_id: '550e8400-e29b-41d4-a716-446655440000',
-        user_id: '550e8400-e29b-41d4-a716-446655440001',
-      };
-      api.setAuth(mockAuth);
 
       const data = await api.getQuotes() as Quote[];
       setQuotes(data);
@@ -47,12 +43,6 @@ export default function QuotesPage() {
   const deleteQuote = async (quoteId: string, quoteNumber: string) => {
     if (confirm(`Are you sure you want to delete quote ${quoteNumber}? This action cannot be undone.`)) {
       try {
-        const mockAuth = {
-          token: 'mock-jwt-token',
-          tenant_id: '550e8400-e29b-41d4-a716-446655440000',
-          user_id: '550e8400-e29b-41d4-a716-446655440001',
-        };
-        api.setAuth(mockAuth);
 
         await api.request(`/api/quotes/${quoteId}`, {
           method: 'DELETE',

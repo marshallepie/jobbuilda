@@ -3,6 +3,8 @@
 import { useEffect, useState } from 'react';
 import AppLayout from '@/components/AppLayout';
 import { api, ApiError } from '@/lib/api';
+import { useApi } from '@/hooks/useApi';
+import { useAuth } from '@/contexts/AuthContext';
 import { formatCurrency, formatDate, getStatusColor } from '@/lib/utils';
 import Link from 'next/link';
 import ReceiptScanModal from '@/components/ReceiptScanModal';
@@ -33,6 +35,8 @@ interface Quote {
 }
 
 export default function DashboardPage() {
+  useApi();
+  const { session, loading: authLoading } = useAuth();
   const [showScanModal, setShowScanModal] = useState(false);
   const [stats, setStats] = useState<DashboardStats>({
     activeJobs: 0,
@@ -46,19 +50,17 @@ export default function DashboardPage() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    if (authLoading) return;
+    if (!session?.access_token) {
+      setError('Sign in is required to load dashboard data');
+      setLoading(false);
+      return;
+    }
     loadDashboardData();
-  }, []);
+  }, [authLoading, session?.access_token]);
 
   const loadDashboardData = async () => {
     try {
-      // Load auth context (in production, this would come from Supabase)
-      const mockAuth = {
-        token: 'mock-jwt-token',
-        tenant_id: '550e8400-e29b-41d4-a716-446655440000',
-        user_id: '550e8400-e29b-41d4-a716-446655440001',
-      };
-      api.setAuth(mockAuth);
-
       // Fetch dashboard data
       const [jobsData, quotesData, invoicesResponse] = await Promise.all([
         api.getJobs() as Promise<Job[]>,
@@ -67,7 +69,7 @@ export default function DashboardPage() {
       ]);
 
       // Unwrap invoices response (API returns { data: [...] })
-      const invoicesData = invoicesResponse.data || invoicesResponse;
+      const invoicesData: any[] = (invoicesResponse.data || invoicesResponse) as any[];
 
       // Calculate stats
       const activeJobs = jobsData.filter((j) => j.status === 'in_progress').length;

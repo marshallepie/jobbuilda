@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { api } from '@/lib/api';
+import { useApi } from '@/hooks/useApi';
 
 interface Circuit {
   id: string;
@@ -44,6 +45,7 @@ export default function CircuitMeasurementForm({
   onCircuitChange,
   onSaveSuccess,
 }: CircuitMeasurementFormProps) {
+  useApi();
   const [selectedCircuit, setSelectedCircuit] = useState<Circuit | null>(null);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -104,12 +106,6 @@ export default function CircuitMeasurementForm({
   const loadStandards = async (circuit: Circuit) => {
     setLoading(true);
     try {
-      const mockAuth = {
-        token: 'mock-jwt-token',
-        tenant_id: '550e8400-e29b-41d4-a716-446655440000',
-        user_id: '550e8400-e29b-41d4-a716-446655440001',
-      };
-      api.setAuth(mockAuth);
 
       // Load standards for each measurement type
       const [continuityStd, insulationStd, earthLoopStd] = await Promise.all([
@@ -235,12 +231,6 @@ export default function CircuitMeasurementForm({
     setError(null);
 
     try {
-      const mockAuth = {
-        token: 'mock-jwt-token',
-        tenant_id: '550e8400-e29b-41d4-a716-446655440000',
-        user_id: '550e8400-e29b-41d4-a716-446655440001',
-      };
-      api.setAuth(mockAuth);
 
       const payload = {
         measurements: {

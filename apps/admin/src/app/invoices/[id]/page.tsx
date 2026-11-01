@@ -5,6 +5,7 @@ import { useRouter, useParams } from 'next/navigation';
 import Link from 'next/link';
 import AppLayout from '@/components/AppLayout';
 import { api } from '@/lib/api';
+import { useApi } from '@/hooks/useApi';
 import { formatCurrency, formatDate, getStatusColor } from '@/lib/utils';
 
 interface BusinessProfile {
@@ -57,6 +58,7 @@ interface Invoice {
 }
 
 export default function InvoiceDetailPage() {
+  useApi();
   const router = useRouter();
   const params = useParams();
   const invoiceId = params?.id as string;
@@ -94,12 +96,6 @@ export default function InvoiceDetailPage() {
 
   const loadInvoice = async () => {
     try {
-      const mockAuth = {
-        token: 'mock-jwt-token',
-        tenant_id: '550e8400-e29b-41d4-a716-446655440000',
-        user_id: '550e8400-e29b-41d4-a716-446655440001',
-      };
-      api.setAuth(mockAuth);
 
       const response = await api.request(`/api/invoices/${invoiceId}`) as any;
       const data = response.data || response;
@@ -200,12 +196,10 @@ export default function InvoiceDetailPage() {
     setPdfLoading(true);
     if (!isMobile) setShowPdfPreview(true);
     try {
-      const auth = api.loadAuth();
+      const accessToken = api.getAccessToken();
       const headers: Record<string, string> = {};
-      if (auth) {
-        headers['Authorization'] = `Bearer ${auth.token}`;
-        headers['x-tenant-id'] = auth.tenant_id;
-        headers['x-user-id'] = auth.user_id;
+      if (accessToken) {
+        headers['Authorization'] = `Bearer ${accessToken}`;
       }
       const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
       const res = await fetch(`${API_BASE_URL}/api/pdf/invoice/${invoiceId}`, { headers });
@@ -257,12 +251,6 @@ export default function InvoiceDetailPage() {
   const generateShareLink = async () => {
     setShareLoading(true);
     try {
-      const mockAuth = {
-        token: 'mock-jwt-token',
-        tenant_id: '550e8400-e29b-41d4-a716-446655440000',
-        user_id: '550e8400-e29b-41d4-a716-446655440001',
-      };
-      api.setAuth(mockAuth);
       const result = await api.request(`/api/share/invoice/${invoiceId}`, {
         method: 'POST',
       }) as any;
@@ -312,12 +300,6 @@ export default function InvoiceDetailPage() {
 
     setActionLoading(true);
     try {
-      const mockAuth = {
-        token: 'mock-jwt-token',
-        tenant_id: '550e8400-e29b-41d4-a716-446655440000',
-        user_id: '550e8400-e29b-41d4-a716-446655440001',
-      };
-      api.setAuth(mockAuth);
 
       await api.request(`/api/invoices/${invoiceId}/payment`, {
         method: 'POST',

@@ -5,6 +5,7 @@ import { useRouter, useParams } from 'next/navigation';
 import Link from 'next/link';
 import AppLayout from '@/components/AppLayout';
 import { api } from '@/lib/api';
+import { useApi } from '@/hooks/useApi';
 
 interface Client {
   id: string;
@@ -23,6 +24,7 @@ interface Client {
 }
 
 export default function EditClientPage() {
+  useApi();
   const router = useRouter();
   const params = useParams();
   const clientId = params?.id as string;
@@ -54,12 +56,6 @@ export default function EditClientPage() {
 
   const loadClient = async () => {
     try {
-      const mockAuth = {
-        token: 'mock-jwt-token',
-        tenant_id: '550e8400-e29b-41d4-a716-446655440000',
-        user_id: '550e8400-e29b-41d4-a716-446655440001',
-      };
-      api.setAuth(mockAuth);
 
       const clientData = await api.request(`/api/clients/clients/${clientId}`) as any;
       setClient(clientData);
@@ -96,12 +92,6 @@ export default function EditClientPage() {
 
     setSaving(true);
     try {
-      const mockAuth = {
-        token: 'mock-jwt-token',
-        tenant_id: '550e8400-e29b-41d4-a716-446655440000',
-        user_id: '550e8400-e29b-41d4-a716-446655440001',
-      };
-      api.setAuth(mockAuth);
 
       const clientData = {
         name: formData.name,

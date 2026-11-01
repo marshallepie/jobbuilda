@@ -2,11 +2,7 @@
  * API Client for JobBuilda Coordinator (Admin)
  */
 
-import { mockApi } from './mockData';
-
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
-const USE_MOCK_DATA = process.env.NEXT_PUBLIC_USE_MOCK_DATA === 'true';
-
 export class ApiError extends Error {
   constructor(
     message: string,
@@ -19,9 +15,8 @@ export class ApiError extends Error {
 }
 
 export interface AuthContext {
+  /** Supabase access token; tenant context is derived server-side. */
   token: string;
-  tenant_id: string;
-  user_id: string;
 }
 
 class ApiClient {
@@ -33,27 +28,15 @@ class ApiClient {
   }
 
   setAuth(context: AuthContext) {
-    this.authContext = context;
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('admin_auth', JSON.stringify(context));
-    }
+    this.authContext = { token: context.token };
   }
 
   clearAuth() {
     this.authContext = null;
-    if (typeof window !== 'undefined') {
-      localStorage.removeItem('admin_auth');
-    }
   }
 
-  loadAuth(): AuthContext | null {
-    if (typeof window !== 'undefined') {
-      const stored = localStorage.getItem('admin_auth');
-      if (stored) {
-        this.authContext = JSON.parse(stored);
-      }
-    }
-    return this.authContext;
+  getAccessToken(): string | null {
+    return this.authContext?.token ?? null;
   }
 
   async request<T>(
@@ -65,11 +48,10 @@ class ApiClient {
       ...(options.headers as Record<string, string>),
     };
 
-    // Add auth context headers
-    if (this.authContext) {
+    // The coordinator derives tenant, user, and scopes from the verified token
+    // and durable membership; do not transmit caller-selected identity headers.
+    if (this.authContext?.token) {
       headers['Authorization'] = `Bearer ${this.authContext.token}`;
-      headers['x-tenant-id'] = this.authContext.tenant_id;
-      headers['x-user-id'] = this.authContext.user_id;
     }
 
     const response = await fetch(`${this.baseUrl}${path}`, {
@@ -99,14 +81,12 @@ class ApiClient {
 
   // ===== LEADS =====
   async getLeads() {
-    if (USE_MOCK_DATA) return mockApi.getLeads();
     const response: any = await this.request('/api/leads');
     // Unwrap response if needed (API returns { data: [...] })
     return response.data || response;
   }
 
   async getLead(id: string) {
-    if (USE_MOCK_DATA) return mockApi.getLead(id);
     return this.request(`/api/leads/${id}`);
   }
 
@@ -133,14 +113,12 @@ class ApiClient {
 
   // ===== QUOTES =====
   async getQuotes() {
-    if (USE_MOCK_DATA) return mockApi.getQuotes();
     const response: any = await this.request('/api/quotes');
     // Unwrap response if needed (API returns { data: [...] })
     return response.data || response;
   }
 
   async getQuote(id: string) {
-    if (USE_MOCK_DATA) return mockApi.getQuote(id);
     return this.request(`/api/quotes/${id}`);
   }
 
@@ -174,14 +152,12 @@ class ApiClient {
 
   // ===== JOBS =====
   async getJobs() {
-    if (USE_MOCK_DATA) return mockApi.getJobs();
     const response: any = await this.request('/api/jobs');
     // Unwrap response if needed (API returns { data: [...] })
     return response.data || response;
   }
 
   async getJob(id: string) {
-    if (USE_MOCK_DATA) return mockApi.getJob(id);
     return this.request(`/api/jobs/${id}`);
   }
 
@@ -274,14 +250,12 @@ class ApiClient {
 
   // ===== INVOICES =====
   async getInvoices() {
-    if (USE_MOCK_DATA) return mockApi.getInvoices();
     const response: any = await this.request('/api/invoices');
     // Unwrap response if needed (API returns { data: [...] })
     return response.data || response;
   }
 
   async getInvoice(id: string) {
-    if (USE_MOCK_DATA) return mockApi.getInvoice(id);
     return this.request(`/api/invoices/${id}`);
   }
 
@@ -321,14 +295,12 @@ class ApiClient {
 
   // ===== CLIENTS =====
   async getClients() {
-    if (USE_MOCK_DATA) return mockApi.getClients();
     const response: any = await this.request('/api/clients/clients');
     // Unwrap response if needed (API returns { data: [...] })
     return response.data || response;
   }
 
   async getClient(id: string) {
-    if (USE_MOCK_DATA) return mockApi.getClient(id);
     return this.request(`/api/clients/clients/${id}`);
   }
 

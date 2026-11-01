@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import AppLayout from '@/components/AppLayout';
 import { api } from '@/lib/api';
+import { useApi } from '@/hooks/useApi';
 import { formatCurrency } from '@/lib/utils';
 
 interface Client {
@@ -45,6 +46,7 @@ interface QuoteItem {
 }
 
 export default function NewQuotePage() {
+  useApi();
   const router = useRouter();
   const searchParams = useSearchParams();
   const leadId = searchParams.get('lead_id');
@@ -122,12 +124,6 @@ export default function NewQuotePage() {
 
   const loadData = async () => {
     try {
-      const mockAuth = {
-        token: 'mock-jwt-token',
-        tenant_id: '550e8400-e29b-41d4-a716-446655440000',
-        user_id: '550e8400-e29b-41d4-a716-446655440001',
-      };
-      api.setAuth(mockAuth);
 
       const clientsData = await api.request('/api/clients/clients') as Client[];
       setClients(clientsData);
