@@ -32,6 +32,14 @@ export async function createSite(
     span.setAttribute('client_id', input.client_id);
     span.setAttribute('tenant_id', context.tenant_id);
 
+    const client = await query(
+      'SELECT 1 FROM clients WHERE id = $1 AND tenant_id = $2',
+      [input.client_id, context.tenant_id],
+    );
+    if (client.rows.length !== 1) {
+      throw new Error('Client not found or access denied');
+    }
+
     await query(
       `INSERT INTO sites (id, tenant_id, client_id, name, address_line1, address_line2,
                           city, county, postcode, country, contact_name, contact_phone, access_notes)

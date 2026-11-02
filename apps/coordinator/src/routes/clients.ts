@@ -69,11 +69,9 @@ export async function clientsRoutes(fastify: FastifyInstance) {
         );
 
         return site.data;
-      } catch (error: any) {
-        reply.status(500).send({
-          error: 'Failed to fetch site',
-          message: error.message
-        });
+      } catch {
+        // Foreign and absent site IDs deliberately share one public response.
+        return reply.status(404).send({ error: 'Site not found' });
       }
     }
   );
@@ -172,11 +170,10 @@ export async function clientsRoutes(fastify: FastifyInstance) {
 
         const data = JSON.parse(result.content[0]?.text || '{}');
         return data;
-      } catch (error: any) {
-        reply.status(500).send({
-          error: 'Failed to create site',
-          message: error.message
-        });
+      } catch {
+        // Client validation in clients MCP is tenant-scoped. Keep a foreign
+        // client indistinguishable from an absent client before site mutation.
+        return reply.status(404).send({ error: 'Client not found' });
       }
     }
   );
@@ -247,11 +244,10 @@ export async function clientsRoutes(fastify: FastifyInstance) {
 
         const data = JSON.parse(result.content[0]?.text || '{}');
         return data;
-      } catch (error: any) {
-        reply.status(500).send({
-          error: 'Failed to update client',
-          message: error.message
-        });
+      } catch {
+        // The MCP update filters by tenant before publishing. Do not disclose
+        // whether a tenant-external client ID exists.
+        return reply.status(404).send({ error: 'Client not found' });
       }
     }
   );
@@ -351,11 +347,10 @@ export async function clientsRoutes(fastify: FastifyInstance) {
 
         const data = JSON.parse(result.content[0]?.text || '{}');
         return data;
-      } catch (error: any) {
-        reply.status(500).send({
-          error: 'Failed to delete client data',
-          message: error.message
-        });
+      } catch {
+        // The MCP delete filters by tenant before publishing. Do not disclose
+        // whether a tenant-external client ID exists.
+        return reply.status(404).send({ error: 'Client not found' });
       }
     }
   );

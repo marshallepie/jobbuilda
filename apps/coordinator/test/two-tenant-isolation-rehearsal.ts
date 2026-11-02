@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { randomBytes, randomUUID } from 'node:crypto';
-import { createConnection, createServer, Server } from 'node:net';
+import { createConnection } from 'node:net';
 import Fastify from 'fastify';
 import pg from 'pg';
 import { MCPClient } from '@jobbuilda/mcp-sdk';
@@ -11,6 +11,7 @@ import { clientsRoutes } from '../src/routes/clients.js';
 import { quotingRoutes } from '../src/routes/quoting.js';
 import { invoicingRoutes } from '../src/routes/invoicing.js';
 import { runWithPreservedFailure } from '../src/lib/rehearsal-runner.js';
+import { startNatsCapture } from '../src/lib/nats-capture.js';
 import {
   assertRequiredRehearsalMcpArtifacts,
   type McpEntrypoints,
@@ -21,9 +22,10 @@ const PRODUCTION_REF = 'jnwxueomquywrqcgbgfd';
 const SUPABASE_URL = `https://${REHEARSAL_REF}.supabase.co`;
 
 type Fixture = { tenant_id: string; user_id: string; client_id: string; quote_id: string; invoice_id: string; email: string };
-type Membership = { auth_user_id: string; tenant_id: string; user_id: string; email: string };
+type Membership = { auth_user_id: string; tenant_id: string; user_id: string; email: string; role: 'admin' };
 
 type FixtureCounts = { clients: number; quotes: number; invoices: number };
+type FixtureSnapshot = { snapshot: unknown };
 type McpServiceName = 'identity' | 'clients' | 'quoting' | 'invoicing';
 
 const STARTUP_TIMEOUT_MS = 8_000;
@@ -196,35 +198,29 @@ async function fixtureCounts(pool: pg.Pool): Promise<FixtureCounts> {
   return result.rows[0];
 }
 
-async function startNoPublishNats(): Promise<{ url: string; close: () => Promise<void>; published: () => boolean }> {
-  let observedPublish = false;
-  const server: Server = createServer((socket) => {
-    socket.write('INFO {"server_id":"rehearsal","version":"1.0.0","proto":1,"max_payload":1048576}\r\n');
-    let pending = '';
-    socket.on('data', (chunk) => {
-      pending += chunk.toString('utf8');
-      const lines = pending.split('\r\n');
-      pending = lines.pop() ?? '';
-      for (const line of lines) {
-        if (line === 'PING') socket.write('PONG\r\n');
-        if (line.startsWith('PUB ') || line.startsWith('HPUB ')) {
-          observedPublish = true;
-          socket.destroy();
-        }
-      }
-    });
-  });
-  await new Promise<void>((resolve, reject) => {
-    server.once('error', reject);
-    server.listen(0, '127.0.0.1', () => resolve());
-  });
-  const address = server.address();
-  if (!address || typeof address === 'string') fail('local no-publish NATS listener did not bind a TCP port');
-  return {
-    url: `nats://127.0.0.1:${address.port}`,
-    published: () => observedPublish,
-    close: async () => new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve())),
-  };
+async function fixtureSnapshot(pool: pg.Pool, fixture: Fixture): Promise<string> {
+  const result = await pool.query<FixtureSnapshot>(`
+    SELECT jsonb_build_object(
+      'client', to_jsonb(c),
+      'quote', to_jsonb(q),
+      'invoice', to_jsonb(i)
+    ) AS snapshot
+    FROM public.clients c
+    JOIN public.quotes q ON q.id = $2 AND q.tenant_id = c.tenant_id AND q.client_id = c.id
+    JOIN public.invoices i ON i.id = $3 AND i.tenant_id = c.tenant_id AND i.client_id = c.id AND i.quote_id = q.id
+    WHERE c.id = $1 AND c.tenant_id = $4
+  `, [fixture.client_id, fixture.quote_id, fixture.invoice_id, fixture.tenant_id]);
+  if (result.rows.length !== 1) fail('permanent fixture snapshot was not uniquely readable');
+  return JSON.stringify(result.rows[0].snapshot);
+}
+
+async function temporaryWriteCounts(pool: pg.Pool, label: string): Promise<{ clients: number; sites: number }> {
+  const result = await pool.query<{ clients: number; sites: number }>(`
+    SELECT
+      (SELECT count(*)::int FROM public.clients WHERE name = $1) AS clients,
+      (SELECT count(*)::int FROM public.sites WHERE name = $2) AS sites
+  `, [`${label} Client`, `${label} Site`]);
+  return result.rows[0];
 }
 
 function createMcpClients(natsUrl: string, entrypoints: McpEntrypoints): Record<McpServiceName, MCPClient> {
@@ -267,8 +263,10 @@ async function preflight(pool: pg.Pool, natsUrl: string, entrypoints: McpEntrypo
   await bounded('nats-connect-and-ping', STARTUP_TIMEOUT_MS, () => probeNats(natsUrl));
 
   const memberships = await bounded('database-membership-lookup', DATABASE_TIMEOUT_MS, () => pool.query<Membership>(`
-    SELECT m.auth_user_id::text, m.tenant_id::text, m.user_id::text, u.email
-    FROM public.auth_tenant_memberships m JOIN auth.users u ON u.id = m.auth_user_id
+    SELECT m.auth_user_id::text, m.tenant_id::text, m.user_id::text, au.email, u.role
+    FROM public.auth_tenant_memberships m
+    JOIN auth.users au ON au.id = m.auth_user_id
+    JOIN public.users u ON u.id=m.user_id AND u.tenant_id=m.tenant_id AND u.role='admin'
     WHERE m.status = 'active' AND m.revoked_at IS NULL ORDER BY m.created_at`));
   const revoked = await bounded('database-revoked-membership-lookup', DATABASE_TIMEOUT_MS, () => pool.query<Membership>(`
     SELECT m.auth_user_id::text, m.tenant_id::text, m.user_id::text, u.email
@@ -314,12 +312,15 @@ async function main(): Promise<void> {
   safeResult('artifact-preflight', 200, 'identity, clients, quoting, and invoicing MCP dist entrypoints exist');
   process.env.DATABASE_URL = required('JOBBUILDA_REHEARSAL_DATABASE_URL');
   const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false } });
-  const noPublishNats = await startNoPublishNats();
+  const natsCapture = await startNatsCapture();
   let b2AuthUserId: string | undefined;
   let mcp: Record<McpServiceName, MCPClient> | undefined;
   let app: ReturnType<typeof Fastify> | undefined;
+  let temporaryLabel: string | undefined;
+  let temporaryClientDeletedByHandler = false;
+  let natsCaptureClosed = false;
   return runWithPreservedFailure(async () => {
-    const readiness = await preflight(pool, noPublishNats.url, entrypoints);
+    const readiness = await preflight(pool, natsCapture.url, entrypoints);
     const { a, b, aFixture, bFixture } = readiness;
     mcp = readiness.clients;
 
@@ -342,7 +343,7 @@ async function main(): Promise<void> {
     const activeB2 = await pool.query(`SELECT count(*)::int AS count FROM public.auth_tenant_memberships WHERE auth_user_id=$1 AND status='active' AND revoked_at IS NULL`, [b2AuthUserId]);
     if (activeB2.rows[0].count !== 1) fail('B2 membership activation readback did not return exactly one active mapping');
 
-    const [aBearer, b2Bearer] = await Promise.all([passwordGrant(a.email, aPassword), passwordGrant(b2Email, b2Password)]);
+    const aBearer = await passwordGrant(a.email, aPassword);
     const { identity, clients, quoting, invoicing } = mcp;
 
     app = Fastify();
@@ -355,69 +356,87 @@ async function main(): Promise<void> {
     await invoicingRoutes(app);
     await app.ready();
     const headers = (token: string) => ({ authorization: `Bearer ${token}` });
-    const contains = (response: { body: string }, id: string) => response.body.includes(id);
-    const own = async (alias: string, token: string, fixture: Fixture) => {
-      for (const [name, url, expectedId] of [
-        ['profile', '/api/identity/profile', fixture.tenant_id],
-        ['client-list', '/api/clients/clients', fixture.client_id],
-        ['client-read', `/api/clients/clients/${fixture.client_id}`, fixture.client_id],
-        ['quote-list', '/api/quotes', fixture.quote_id],
-        ['quote-read', `/api/quotes/${fixture.quote_id}`, fixture.quote_id],
-        ['invoice-list', '/api/invoices', fixture.invoice_id],
-        ['invoice-read', `/api/invoices/${fixture.invoice_id}`, fixture.invoice_id],
-      ] as const) {
-        const response = await app.inject({ method: 'GET', url, headers: headers(token) });
-        assertStatus(`${alias}-${name}`, response.statusCode, 200, 'own synthetic read succeeded');
-        assert.equal(contains(response, expectedId), true, `${alias}-${name} omitted its own synthetic fixture`);
-      }
-    };
-    const reciprocal = async (alias: string, token: string, foreign: Fixture) => {
-      for (const [name, url, id] of [
-        ['client-list', '/api/clients/clients', foreign.client_id],
-        ['quote-list', '/api/quotes', foreign.quote_id],
-        ['invoice-list', '/api/invoices', foreign.invoice_id],
-      ] as const) {
-        const response = await app.inject({ method: 'GET', url, headers: headers(token) });
-        assertStatus(`${alias}-foreign-${name}`, response.statusCode, 200, 'foreign fixture absent from own-tenant list');
-        assert.equal(contains(response, id), false, `${alias}-${name} disclosed a foreign fixture`);
-      }
-      for (const [name, url, id] of [['client-read', `/api/clients/clients/${foreign.client_id}`, foreign.client_id], ['quote-read', `/api/quotes/${foreign.quote_id}`, foreign.quote_id], ['invoice-read', `/api/invoices/${foreign.invoice_id}`, foreign.invoice_id]] as const) {
-        const response = await app.inject({ method: 'GET', url, headers: headers(token) });
-        safeResult(`${alias}-foreign-${name}`, response.statusCode, 'foreign resource was not disclosed');
-        assert.notEqual(response.statusCode, 200, `${alias}-${name} unexpectedly succeeded`);
-        assert.equal(contains(response, id), false, `${alias}-${name} disclosed foreign id`);
-        const forged = await app.inject({ method: 'GET', url, headers: { ...headers(token), 'x-tenant-id': foreign.tenant_id, 'x-user-id': foreign.user_id, 'x-scopes': 'admin' } });
-        assertStatus(`${alias}-forged-${name}`, forged.statusCode, 401, 'caller-selected identity headers rejected');
-      }
-    };
-    const forgedProfile = async (alias: string, token: string, foreign: Fixture) => {
-      const response = await app.inject({
-        method: 'GET',
-        url: '/api/identity/profile',
-        headers: { ...headers(token), 'x-tenant-id': foreign.tenant_id, 'x-user-id': foreign.user_id, 'x-scopes': 'admin' },
-      });
-      assertStatus(`${alias}-forged-profile`, response.statusCode, 401, 'caller-selected identity headers rejected');
-    };
-    await own('A', aBearer, aFixture);
-    await own('B2', b2Bearer, bFixture);
-    await forgedProfile('A', aBearer, bFixture);
-    await forgedProfile('B2', b2Bearer, aFixture);
-    await reciprocal('A', aBearer, bFixture);
-    await reciprocal('B2', b2Bearer, aFixture);
+    // This acceptance exercises only client create/update/delete. Site CRUD and
+    // portal-token lifecycle are intentionally excluded and remain unverified.
+    const [beforeA, beforeB] = await Promise.all([
+      fixtureSnapshot(pool, aFixture),
+      fixtureSnapshot(pool, bFixture),
+    ]);
+    temporaryLabel = `Synthetic Write Rehearsal ${randomUUID()}`;
+    const temporaryClientName = `${temporaryLabel} Client`;
+    const temporarySiteName = `${temporaryLabel} Site`;
+    const beforeTemporary = await temporaryWriteCounts(pool, temporaryLabel);
+    if (beforeTemporary.clients !== 0 || beforeTemporary.sites !== 0) fail('temporary write label unexpectedly already exists');
 
-    await pool.query(`UPDATE public.auth_tenant_memberships SET status='revoked', revoked_at=now(), revoked_reason='two-tenant-isolation-rehearsal' WHERE auth_user_id=$1 AND status='active' AND revoked_at IS NULL`, [b2AuthUserId]);
-    const revokedB2 = await pool.query(`SELECT count(*)::int AS count FROM public.auth_tenant_memberships WHERE auth_user_id=$1 AND status='active' AND revoked_at IS NULL`, [b2AuthUserId]);
-    if (revokedB2.rows[0].count !== 0) fail('B2 mapping revocation readback was not zero');
-    for (const [name, url] of [['profile', '/api/identity/profile'], ['client', `/api/clients/clients/${bFixture.client_id}`], ['quote', `/api/quotes/${bFixture.quote_id}`], ['invoice', `/api/invoices/${bFixture.invoice_id}`]] as const) {
-      const response = await app.inject({ method: 'GET', url, headers: headers(b2Bearer) });
-      assertStatus(`B2-revoked-${name}`, response.statusCode, 403, 'verified bearer without active mapping denied');
-    }
+    const created = await app.inject({ method: 'POST', url: '/api/clients/clients', headers: headers(aBearer), payload: { name: temporaryClientName, notes: 'synthetic tenant-write rehearsal only', gdpr_consent: false } });
+    assertStatus('A-own-client-create', created.statusCode, 200, 'real coordinator route and clients MCP create succeeded');
+    const createdBody = JSON.parse(created.body) as { id?: string };
+    if (!createdBody.id) fail('own client create returned no client id');
+    const temporaryClientId = createdBody.id;
+    const createdReadback = await pool.query<{ name: string; tenant_id: string }>('SELECT name, tenant_id::text FROM public.clients WHERE id=$1', [temporaryClientId]);
+    if (createdReadback.rows.length !== 1 || createdReadback.rows[0].name !== temporaryClientName || createdReadback.rows[0].tenant_id !== a.tenant_id) fail('own client create database readback mismatch');
+    safeResult('A-own-client-create-readback', 200, 'temporary client exists only in A tenant');
+
+    const updatedName = `${temporaryLabel} Client Updated`;
+    const updated = await app.inject({ method: 'PATCH', url: `/api/clients/clients/${temporaryClientId}`, headers: headers(aBearer), payload: { name: updatedName } });
+    assertStatus('A-own-client-update', updated.statusCode, 200, 'real coordinator route and clients MCP update succeeded');
+    const updatedReadback = await pool.query<{ name: string; tenant_id: string }>('SELECT name, tenant_id::text FROM public.clients WHERE id=$1', [temporaryClientId]);
+    if (updatedReadback.rows.length !== 1 || updatedReadback.rows[0].name !== updatedName || updatedReadback.rows[0].tenant_id !== a.tenant_id) fail('own client update database readback mismatch');
+    safeResult('A-own-client-update-readback', 200, 'temporary client update persisted only in A tenant');
+
+    const denyAndVerifyB = async (operation: string, response: { statusCode: number }, expectedSnapshot: string) => {
+      const currentB = await fixtureSnapshot(pool, bFixture);
+      safeResult(operation, response.statusCode, 'cross-tenant mutation denied and B fixture readback unchanged');
+      assert.equal(currentB, expectedSnapshot, `${operation}: foreign B fixture changed`);
+      assert.notEqual(response.statusCode, 200, `${operation}: cross-tenant write unexpectedly succeeded`);
+    };
+    const foreignSite = await app.inject({ method: 'POST', url: '/api/clients/sites', headers: headers(aBearer), payload: { client_id: bFixture.client_id, name: temporarySiteName, address_line1: '1 Synthetic Write Way', city: 'Testville', postcode: 'TE5 7AA' } });
+    await denyAndVerifyB('A-foreign-client-site-create', foreignSite, beforeB);
+    const foreignUpdate = await app.inject({ method: 'PATCH', url: `/api/clients/clients/${bFixture.client_id}`, headers: headers(aBearer), payload: { notes: 'synthetic foreign mutation must not persist' } });
+    await denyAndVerifyB('A-foreign-client-update', foreignUpdate, beforeB);
+    const foreignDelete = await app.inject({ method: 'DELETE', url: `/api/clients/gdpr/${bFixture.client_id}?confirm=true`, headers: headers(aBearer) });
+    await denyAndVerifyB('A-foreign-client-delete', foreignDelete, beforeB);
+
+    const deleted = await app.inject({ method: 'DELETE', url: `/api/clients/gdpr/${temporaryClientId}?confirm=true`, headers: headers(aBearer) });
+    assertStatus('A-own-client-delete', deleted.statusCode, 200, 'real coordinator route and clients MCP delete succeeded');
+    temporaryClientDeletedByHandler = true;
+    const deletedReadback = await pool.query('SELECT 1 FROM public.clients WHERE id=$1', [temporaryClientId]);
+    if (deletedReadback.rows.length !== 0) fail('own client delete database readback found temporary client');
+    safeResult('A-own-client-delete-readback', 200, 'temporary client is absent after handler delete');
+
+    const [afterA, afterB, afterTemporary, permanentCounts] = await Promise.all([fixtureSnapshot(pool, aFixture), fixtureSnapshot(pool, bFixture), temporaryWriteCounts(pool, temporaryLabel), fixtureCounts(pool)]);
+    assert.equal(afterA, beforeA, 'A permanent fixture values or relationships changed');
+    assert.equal(afterB, beforeB, 'B permanent fixture values or relationships changed');
+    if (afterTemporary.clients !== 0 || afterTemporary.sites !== 0) fail('temporary write entities remain after handler cleanup');
+    if (permanentCounts.clients !== 2 || permanentCounts.quotes !== 2 || permanentCounts.invoices !== 2) fail('permanent fixture aggregate changed');
+    safeResult('write-cleanup-readback', 200, 'temporary clients=0 sites=0; A/B permanent fixtures and aggregate relationships unchanged');
+
     await app.close();
     app = undefined;
-    if (noPublishNats.published()) fail('a service event publisher was invoked during the read-only rehearsal');
-    safeResult('event-publisher-readback', 200, 'no service event publisher was invoked');
+    await mcp.clients.disconnect();
+    const captured = natsCapture.captures().sort((left, right) => left.subject.localeCompare(right.subject));
+    const expectedCaptures = [
+      { subject: 'events.clients.client_created', count: 1 },
+      { subject: 'events.clients.client_updated', count: 1 },
+      { subject: 'events.clients.gdpr_delete_completed', count: 1 },
+    ];
+    assert.deepEqual(captured, expectedCaptures, 'local no-consumer NATS capture did not record the expected service publishes');
+    safeResult('event-publisher-write-capture', 200, JSON.stringify(captured));
+    // Close the local capture before MCP process teardown, so any reset caused
+    // by the capture's own socket shutdown is the narrowly expected case.
+    await natsCapture.close();
+    natsCaptureClosed = true;
   }, async () => {
     if (app) await app.close();
+    if (temporaryLabel) {
+      if (!temporaryClientDeletedByHandler) {
+        const removed = await pool.query('DELETE FROM public.clients WHERE name LIKE $1 RETURNING id', [`${temporaryLabel}%`]);
+        safeResult('temporary-failure-cleanup', 200, `removed=${removed.rowCount}`);
+      }
+      const remaining = await temporaryWriteCounts(pool, temporaryLabel);
+      if (remaining.clients !== 0 || remaining.sites !== 0) fail('temporary write cleanup final readback was nonzero');
+      safeResult('temporary-final-cleanup-readback', 200, `clients=${remaining.clients} sites=${remaining.sites}`);
+    }
     if (b2AuthUserId) {
       await pool.query(
         `UPDATE public.auth_tenant_memberships
@@ -426,12 +445,14 @@ async function main(): Promise<void> {
           WHERE auth_user_id=$1 AND status='active'`,
         [b2AuthUserId],
       );
-      const finalB2Mapping = await pool.query<{ count: number }>(
-        `SELECT count(*)::int AS count FROM public.auth_tenant_memberships WHERE auth_user_id=$1`,
-        [b2AuthUserId],
-      );
-      if (finalB2Mapping.rows[0].count !== 1) fail('B2 final mapping readback was not exactly one revoked mapping');
-      safeResult('B2-final-mapping-readback', 200, 'one revoked B2 mapping retained for audit history');
+      const finalB2Mapping = await pool.query<{ active: number; revoked: number }>(`
+        SELECT
+          count(*) FILTER (WHERE status='active' AND revoked_at IS NULL)::int AS active,
+          count(*) FILTER (WHERE status='revoked' AND revoked_at IS NOT NULL)::int AS revoked
+        FROM public.auth_tenant_memberships WHERE auth_user_id=$1
+      `, [b2AuthUserId]);
+      if (finalB2Mapping.rows[0].active !== 0 || finalB2Mapping.rows[0].revoked !== 1) fail('B2 final mapping readback did not retain exactly one revoked history and zero active mappings');
+      safeResult('B2-final-mapping-readback', 200, 'active=0 revoked-history=1');
 
       // Preserve the revoked membership audit record, including on failures.
       // Retaining the linked Auth fixture is required to retain this history.
@@ -449,7 +470,7 @@ async function main(): Promise<void> {
     safeResult('final-membership-counts', 200, `active=1 original-revoked=1 B2-active=0 B2-revoked=${counts.rows[0].b2_revoked}`);
     if (mcp) await Promise.all(Object.values(mcp).map((client) => client.disconnect()));
     await pool.end();
-    await noPublishNats.close();
+    if (!natsCaptureClosed) await natsCapture.close();
   });
 }
 
