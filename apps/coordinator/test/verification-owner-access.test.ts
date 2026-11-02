@@ -13,6 +13,7 @@ import {
   registerVerificationOwnerAccess,
   verificationAccessAllowlist,
 } from '../src/lib/verification-owner-access.js';
+import { clientsRoutes } from '../src/routes/clients.js';
 
 const configuredOwnerId = '11111111-1111-4111-8111-111111111111';
 const otherOwnerId = '22222222-2222-4222-8222-222222222222';
@@ -73,7 +74,7 @@ async function verificationBoundary(
   app.get('/api/identity/profile', handler);
   app.get('/api/clients/clients/:clientId', handler);
   app.patch('/api/clients/clients/:clientId', handler);
-  app.delete('/api/clients/clients/:clientId', handler);
+  app.delete('/api/clients/gdpr/:clientId', handler);
   app.get('/api/quotes/:id', handler);
   app.get('/api/invoices/:id', handler);
   app.post('/api/subscription/webhook', async (_request, reply) => reply.status(204).send());
@@ -93,7 +94,7 @@ test('verification access is default-off and candidate routes still require a be
     { method: 'GET' as const, url: `/api/clients/clients/${resourceId}` },
     { method: 'POST' as const, url: '/api/clients/clients' },
     { method: 'PATCH' as const, url: `/api/clients/clients/${resourceId}` },
-    { method: 'DELETE' as const, url: `/api/clients/clients/${resourceId}` },
+    { method: 'DELETE' as const, url: `/api/clients/gdpr/${resourceId}?confirm=true` },
     { method: 'GET' as const, url: '/api/quotes' },
     { method: 'GET' as const, url: `/api/quotes/${resourceId}` },
     { method: 'GET' as const, url: '/api/invoices' },
@@ -182,7 +183,7 @@ test('encoded, double-encoded, malformed, and non-UUID resource IDs stay contain
   for (const request of [
     { method: 'GET' as const, url: `/api/clients/clients/${resourceId}` },
     { method: 'PATCH' as const, url: `/api/clients/clients/${resourceId}` },
-    { method: 'DELETE' as const, url: `/api/clients/clients/${resourceId}` },
+    { method: 'DELETE' as const, url: `/api/clients/gdpr/${resourceId}?confirm=true` },
     { method: 'GET' as const, url: `/api/quotes/${resourceId}` },
     { method: 'GET' as const, url: `/api/invoices/${resourceId}` },
   ]) {
@@ -197,6 +198,54 @@ test('encoded, double-encoded, malformed, and non-UUID resource IDs stay contain
   await app.close();
 });
 
+test('the registered GDPR handler requires confirmation and cannot delete a foreign tenant client', async () => {
+  const ownedClientId = '66666666-6666-4666-8666-666666666666';
+  const foreignClientId = '77777777-7777-4777-8777-777777777777';
+  const clients = new Map([
+    [ownedClientId, tenantId],
+    [foreignClientId, '88888888-8888-4888-8888-888888888888'],
+  ]);
+  const app = Fastify();
+  app.decorate('mcp', {
+    clients: {
+      async callTool(name: string, input: { client_id: string; confirm: boolean }, context: { tenant_id: string }) {
+        assert.equal(name, 'gdpr_delete');
+        if (!input.confirm || clients.get(input.client_id) !== context.tenant_id) {
+          throw new Error('client is not deletable in this tenant');
+        }
+        clients.delete(input.client_id);
+        return { content: [{ text: JSON.stringify({ deleted: true }) }] };
+      },
+    },
+  } as any);
+  registerAccountIsolationContainment(app);
+  registerServerAuth(app, authDependencies());
+  registerVerificationOwnerAccess(app, { environment: environment(), now: () => now });
+  await clientsRoutes(app);
+  await app.ready();
+
+  const headers = { authorization: 'Bearer configured-owner-token' };
+  const missingConfirmation = await app.inject({
+    method: 'DELETE', url: `/api/clients/gdpr/${ownedClientId}`, headers,
+  });
+  assert.equal(missingConfirmation.statusCode, 503);
+  assert.equal(clients.has(ownedClientId), true);
+
+  const foreignDeletion = await app.inject({
+    method: 'DELETE', url: `/api/clients/gdpr/${foreignClientId}?confirm=true`, headers,
+  });
+  assert.equal(foreignDeletion.statusCode, 404);
+  assert.equal(clients.has(foreignClientId), true);
+
+  const ownedDeletion = await app.inject({
+    method: 'DELETE', url: `/api/clients/gdpr/${ownedClientId}?confirm=true`, headers,
+  });
+  assert.equal(ownedDeletion.statusCode, 200);
+  assert.deepEqual(ownedDeletion.json(), { deleted: true });
+  assert.equal(clients.has(ownedClientId), false);
+  await app.close();
+});
+
 test('the allowlist is limited to the reviewed route and method shapes', () => {
   assert.deepEqual(verificationAccessAllowlist, [
     { method: 'GET', path: '/api/identity/profile' },
@@ -204,13 +253,17 @@ test('the allowlist is limited to the reviewed route and method shapes', () => {
     { method: 'GET', path: '/api/clients/clients/:clientId' },
     { method: 'POST', path: '/api/clients/clients' },
     { method: 'PATCH', path: '/api/clients/clients/:clientId' },
-    { method: 'DELETE', path: '/api/clients/clients/:clientId' },
+    { method: 'DELETE', path: '/api/clients/gdpr/:clientId?confirm=true' },
     { method: 'GET', path: '/api/quotes' },
     { method: 'GET', path: '/api/quotes/:id' },
     { method: 'GET', path: '/api/invoices' },
     { method: 'GET', path: '/api/invoices/:id' },
   ]);
   assert.equal(isVerificationAccessCandidate('GET', `/api/clients/clients/${resourceId}`), true);
+  assert.equal(isVerificationAccessCandidate('DELETE', `/api/clients/gdpr/${resourceId}`), false);
+  assert.equal(isVerificationAccessCandidate('DELETE', `/api/clients/gdpr/${resourceId}?confirm=true`), true);
+  assert.equal(isVerificationAccessCandidate('DELETE', `/api/clients/gdpr/${resourceId}?confirm=true&extra=value`), false);
+  assert.equal(isVerificationAccessCandidate('DELETE', `/api/clients/clients/${resourceId}`), false);
   assert.equal(isVerificationAccessCandidate('GET', '/api/clients/clients/client-id'), false);
   assert.equal(isVerificationAccessCandidate('GET', '/api/clients/clients/%2Fhidden'), false);
   assert.equal(isVerificationAccessCandidate('GET', '/api/quotes/%23hidden'), false);

@@ -9,7 +9,7 @@ export const verificationAccessAllowlist = [
   { method: 'GET', path: '/api/clients/clients/:clientId' },
   { method: 'POST', path: '/api/clients/clients' },
   { method: 'PATCH', path: '/api/clients/clients/:clientId' },
-  { method: 'DELETE', path: '/api/clients/clients/:clientId' },
+  { method: 'DELETE', path: '/api/clients/gdpr/:clientId?confirm=true' },
   { method: 'GET', path: '/api/quotes' },
   { method: 'GET', path: '/api/quotes/:id' },
   { method: 'GET', path: '/api/invoices' },
@@ -35,7 +35,10 @@ function isVerifiedResourceId(value: string): boolean {
 }
 
 /** Matches only the production-verification methods and route shapes. */
-export function isVerificationAccessCandidate(method: string, path: string): boolean {
+export function isVerificationAccessCandidate(method: string, rawUrl: string): boolean {
+  const queryIndex = rawUrl.indexOf('?');
+  const path = queryIndex === -1 ? rawUrl : rawUrl.slice(0, queryIndex);
+  const query = queryIndex === -1 ? '' : rawUrl.slice(queryIndex + 1);
   if (method === 'GET' && (
     path === '/api/identity/profile'
     || path === '/api/clients/clients'
@@ -44,8 +47,13 @@ export function isVerificationAccessCandidate(method: string, path: string): boo
   )) return true;
 
   const clientPrefix = '/api/clients/clients/';
-  if ((method === 'GET' || method === 'PATCH' || method === 'DELETE') && path.startsWith(clientPrefix)) {
+  if ((method === 'GET' || method === 'PATCH') && path.startsWith(clientPrefix)) {
     return isVerifiedResourceId(path.slice(clientPrefix.length));
+  }
+
+  const gdprClientPrefix = '/api/clients/gdpr/';
+  if (method === 'DELETE' && path.startsWith(gdprClientPrefix)) {
+    return query === 'confirm=true' && isVerifiedResourceId(path.slice(gdprClientPrefix.length));
   }
 
   if (method === 'POST' && path === '/api/clients/clients') return true;
@@ -99,8 +107,7 @@ export function registerVerificationOwnerAccess(
   const now = dependencies.now ?? Date.now;
 
   fastify.addHook('preHandler', async (request: FastifyRequest, reply) => {
-    const path = request.url.split('?')[0];
-    if (!isVerificationAccessCandidate(request.method, path)) return;
+    if (!isVerificationAccessCandidate(request.method, request.url)) return;
 
     const configuration = readConfiguration(environment);
     if (!configuration) {

@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import AppLayout from '@/components/AppLayout';
 import { api } from '@/lib/api';
-import { useApi } from '@/hooks/useApi';
+import { recoveryErrorMessage, useRecoveryApi } from '@/hooks/useRecoveryApi';
 
 interface Client {
   id: string;
@@ -18,21 +18,29 @@ interface Client {
 }
 
 export default function ClientsPage() {
-  useApi();
+  const { authLoading, hasSession, accessToken } = useRecoveryApi();
   const [clients, setClients] = useState<Client[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    if (authLoading) return;
+    if (!hasSession) {
+      setError('Sign in is required to load clients.');
+      setLoading(false);
+      return;
+    }
     loadClients();
-  }, []);
+  }, [authLoading, hasSession, accessToken]);
 
   const loadClients = async () => {
     try {
-
       const data = await api.request('/api/clients/clients') as Client[];
       setClients(data);
+      setError(null);
     } catch (err) {
       console.error('Failed to load clients:', err);
+      setError(recoveryErrorMessage(err, 'clients'));
     } finally {
       setLoading(false);
     }
@@ -43,6 +51,16 @@ export default function ClientsPage() {
       <AppLayout>
         <div className="flex items-center justify-center h-64">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
+        </div>
+      </AppLayout>
+    );
+  }
+
+  if (error) {
+    return (
+      <AppLayout>
+        <div role="alert" className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
+          {error}
         </div>
       </AppLayout>
     );

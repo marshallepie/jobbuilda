@@ -77,7 +77,7 @@ export function registerAccountIsolationContainment(fastify: FastifyInstance): v
 
   fastify.addHook('onRequest', async (request, reply) => {
     const path = request.url.split('?')[0];
-    if (allowedPaths.has(path) || isVerificationAccessCandidate(request.method, path)) return;
+    if (allowedPaths.has(path) || isVerificationAccessCandidate(request.method, request.url)) return;
 
     return reply.status(503).send(ACCOUNT_ACCESS_PAUSED_RESPONSE);
   });

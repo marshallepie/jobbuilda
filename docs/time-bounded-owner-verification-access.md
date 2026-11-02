@@ -30,7 +30,7 @@ Tenant, user, scope, expiry, and owner selection never come from callers. Caller
 - `GET /api/clients/clients/:clientId`
 - `POST /api/clients/clients`
 - `PATCH /api/clients/clients/:clientId`
-- `DELETE /api/clients/clients/:clientId`
+- `DELETE /api/clients/gdpr/:clientId?confirm=true` (the handler also rejects deletion unless `confirm=true` is present)
 - `GET /api/quotes`
 - `GET /api/quotes/:id`
 - `GET /api/invoices`
