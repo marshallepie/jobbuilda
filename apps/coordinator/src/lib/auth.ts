@@ -32,6 +32,7 @@ export interface ServerAuthDependencies {
 declare module 'fastify' {
   interface FastifyRequest {
     authContext: AuthContext | null;
+    verifiedAuthUserId: string | null;
   }
 }
 
@@ -139,11 +140,28 @@ export function registerServerAuth(
   dependencies?: ServerAuthDependencies,
 ): void {
   fastify.decorateRequest('authContext', null);
+  fastify.decorateRequest('verifiedAuthUserId', null);
   fastify.addHook('preHandler', async (request, reply) => {
     const path = request.url.split('?')[0];
     if (unauthenticatedPaths.has(path)) return;
     try {
-      request.authContext = await resolveServerAuthContext(request, dependencies);
+      if (hasCallerSelectedIdentity(request)) {
+        throw new RequestAuthenticationError(401, 'Caller-selected tenant, user, and scope headers are not accepted');
+      }
+      const token = authorizationToken(request);
+      if (!token) throw new RequestAuthenticationError(401, 'A Supabase access token is required');
+      const authDependencies = dependencies ?? configuredDependencies();
+      const verifiedUser = await authDependencies.verifyAccessToken(token);
+      if (!verifiedUser) throw new RequestAuthenticationError(401, 'Invalid or expired Supabase access token');
+      const membership = await authDependencies.findActiveMembership(verifiedUser.id);
+      if (!membership) throw new RequestAuthenticationError(403, 'No active tenant membership is available for this account');
+      request.verifiedAuthUserId = verifiedUser.id;
+      request.authContext = {
+        tenant_id: membership.tenant_id,
+        user_id: membership.user_id,
+        scopes: membership.scopes ?? [],
+        x_request_id: request.id,
+      };
     } catch (error) {
       if (error instanceof RequestAuthenticationError) {
         return reply.status(error.statusCode).send({ error: error.message });

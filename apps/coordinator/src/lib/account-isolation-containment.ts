@@ -1,4 +1,5 @@
 import { FastifyInstance } from 'fastify';
+import { isVerificationAccessCandidate } from './verification-owner-access.js';
 
 export const ACCOUNT_ACCESS_PAUSED_RESPONSE = {
   error: 'Account access temporarily unavailable',
@@ -65,7 +66,7 @@ export function registerAccountIsolationContainment(fastify: FastifyInstance): v
 
   fastify.addHook('onRequest', async (request, reply) => {
     const path = request.url.split('?')[0];
-    if (allowedPaths.has(path)) return;
+    if (allowedPaths.has(path) || isVerificationAccessCandidate(request.method, path)) return;
 
     return reply.status(503).send(ACCOUNT_ACCESS_PAUSED_RESPONSE);
   });
