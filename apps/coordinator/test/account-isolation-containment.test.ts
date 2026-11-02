@@ -4,6 +4,7 @@ import Fastify from 'fastify';
 import {
   ACCOUNT_ACCESS_PAUSED_RESPONSE,
   registerAccountIsolationContainment,
+  shouldBypassContainmentForRehearsal,
 } from '../src/lib/account-isolation-containment.js';
 import { subscriptionRoutes } from '../src/routes/subscription.js';
 import { clientsRoutes } from '../src/routes/clients.js';
@@ -100,4 +101,51 @@ test('registration pause creates no Supabase user, Stripe customer, or checkout'
   await app.close();
   (stripe.customers as any).create = originalCustomerCreate;
   (stripe.checkout.sessions as any).create = originalCheckoutCreate;
+});
+
+test('rehearsal containment bypass requires every local-only gate and rejects production', () => {
+  const approved = {
+    NODE_ENV: 'test',
+    JOBBUILDA_REHEARSAL_MODE: 'true',
+    JOBBUILDA_REHEARSAL_SUPABASE_REF: 'jwnfweldmfdeapfzfunq',
+    SUPABASE_URL: 'https://jwnfweldmfdeapfzfunq.supabase.co/',
+  };
+  assert.equal(shouldBypassContainmentForRehearsal(approved), true);
+  assert.throws(
+    () => shouldBypassContainmentForRehearsal({ ...approved, NODE_ENV: 'production' }),
+    /Rehearsal mode requires/,
+  );
+  assert.throws(
+    () => shouldBypassContainmentForRehearsal({
+      ...approved,
+      JOBBUILDA_REHEARSAL_SUPABASE_REF: 'jnwxueomquywrqcgbgfd',
+      SUPABASE_URL: 'https://jnwxueomquywrqcgbgfd.supabase.co',
+    }),
+    /production Supabase ref/,
+  );
+  assert.equal(shouldBypassContainmentForRehearsal({ NODE_ENV: 'test' }), false);
+});
+
+test('approved rehearsal startup disables only containment in the local process', async () => {
+  const keys = ['NODE_ENV', 'JOBBUILDA_REHEARSAL_MODE', 'JOBBUILDA_REHEARSAL_SUPABASE_REF', 'SUPABASE_URL'] as const;
+  const previous = Object.fromEntries(keys.map((key) => [key, process.env[key]]));
+  Object.assign(process.env, {
+    NODE_ENV: 'test',
+    JOBBUILDA_REHEARSAL_MODE: 'true',
+    JOBBUILDA_REHEARSAL_SUPABASE_REF: 'jwnfweldmfdeapfzfunq',
+    SUPABASE_URL: 'https://jwnfweldmfdeapfzfunq.supabase.co',
+  });
+  try {
+    const app = Fastify();
+    registerAccountIsolationContainment(app);
+    app.get('/protected', async () => ({ ok: true }));
+    await app.ready();
+    assert.equal((await app.inject({ method: 'GET', url: '/protected' })).statusCode, 200);
+    await app.close();
+  } finally {
+    for (const key of keys) {
+      if (previous[key] === undefined) delete process.env[key];
+      else process.env[key] = previous[key];
+    }
+  }
 });

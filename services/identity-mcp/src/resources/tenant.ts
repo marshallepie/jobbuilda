@@ -2,7 +2,7 @@ import { Tenant } from '@jobbuilda/contracts';
 import { trace } from '@opentelemetry/api';
 import { query } from '../lib/database.js';
 
-export async function getTenant(tenantId: string): Promise<Tenant | null> {
+export async function getTenant(tenantId: string, authorizedTenantId: string): Promise<Tenant | null> {
   const tracer = trace.getTracer('identity-mcp');
   const span = tracer.startSpan('resource.get_tenant');
 
@@ -27,8 +27,8 @@ export async function getTenant(tenantId: string): Promise<Tenant | null> {
         footer_text, header_image_url,
         stripe_account_id, stripe_connect_status
        FROM tenants
-       WHERE id = $1`,
-      [tenantId]
+       WHERE id = $1 AND id = $2`,
+      [tenantId, authorizedTenantId]
     );
 
     if (result.rows.length === 0) {

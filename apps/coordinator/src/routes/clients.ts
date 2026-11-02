@@ -19,11 +19,10 @@ export async function clientsRoutes(fastify: FastifyInstance) {
         );
 
         return client.data;
-      } catch (error: any) {
-        reply.status(500).send({
-          error: 'Failed to fetch client',
-          message: error.message
-        });
+      } catch {
+        // A tenant-filtered resource miss deliberately has the same public
+        // representation whether the ID is foreign or does not exist.
+        return reply.status(404).send({ error: 'Client not found' });
       }
     }
   );

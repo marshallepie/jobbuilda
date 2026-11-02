@@ -41,13 +41,10 @@ export async function handleResourceRead(uri: string, args: any): Promise<any> {
       return user;
 
     case 'tenants':
-      // Verify tenant access
-      if (id !== context.tenant_id) {
-        throw new Error('Cannot access other tenant data');
-      }
-      const tenant = await getTenant(id);
+      const tenant = await getTenant(id, context.tenant_id);
       if (!tenant) {
-        throw new Error(`Tenant not found: ${id}`);
+        // A foreign tenant is indistinguishable from an absent tenant.
+        throw new Error('Profile not found');
       }
       return tenant;
 

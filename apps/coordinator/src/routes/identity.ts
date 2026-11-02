@@ -45,11 +45,9 @@ export async function identityRoutes(fastify: FastifyInstance) {
         );
 
         return tenant.data;
-      } catch (error: any) {
-        reply.status(500).send({
-          error: 'Failed to fetch tenant',
-          message: error.message
-        });
+      } catch {
+        // Foreign and absent tenant IDs deliberately share one public response.
+        return reply.status(404).send({ error: 'Profile not found' });
       }
     }
   );
@@ -134,11 +132,8 @@ export async function identityRoutes(fastify: FastifyInstance) {
       );
 
       return tenant.data;
-    } catch (error: any) {
-      reply.status(500).send({
-        error: 'Failed to fetch business profile',
-        message: error.message
-      });
+    } catch {
+      return reply.status(404).send({ error: 'Profile not found' });
     }
   });
 
