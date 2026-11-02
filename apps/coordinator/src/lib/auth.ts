@@ -20,6 +20,8 @@ interface MembershipRow {
   tenant_id: string;
   user_id: string;
   scopes: string[] | null;
+  /** The durable application owner marker; only owners may recover access. */
+  role: 'admin';
 }
 
 export interface ServerAuthDependencies {
@@ -77,9 +79,12 @@ export function configuredDependencies(): ServerAuthDependencies {
     },
     async findActiveMembership(authUserId) {
       const result = await getPool().query<MembershipRow>(
-        `SELECT m.tenant_id, m.user_id, COALESCE(array_agg(DISTINCT p.scope) FILTER (WHERE p.scope IS NOT NULL), '{}') AS scopes
+        `SELECT m.tenant_id, m.user_id, 'admin'::text AS role,
+                COALESCE(array_agg(DISTINCT p.scope) FILTER (WHERE p.scope IS NOT NULL), '{}') AS scopes
            FROM public.auth_tenant_memberships m
-           JOIN public.users u ON u.id = m.user_id AND u.tenant_id = m.tenant_id
+           JOIN public.users u ON u.id = m.user_id
+                              AND u.tenant_id = m.tenant_id
+                              AND u.role = 'admin'
            LEFT JOIN public.permissions p ON p.user_id = m.user_id
           WHERE m.auth_user_id = $1
             AND m.status = 'active'

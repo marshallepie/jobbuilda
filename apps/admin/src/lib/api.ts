@@ -14,6 +14,16 @@ export class ApiError extends Error {
   }
 }
 
+export function detailErrorMessage(error: unknown, resource: string): string {
+  if (!(error instanceof ApiError)) return `Unable to load this ${resource}. Please try again.`;
+  if (error.status === 401) return 'Your session is not authenticated. Sign in again.';
+  if (error.status === 403) return 'You do not have access to this resource.';
+  if (error.data?.maintenance === true) return 'Maintenance is in progress. Please try again shortly.';
+  if (error.status === 503) return 'The service is temporarily unavailable. Please try again shortly.';
+  if (error.status === 404) return `${resource[0].toUpperCase()}${resource.slice(1)} not found.`;
+  return `Unable to load this ${resource}. Please try again.`;
+}
+
 export interface AuthContext {
   /** Supabase access token; tenant context is derived server-side. */
   token: string;

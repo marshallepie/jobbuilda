@@ -15,12 +15,12 @@ const dependencies: ServerAuthDependencies = {
   async verifyAccessToken(token) { return token === 'token-a' ? { id: 'auth-a' } : null; },
   async findActiveMembership(authUserId) {
     return authUserId === 'auth-a'
-      ? { tenant_id: tenantA, user_id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', scopes: [] }
+      ? { tenant_id: tenantA, user_id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', scopes: [], role: 'admin' }
       : null;
   },
 };
 
-test('profile, client, quote, and invoice direct reads hide foreign and absent IDs and pass server-derived tenancy downstream', async () => {
+test('profile, client, site, lead, quote, and invoice direct reads hide foreign and absent IDs and pass server-derived tenancy downstream', async () => {
   const reads: Array<{ service: string; uri: string; context: any }> = [];
   const app = Fastify();
   const reject = (service: string) => async (uri: string, context: any) => {
@@ -44,6 +44,8 @@ test('profile, client, quote, and invoice direct reads hide foreign and absent I
   const cases = [
     { name: 'profile', path: '/api/identity/tenants/:id', expected: { error: 'Profile not found' } },
     { name: 'client', path: '/api/clients/clients/:id', expected: { error: 'Client not found' } },
+    { name: 'site', path: '/api/clients/sites/:id', expected: { error: 'Site not found' } },
+    { name: 'lead', path: '/api/leads/:id', expected: { error: 'Lead not found' } },
     { name: 'quote', path: '/api/quotes/:id', expected: { error: 'Quote not found' } },
     { name: 'invoice', path: '/api/invoices/:id', expected: { error: 'Invoice not found' } },
   ] as const;
@@ -64,7 +66,7 @@ test('profile, client, quote, and invoice direct reads hide foreign and absent I
     }
   }
 
-  assert.equal(reads.length, 8);
+  assert.equal(reads.length, 12);
   for (const read of reads) {
     assert.equal(read.context.tenant_id, tenantA, `${read.service} did not receive the server-derived tenant`);
     assert.equal(read.context.user_id, 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa');

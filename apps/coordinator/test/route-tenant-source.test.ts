@@ -17,7 +17,7 @@ function dependencies(scopes: string[] = []): ServerAuthDependencies {
       return token === 'token-a' ? { id: 'auth-a' } : null;
     },
     async findActiveMembership(authUserId) {
-      return authUserId === 'auth-a' ? { tenant_id: tenantA, user_id: userA, scopes } : null;
+      return authUserId === 'auth-a' ? { tenant_id: tenantA, user_id: userA, scopes, role: 'admin' } : null;
     },
   };
 }

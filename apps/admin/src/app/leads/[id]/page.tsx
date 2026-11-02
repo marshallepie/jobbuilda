@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import AppLayout from '@/components/AppLayout';
-import { api, ApiError } from '@/lib/api';
+import { api, detailErrorMessage } from '@/lib/api';
 import { useApi } from '@/hooks/useApi';
 import { formatDate, getStatusColor } from '@/lib/utils';
 
@@ -41,7 +41,7 @@ export default function LeadDetailPage() {
       const data = await api.getLead(id) as Lead;
       setLead(data);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Failed to load lead');
+      setError(detailErrorMessage(err, 'lead'));
     } finally {
       setLoading(false);
     }

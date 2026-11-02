@@ -16,11 +16,14 @@ function dependencies(): ServerAuthDependencies {
   const identities: Record<string, string> = {
     'token-a': 'auth-a',
     'token-b': 'auth-b',
+    'token-generic': 'auth-generic',
     'token-revoked': 'auth-revoked',
   };
-  const memberships: Record<string, { tenant_id: string; user_id: string; scopes: string[] } | null> = {
-    'auth-a': { tenant_id: tenantA, user_id: appUserA, scopes: ['jobs:read', 'jobs:write'] },
-    'auth-b': { tenant_id: tenantB, user_id: appUserB, scopes: ['jobs:read', 'jobs:write'] },
+  const memberships: Record<string, { tenant_id: string; user_id: string; scopes: string[]; role: 'admin' } | null> = {
+    'auth-a': { tenant_id: tenantA, user_id: appUserA, scopes: ['jobs:read', 'jobs:write'], role: 'admin' },
+    'auth-b': { tenant_id: tenantB, user_id: appUserB, scopes: ['jobs:read', 'jobs:write'], role: 'admin' },
+    // A generic/non-owner application principal must not produce a context.
+    'auth-generic': null,
     // A revoked (or absent) mapping must not produce a context.
     'auth-revoked': null,
   };
@@ -88,6 +91,9 @@ test('caller-selected identity headers and invalid or revoked identities fail cl
 
   const invalid = await app.inject({ method: 'GET', url: '/api/audit/jobs/job-a', headers: { authorization: 'Bearer nope' } });
   assert.equal(invalid.statusCode, 401);
+
+  const generic = await app.inject({ method: 'GET', url: '/api/audit/jobs/job-a', headers: { authorization: 'Bearer token-generic' } });
+  assert.equal(generic.statusCode, 403);
 
   const revoked = await app.inject({ method: 'GET', url: '/api/audit/jobs/job-a', headers: { authorization: 'Bearer token-revoked' } });
   assert.equal(revoked.statusCode, 403);
