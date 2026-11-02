@@ -1,7 +1,10 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import Fastify from 'fastify';
-import { registerAccountIsolationContainment } from '../src/lib/account-isolation-containment.js';
+import {
+  registerAccountIsolationContainment,
+  sendContainmentBadUrlResponse,
+} from '../src/lib/account-isolation-containment.js';
 import { registerServerAuth, ServerAuthDependencies } from '../src/lib/auth.js';
 import {
   VERIFICATION_ACCESS_EXPIRES_AT_ENV,
@@ -15,11 +18,18 @@ const configuredOwnerId = '11111111-1111-4111-8111-111111111111';
 const otherOwnerId = '22222222-2222-4222-8222-222222222222';
 const tenantId = '33333333-3333-4333-8333-333333333333';
 const appUserId = '44444444-4444-4444-8444-444444444444';
+const resourceId = '55555555-5555-4555-8555-555555555555';
 const now = Date.parse('2030-01-01T00:00:00.000Z');
 
-function authDependencies(): ServerAuthDependencies {
+interface BoundaryObservability {
+  authCalls: number;
+  handlerCalls: number;
+}
+
+function authDependencies(observability?: BoundaryObservability): ServerAuthDependencies {
   return {
     async verifyAccessToken(token) {
+      if (observability) observability.authCalls += 1;
       if (token === 'configured-owner-token') return { id: configuredOwnerId };
       if (token === 'other-owner-token') return { id: otherOwnerId };
       return null;
@@ -41,15 +51,32 @@ function environment(overrides: NodeJS.ProcessEnv = {}): NodeJS.ProcessEnv {
   };
 }
 
-async function verificationBoundary(env: NodeJS.ProcessEnv = environment()) {
-  const app = Fastify();
+async function verificationBoundary(
+  env: NodeJS.ProcessEnv = environment(),
+  observability?: BoundaryObservability,
+) {
+  const app = Fastify({
+    routerOptions: {
+      onBadUrl: (_path, _request, response) => sendContainmentBadUrlResponse(response),
+    },
+  });
   registerAccountIsolationContainment(app);
-  registerServerAuth(app, authDependencies());
+  registerServerAuth(app, authDependencies(observability));
   registerVerificationOwnerAccess(app, { environment: env, now: () => now });
-  app.get('/api/identity/profile', async (request) => ({
-    tenant_id: request.authContext!.tenant_id,
-    verified_auth_user_id: request.verifiedAuthUserId,
-  }));
+  const handler = async (request: { authContext: { tenant_id: string } | null; verifiedAuthUserId: string | null }) => {
+    if (observability) observability.handlerCalls += 1;
+    return {
+      tenant_id: request.authContext!.tenant_id,
+      verified_auth_user_id: request.verifiedAuthUserId,
+    };
+  };
+  app.get('/api/identity/profile', handler);
+  app.get('/api/clients/clients/:clientId', handler);
+  app.patch('/api/clients/clients/:clientId', handler);
+  app.delete('/api/clients/clients/:clientId', handler);
+  app.get('/api/quotes/:id', handler);
+  app.get('/api/invoices/:id', handler);
+  app.post('/api/subscription/webhook', async (_request, reply) => reply.status(204).send());
   await app.ready();
   return app;
 }
@@ -63,14 +90,14 @@ test('verification access is default-off and candidate routes still require a be
   for (const candidate of [
     { method: 'GET' as const, url: '/api/identity/profile' },
     { method: 'GET' as const, url: '/api/clients/clients' },
-    { method: 'GET' as const, url: '/api/clients/clients/client-id' },
+    { method: 'GET' as const, url: `/api/clients/clients/${resourceId}` },
     { method: 'POST' as const, url: '/api/clients/clients' },
-    { method: 'PATCH' as const, url: '/api/clients/clients/client-id' },
-    { method: 'DELETE' as const, url: '/api/clients/clients/client-id' },
+    { method: 'PATCH' as const, url: `/api/clients/clients/${resourceId}` },
+    { method: 'DELETE' as const, url: `/api/clients/clients/${resourceId}` },
     { method: 'GET' as const, url: '/api/quotes' },
-    { method: 'GET' as const, url: '/api/quotes/quote-id' },
+    { method: 'GET' as const, url: `/api/quotes/${resourceId}` },
     { method: 'GET' as const, url: '/api/invoices' },
-    { method: 'GET' as const, url: '/api/invoices/invoice-id' },
+    { method: 'GET' as const, url: `/api/invoices/${resourceId}` },
   ]) {
     const response = await app.inject(candidate);
     assert.equal(response.statusCode, 401, `${candidate.method} ${candidate.url}`);
@@ -111,6 +138,9 @@ test('only the exact configured verified owner reaches an allowlisted route', as
 
 test('containment denies unnamed routes and every method not explicitly allowlisted', async () => {
   const app = await verificationBoundary();
+  const webhook = await app.inject({ method: 'POST', url: '/api/subscription/webhook' });
+  assert.equal(webhook.statusCode, 204);
+
   for (const request of [
     { method: 'GET' as const, url: '/api/clients/sites/site-id' },
     { method: 'POST' as const, url: '/api/identity/profile' },
@@ -122,6 +152,48 @@ test('containment denies unnamed routes and every method not explicitly allowlis
     const response = await app.inject({ ...request, headers: { authorization: 'Bearer configured-owner-token' } });
     assert.equal(response.statusCode, 503, `${request.method} ${request.url}`);
   }
+  await app.close();
+});
+
+test('encoded, double-encoded, malformed, and non-UUID resource IDs stay contained before auth or handlers', async () => {
+  const observability = { authCalls: 0, handlerCalls: 0 };
+  const app = await verificationBoundary(environment(), observability);
+  const malformedOrEncodedPaths = [
+    { method: 'GET' as const, url: '/api/clients/clients/%2Fhidden' },
+    { method: 'PATCH' as const, url: '/api/clients/clients/%5Chidden' },
+    { method: 'DELETE' as const, url: '/api/clients/clients/%3Fhidden' },
+    { method: 'GET' as const, url: '/api/quotes/%23hidden' },
+    { method: 'GET' as const, url: '/api/invoices/%252Fhidden' },
+    { method: 'GET' as const, url: '/api/clients/clients/%' },
+    { method: 'GET' as const, url: '/api/quotes/not-a-uuid' },
+    { method: 'GET' as const, url: '/api/invoices/11111111-1111-4111-8111-11111111111%31' },
+  ];
+
+  for (const request of malformedOrEncodedPaths) {
+    const response = await app.inject({
+      ...request,
+      headers: { authorization: 'Bearer configured-owner-token' },
+    });
+    assert.equal(response.statusCode, 503, `${request.method} ${request.url}`);
+  }
+  assert.equal(observability.authCalls, 0);
+  assert.equal(observability.handlerCalls, 0);
+
+  for (const request of [
+    { method: 'GET' as const, url: `/api/clients/clients/${resourceId}` },
+    { method: 'PATCH' as const, url: `/api/clients/clients/${resourceId}` },
+    { method: 'DELETE' as const, url: `/api/clients/clients/${resourceId}` },
+    { method: 'GET' as const, url: `/api/quotes/${resourceId}` },
+    { method: 'GET' as const, url: `/api/invoices/${resourceId}` },
+  ]) {
+    const normal = await app.inject({
+      ...request,
+      headers: { authorization: 'Bearer configured-owner-token' },
+    });
+    assert.equal(normal.statusCode, 200, `${request.method} ${request.url}`);
+  }
+  assert.equal(observability.authCalls, 5);
+  assert.equal(observability.handlerCalls, 5);
   await app.close();
 });
 
@@ -138,8 +210,13 @@ test('the allowlist is limited to the reviewed route and method shapes', () => {
     { method: 'GET', path: '/api/invoices' },
     { method: 'GET', path: '/api/invoices/:id' },
   ]);
-  assert.equal(isVerificationAccessCandidate('GET', '/api/clients/clients/client-id'), true);
-  assert.equal(isVerificationAccessCandidate('GET', '/api/clients/clients/client-id/sites'), false);
+  assert.equal(isVerificationAccessCandidate('GET', `/api/clients/clients/${resourceId}`), true);
+  assert.equal(isVerificationAccessCandidate('GET', '/api/clients/clients/client-id'), false);
+  assert.equal(isVerificationAccessCandidate('GET', '/api/clients/clients/%2Fhidden'), false);
+  assert.equal(isVerificationAccessCandidate('GET', '/api/quotes/%23hidden'), false);
+  assert.equal(isVerificationAccessCandidate('GET', '/api/invoices/%252Fhidden'), false);
+  assert.equal(isVerificationAccessCandidate('GET', '/api/clients/clients/%'), false);
+  assert.equal(isVerificationAccessCandidate('GET', `/api/clients/clients/${resourceId}/sites`), false);
   assert.equal(isVerificationAccessCandidate('POST', '/api/invoices'), false);
   assert.equal(isVerificationAccessCandidate('GET', '/api/subscription/webhook'), false);
 });

@@ -7,6 +7,17 @@ export const ACCOUNT_ACCESS_PAUSED_RESPONSE = {
   message: 'Account data access is temporarily unavailable while we complete maintenance.',
 };
 
+/** Handles router-level malformed URLs, which occur before Fastify hooks. */
+export function sendContainmentBadUrlResponse(response: {
+  statusCode: number;
+  setHeader(name: string, value: string): unknown;
+  end(payload: string): unknown;
+}): void {
+  response.statusCode = 503;
+  response.setHeader('content-type', 'application/json');
+  response.end(JSON.stringify(ACCOUNT_ACCESS_PAUSED_RESPONSE));
+}
+
 const allowedPaths = new Set([
   '/health',
   '/api/auth/register',

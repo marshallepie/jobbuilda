@@ -18,8 +18,20 @@ export const verificationAccessAllowlist = [
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
-function isSinglePathSegment(value: string): boolean {
-  return value.length > 0 && !value.includes('/');
+/**
+ * Verification access may only reach direct-resource handlers with a literal,
+ * canonical UUID path segment. Decode once before validating so encoded path
+ * separators or URI delimiters cannot be interpolated into a downstream URI.
+ */
+function isVerifiedResourceId(value: string): boolean {
+  if (!value || value.includes('/') || value.includes('\\')) return false;
+
+  try {
+    const decoded = decodeURIComponent(value);
+    return decoded === value && UUID_PATTERN.test(decoded);
+  } catch {
+    return false;
+  }
 }
 
 /** Matches only the production-verification methods and route shapes. */
@@ -33,19 +45,19 @@ export function isVerificationAccessCandidate(method: string, path: string): boo
 
   const clientPrefix = '/api/clients/clients/';
   if ((method === 'GET' || method === 'PATCH' || method === 'DELETE') && path.startsWith(clientPrefix)) {
-    return isSinglePathSegment(path.slice(clientPrefix.length));
+    return isVerifiedResourceId(path.slice(clientPrefix.length));
   }
 
   if (method === 'POST' && path === '/api/clients/clients') return true;
 
   const quotePrefix = '/api/quotes/';
   if (method === 'GET' && path.startsWith(quotePrefix)) {
-    return isSinglePathSegment(path.slice(quotePrefix.length));
+    return isVerifiedResourceId(path.slice(quotePrefix.length));
   }
 
   const invoicePrefix = '/api/invoices/';
   if (method === 'GET' && path.startsWith(invoicePrefix)) {
-    return isSinglePathSegment(path.slice(invoicePrefix.length));
+    return isVerifiedResourceId(path.slice(invoicePrefix.length));
   }
 
   return false;
