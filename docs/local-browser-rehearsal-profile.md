@@ -8,7 +8,7 @@ The profile preserves normal account-data containment. The reviewed owner-verifi
 
 - Use the repair branch and a Mac checkout with Node and pnpm installed.
 - Have the already-approved rehearsal project values only; do not create users, projects, keys, paid resources, or provider configuration.
-- Keep protected files outside the repository, with owner-only permissions. Never commit, print, paste into chat, or place secrets in `.env`, `.env.local`, shell history, or browser fields.
+- Keep protected files outside the repository, with owner-only permissions. Never commit, print, paste into chat, or place their protected values in `.env`, `.env.local`, shell history, or browser fields. The sole browser-field exception is an authorized existing rehearsal password entered locally by the Mac operator under the vault-first credential rule below.
 - The expected Admin URL is `http://localhost:3002`; its API URL must be exactly `http://localhost:3000`.
 
 ## Terminal 1 — build only the required artifacts
@@ -94,7 +94,7 @@ set +a
 pnpm --filter @jobbuilda/admin dev
 ```
 
-The Admin `dev` script binds `127.0.0.1:3002`. The rehearsal coordinator permits browser CORS only from the exact origin `http://localhost:3002` (not a configured Admin, Portal, App, IP-address, or alternate localhost origin). Use only `http://localhost:3002/login` in the browser. Do not enter credentials unless the approved browser-vault workflow supplies an existing rehearsal credential; do not request, paste, or create credentials.
+The Admin `dev` script binds `127.0.0.1:3002`. The rehearsal coordinator permits browser CORS only from the exact origin `http://localhost:3002` (not a configured Admin, Portal, App, IP-address, or alternate localhost origin). Use only `http://localhost:3002/login` in the browser. Use the approved browser vault first when it is available. If it is unavailable, a Mac operator who already holds the authorized existing rehearsal password may enter it locally; never request, transmit, paste into chat, or store that password in Git or environment files, and never create credentials.
 
 ## Terminal 3 — validate before browser interaction
 
@@ -112,7 +112,7 @@ Expected: health `200`; excluded `/api/jobs` containment `503`; uncredentialed a
 
 1. Navigate to `http://localhost:3002/login`.
 2. Confirm the login page uses the rehearsal project and API `http://localhost:3000`.
-3. Authenticate only through the existing approved vault flow; otherwise stop at the login page.
+3. Use the existing approved browser-vault flow first. If it is unavailable, the Mac operator may enter an authorized existing rehearsal password they already hold locally; never request, transmit, store in Git or environment files, paste into chat, or create credentials.
 4. Check profile, clients, quotes, and invoices; record only status/result metadata.
 5. Do not visit or operate payment, subscription, supplier, jobs, email, portal, reporting, or provider flows.
 6. At expiry, repeat one approved route and confirm denial.

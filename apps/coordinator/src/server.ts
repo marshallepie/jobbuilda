@@ -76,6 +76,7 @@ export async function createServer({ browserRehearsal = false }: { browserRehear
   const identityClient = new MCPClient('identity-mcp', {
     command: 'node',
     args: [path.join(identityMcpPath, 'dist/index.js')],
+    browserRehearsal,
     env: {
       DATABASE_URL: process.env.DATABASE_URL || 'postgresql://jobbuilda:jobbuilda@localhost:5432/identity_mcp',
       NATS_URL: process.env.NATS_URL || 'nats://localhost:4222',
@@ -96,6 +97,7 @@ export async function createServer({ browserRehearsal = false }: { browserRehear
   const clientsClient = new MCPClient('clients-mcp', {
     command: 'node',
     args: [path.join(clientsMcpPath, 'dist/index.js')],
+    browserRehearsal,
     env: {
       DATABASE_URL: process.env.DATABASE_URL || 'postgresql://jobbuilda:jobbuilda@localhost:5432/clients_mcp',
       NATS_URL: process.env.NATS_URL || 'nats://localhost:4222',
@@ -137,6 +139,7 @@ export async function createServer({ browserRehearsal = false }: { browserRehear
   const quotingClient = new MCPClient('quoting-mcp', {
     command: 'node',
     args: [path.join(quotingMcpPath, 'dist/index.js')],
+    browserRehearsal,
     env: {
       DATABASE_URL: process.env.DATABASE_URL || 'postgresql://jobbuilda:jobbuilda@localhost:5432/quoting_mcp',
       NATS_URL: process.env.NATS_URL || 'nats://localhost:4222',
@@ -244,6 +247,7 @@ export async function createServer({ browserRehearsal = false }: { browserRehear
   const invoicingClient = new MCPClient('invoicing-mcp', {
     command: 'node',
     args: [path.join(invoicingMcpPath, 'dist/index.js')],
+    browserRehearsal,
     env: {
       DATABASE_URL: process.env.DATABASE_URL || 'postgresql://jobbuilda:jobbuilda@localhost:5432/invoicing_mcp',
       NATS_URL: process.env.NATS_URL || 'nats://localhost:4222',
