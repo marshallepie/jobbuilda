@@ -100,7 +100,6 @@ export function preflightBrowserRehearsal(
   if (!exactRehearsalDatabaseUrl(databaseUrl)) {
     throw new Error('DATABASE_URL must be a direct PostgreSQL URL for the approved rehearsal project database');
   }
-  requiredValue(environment, 'JWT_SECRET');
   if (environment.HOST !== undefined && environment.HOST !== '127.0.0.1') {
     throw new Error('HOST must be 127.0.0.1 for the browser rehearsal profile');
   }

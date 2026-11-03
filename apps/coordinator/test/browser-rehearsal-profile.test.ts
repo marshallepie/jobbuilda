@@ -18,13 +18,12 @@ function environment(overrides: NodeJS.ProcessEnv = {}): NodeJS.ProcessEnv {
     SUPABASE_URL: `https://${REHEARSAL_SUPABASE_REF}.supabase.co`,
     SUPABASE_SERVICE_ROLE_KEY: 'protected-test-placeholder',
     DATABASE_URL: `postgresql://protected-test-placeholder@db.${REHEARSAL_SUPABASE_REF}.supabase.co:5432/postgres`,
-    JWT_SECRET: 'protected-test-placeholder',
     ...overrides,
   };
 }
 
-test('browser rehearsal preflight selects only the four reviewed MCP children and local coordinator binding', () => {
-  const configuration = preflightBrowserRehearsal(environment({ PORT: '3000' }));
+test('browser rehearsal preflight accepts no legacy portal JWT secret and selects only the reviewed MCP children and local coordinator binding', () => {
+  const configuration = preflightBrowserRehearsal(environment({ PORT: '3000' }), repositoryRoot);
   assert.equal(configuration.host, '127.0.0.1');
   assert.equal(configuration.port, 3000);
   assert.deepEqual(configuration.services, browserRehearsalServices);

@@ -80,7 +80,7 @@ export async function createServer({ browserRehearsal = false }: { browserRehear
     env: {
       DATABASE_URL: process.env.DATABASE_URL || 'postgresql://jobbuilda:jobbuilda@localhost:5432/identity_mcp',
       NATS_URL: process.env.NATS_URL || 'nats://localhost:4222',
-      JWT_SECRET: process.env.JWT_SECRET || 'dev-secret-change-in-production',
+      ...(!browserRehearsal ? { JWT_SECRET: process.env.JWT_SECRET || 'dev-secret-change-in-production' } : {}),
       OTEL_EXPORTER_OTLP_ENDPOINT: process.env.OTEL_EXPORTER_OTLP_ENDPOINT || 'http://localhost:4318',
       OTEL_SERVICE_NAME: 'identity-mcp',
       NODE_ENV: process.env.NODE_ENV || 'development'

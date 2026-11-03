@@ -50,7 +50,6 @@ JOBBUILDA_REHEARSAL_SUPABASE_REF=jwnfweldmfdeapfzfunq
 SUPABASE_URL=https://jwnfweldmfdeapfzfunq.supabase.co
 SUPABASE_SERVICE_ROLE_KEY=<existing rehearsal service-role key>
 DATABASE_URL=postgresql://<existing-user>:<existing-password>@db.jwnfweldmfdeapfzfunq.supabase.co:5432/postgres
-JWT_SECRET=<existing matching rehearsal JWT secret>
 PORT=3000
 HOST=127.0.0.1
 JOBBUILDA_VERIFICATION_OWNER_AUTH_USER_ID=<existing approved synthetic owner UUID>
@@ -64,7 +63,7 @@ EXPIRY="$(date -u -v+20M '+%Y-%m-%dT%H:%M:%S.000Z')"
 printf 'Use this expiry only in the protected coordinator file: %s\n' "$EXPIRY"
 ```
 
-Replace the expiry line in the protected coordinator file before startup. `DATABASE_URL` must be the direct `db.jwnfweldmfdeapfzfunq.supabase.co:5432/postgres` PostgreSQL target; production, foreign, malformed, pooler, and local-proxy URLs are rejected. Do **not** set `NATS_URL`, `JOBBUILDA_REHEARSAL_MODE`, `STRIPE_*`, `RESEND_*`, `ANTHROPIC_*`, SMTP, cloud-provider, or any payment/email/provider key. If either OpenTelemetry endpoint variable is set, it must be a loopback `http(s)` URL; the profile supplies an inert `http://127.0.0.1:4318/v1/traces` endpoint to the four children. The profile fails closed if the ref/URL is malformed or production (`jnwxueomquywrqcgbgfd`), or if the host is not `127.0.0.1`.
+Replace the expiry line in the protected coordinator file before startup. `DATABASE_URL` must be the direct `db.jwnfweldmfdeapfzfunq.supabase.co:5432/postgres` PostgreSQL target; production, foreign, malformed, pooler, and local-proxy URLs are rejected. `JWT_SECRET` is intentionally excluded: it is only the legacy portal-token HS256 secret, and this restricted profile does not register portal routes or pass it to children. Do **not** set `NATS_URL`, `JOBBUILDA_REHEARSAL_MODE`, `STRIPE_*`, `RESEND_*`, `ANTHROPIC_*`, SMTP, cloud-provider, or any payment/email/provider key. If either OpenTelemetry endpoint variable is set, it must be a loopback `http(s)` URL; the profile supplies an inert `http://127.0.0.1:4318/v1/traces` endpoint to the four children. The profile fails closed if the ref/URL is malformed or production (`jnwxueomquywrqcgbgfd`), or if the host is not `127.0.0.1`.
 
 `~/.config/jobbuilda/rehearsal-admin.env` must contain only:
 
