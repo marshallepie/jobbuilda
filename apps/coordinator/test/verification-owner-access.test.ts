@@ -205,11 +205,13 @@ test('the registered GDPR handler requires confirmation and cannot delete a fore
     [ownedClientId, tenantId],
     [foreignClientId, '88888888-8888-4888-8888-888888888888'],
   ]);
+  let gdprDeleteCalls = 0;
   const app = Fastify();
   app.decorate('mcp', {
     clients: {
       async callTool(name: string, input: { client_id: string; confirm: boolean }, context: { tenant_id: string }) {
         assert.equal(name, 'gdpr_delete');
+        gdprDeleteCalls += 1;
         if (!input.confirm || clients.get(input.client_id) !== context.tenant_id) {
           throw new Error('client is not deletable in this tenant');
         }
@@ -225,17 +227,31 @@ test('the registered GDPR handler requires confirmation and cannot delete a fore
   await app.ready();
 
   const headers = { authorization: 'Bearer configured-owner-token' };
+  const unauthenticatedMissingConfirmation = await app.inject({
+    method: 'DELETE', url: `/api/clients/gdpr/${ownedClientId}`,
+  });
+  assert.equal(unauthenticatedMissingConfirmation.statusCode, 401);
+  const otherOwnerMissingConfirmation = await app.inject({
+    method: 'DELETE', url: `/api/clients/gdpr/${ownedClientId}`,
+    headers: { authorization: 'Bearer other-owner-token' },
+  });
+  assert.equal(otherOwnerMissingConfirmation.statusCode, 403);
+  assert.equal(gdprDeleteCalls, 0);
+
   const missingConfirmation = await app.inject({
     method: 'DELETE', url: `/api/clients/gdpr/${ownedClientId}`, headers,
   });
-  assert.equal(missingConfirmation.statusCode, 503);
+  assert.equal(missingConfirmation.statusCode, 404);
+  assert.deepEqual(missingConfirmation.json(), { error: 'Client not found' });
   assert.equal(clients.has(ownedClientId), true);
+  assert.equal(gdprDeleteCalls, 0);
 
   const foreignDeletion = await app.inject({
     method: 'DELETE', url: `/api/clients/gdpr/${foreignClientId}?confirm=true`, headers,
   });
   assert.equal(foreignDeletion.statusCode, 404);
   assert.equal(clients.has(foreignClientId), true);
+  assert.equal(gdprDeleteCalls, 1);
 
   const ownedDeletion = await app.inject({
     method: 'DELETE', url: `/api/clients/gdpr/${ownedClientId}?confirm=true`, headers,
@@ -243,6 +259,7 @@ test('the registered GDPR handler requires confirmation and cannot delete a fore
   assert.equal(ownedDeletion.statusCode, 200);
   assert.deepEqual(ownedDeletion.json(), { deleted: true });
   assert.equal(clients.has(ownedClientId), false);
+  assert.equal(gdprDeleteCalls, 2);
   await app.close();
 });
 
@@ -260,8 +277,9 @@ test('the allowlist is limited to the reviewed route and method shapes', () => {
     { method: 'GET', path: '/api/invoices/:id' },
   ]);
   assert.equal(isVerificationAccessCandidate('GET', `/api/clients/clients/${resourceId}`), true);
-  assert.equal(isVerificationAccessCandidate('DELETE', `/api/clients/gdpr/${resourceId}`), false);
+  assert.equal(isVerificationAccessCandidate('DELETE', `/api/clients/gdpr/${resourceId}`), true);
   assert.equal(isVerificationAccessCandidate('DELETE', `/api/clients/gdpr/${resourceId}?confirm=true`), true);
+  assert.equal(isVerificationAccessCandidate('DELETE', `/api/clients/gdpr/${resourceId}?confirm=false`), false);
   assert.equal(isVerificationAccessCandidate('DELETE', `/api/clients/gdpr/${resourceId}?confirm=true&extra=value`), false);
   assert.equal(isVerificationAccessCandidate('DELETE', `/api/clients/clients/${resourceId}`), false);
   assert.equal(isVerificationAccessCandidate('GET', '/api/clients/clients/client-id'), false);

@@ -336,12 +336,16 @@ export async function clientsRoutes(fastify: FastifyInstance) {
     async (request, reply) => {
       const context = extractAuthContext(request);
       const { clientId } = request.params;
-      const confirm = request.query.confirm === 'true';
+      if (request.query.confirm !== 'true') {
+        // Match foreign/absent clients and do not invoke the destructive tool
+        // unless the caller supplied the sole accepted confirmation form.
+        return reply.status(404).send({ error: 'Client not found' });
+      }
 
       try {
         const result = await fastify.mcp.clients.callTool(
           'gdpr_delete',
-          { client_id: clientId, confirm },
+          { client_id: clientId, confirm: true },
           context
         );
 

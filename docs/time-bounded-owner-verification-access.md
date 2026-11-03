@@ -15,7 +15,7 @@ The mechanism is disabled when either value is missing or malformed. It returns 
 
 A request must pass all of the following, in order:
 
-1. It must match one listed method/path exactly; other methods, route families, and deeper paths remain contained with `503`.
+1. It must match one listed method/path exactly; for the GDPR delete route, the canonical UUID path with either no query or exactly `confirm=true` reaches the normal authentication and owner gates. Other methods, query shapes, route families, and deeper paths remain contained with `503`.
 2. It must present a normally verified Supabase bearer token and have exactly one active, unrevoked membership.
 3. That membership must join to a same-tenant `public.users` record with `role = 'admin'`.
 4. The verified Supabase Auth user UUID must exactly equal `JOBBUILDA_VERIFICATION_OWNER_AUTH_USER_ID`.
@@ -30,7 +30,7 @@ Tenant, user, scope, expiry, and owner selection never come from callers. Caller
 - `GET /api/clients/clients/:clientId`
 - `POST /api/clients/clients`
 - `PATCH /api/clients/clients/:clientId`
-- `DELETE /api/clients/gdpr/:clientId?confirm=true` (the handler also rejects deletion unless `confirm=true` is present)
+- `DELETE /api/clients/gdpr/:clientId?confirm=true` (the only deletion form). The no-query form is admitted solely to the normal authentication/owner gates so the registered handler can return its deliberate `404 {"error":"Client not found"}` no-mutation response; it never invokes the delete tool. `confirm=false`, duplicate/extra query parameters, and other query shapes remain contained.
 - `GET /api/quotes`
 - `GET /api/quotes/:id`
 - `GET /api/invoices`

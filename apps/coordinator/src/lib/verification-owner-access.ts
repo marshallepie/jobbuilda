@@ -53,7 +53,11 @@ export function isVerificationAccessCandidate(method: string, rawUrl: string): b
 
   const gdprClientPrefix = '/api/clients/gdpr/';
   if (method === 'DELETE' && path.startsWith(gdprClientPrefix)) {
-    return query === 'confirm=true' && isVerifiedResourceId(path.slice(gdprClientPrefix.length));
+    // Let an omitted confirmation reach the registered handler only after the
+    // normal bearer, membership, and owner gates. The handler returns its
+    // deliberate no-mutation response. Other query shapes remain contained.
+    return (query === '' || query === 'confirm=true')
+      && isVerifiedResourceId(path.slice(gdprClientPrefix.length));
   }
 
   if (method === 'POST' && path === '/api/clients/clients') return true;
