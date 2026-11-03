@@ -83,7 +83,7 @@ nc -4 -vz -w 5 aws-0-eu-west-1.pooler.supabase.com 5432
 `~/.config/jobbuilda/rehearsal-admin.env` must contain only:
 
 ```dotenv
-NEXT_PUBLIC_API_URL=http://localhost:3000
+NEXT_PUBLIC_API_URL=http://127.0.0.1:3000
 NEXT_PUBLIC_SUPABASE_URL=https://jwnfweldmfdeapfzfunq.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=<existing rehearsal anon key>
 ```
@@ -108,7 +108,7 @@ set +a
 pnpm --filter @jobbuilda/admin dev
 ```
 
-The Admin `dev` script binds `127.0.0.1:3002`. The rehearsal coordinator permits browser CORS only from the exact origin `http://localhost:3002` (not a configured Admin, Portal, App, IP-address, or alternate localhost origin). Use only `http://localhost:3002/login` in the browser. Use the approved browser vault first when it is available. If it is unavailable, a Mac operator who already holds the authorized existing rehearsal password may enter it locally; never request, transmit, paste into chat, or store that password in Git or environment files, and never create credentials.
+The Admin `dev` script binds `127.0.0.1:3002`. The rehearsal coordinator binds `127.0.0.1:3000`, so the Admin API URL must use `http://127.0.0.1:3000`; do not use `localhost` for that URL because it can resolve to the unrelated IPv6 wildcard listener on port 3000. The rehearsal coordinator permits browser CORS only from the exact browser origin `http://localhost:3002` (not a configured Admin, Portal, App, IP-address, or alternate localhost origin). Use only `http://localhost:3002/login` in the browser. Use the approved browser vault first when it is available. If it is unavailable, a Mac operator who already holds the authorized existing rehearsal password may enter it locally; never request, transmit, paste into chat, or store that password in Git or environment files, and never create credentials.
 
 ## Terminal 3 — validate before browser interaction
 
