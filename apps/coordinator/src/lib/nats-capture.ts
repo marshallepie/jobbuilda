@@ -44,8 +44,9 @@ export async function startNatsCapture(): Promise<NatsCapture> {
             pending = pending.subarray(end + 2);
             continue;
           }
-          // These commands have no payload and are needed for client startup.
-          if (line.startsWith('CONNECT ') || line.startsWith('SUB ') || line.startsWith('UNSUB ')) {
+          // CONNECT/PING are sufficient for publishers. Reject subscriptions so
+          // this rehearsal endpoint can never become an event consumer.
+          if (line.startsWith('CONNECT ') || line.startsWith('UNSUB ')) {
             pending = pending.subarray(end + 2);
             continue;
           }
