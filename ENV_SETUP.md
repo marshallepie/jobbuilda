@@ -21,18 +21,12 @@ No .env configuration required for local development.
 
 ```bash
 # API endpoint
-NEXT_PUBLIC_API_URL=http://127.0.0.1:3000
+NEXT_PUBLIC_API_URL=http://localhost:3000
 
 # Supabase (optional - uses mock auth if not set)
 NEXT_PUBLIC_SUPABASE_URL=
 NEXT_PUBLIC_SUPABASE_ANON_KEY=
 ```
-
-For an Admin browser rehearsal, keep `NEXT_PUBLIC_API_URL` on IPv4 loopback as
-shown so `localhost` cannot resolve to an unrelated IPv6 listener. Continue to
-open the dashboard at `http://localhost:3002` and keep `ADMIN_URL` at that
-value: the coordinator's CORS policy authorizes the browser `Origin`, not the
-API hostname.
 
 #### Client Portal
 **Location:** `apps/portal/.env.local`
