@@ -8,6 +8,7 @@
     "build": "tsc",
     "dev": "tsc --watch",
     "clean": "rm -rf dist",
+    "test:clean-build": "rm -rf dist && tsc && test -f dist/index.d.ts",
     "test": "echo \"No tests yet\""
   },
   "dependencies": {

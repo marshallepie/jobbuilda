@@ -18,7 +18,7 @@ cd /path/to/jobbuilda
 git switch mepa/tenant-isolation-repair-20261101
 corepack enable
 pnpm install --frozen-lockfile --ignore-scripts
-pnpm --filter @jobbuilda/contracts build
+pnpm --filter @jobbuilda/contracts run test:clean-build
 pnpm --filter @jobbuilda/mcp-sdk build
 pnpm --filter @jobbuilda/identity-mcp build
 pnpm --filter @jobbuilda/clients-mcp build
@@ -26,6 +26,8 @@ pnpm --filter @jobbuilda/quoting-mcp build
 pnpm --filter @jobbuilda/invoicing-mcp build
 pnpm --filter @jobbuilda/coordinator build
 ```
+
+The contracts clean-build check removes its artifact directory, rebuilds it, and verifies `dist/index.d.ts` before dependent artifacts are compiled.
 
 The coordinator preflight refuses to start if any of the four required MCP `dist/index.js` artifacts is absent.
 
