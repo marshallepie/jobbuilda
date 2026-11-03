@@ -29,6 +29,30 @@ function exactRehearsalUrl(value: string): boolean {
   return value === `https://${REHEARSAL_SUPABASE_REF}.supabase.co`;
 }
 
+function exactRehearsalDatabaseUrl(value: string): boolean {
+  try {
+    const url = new URL(value);
+    return (url.protocol === 'postgres:' || url.protocol === 'postgresql:')
+      && url.hostname === `db.${REHEARSAL_SUPABASE_REF}.supabase.co`
+      && (url.port === '' || url.port === '5432')
+      && url.pathname === '/postgres'
+      && url.search === ''
+      && url.hash === '';
+  } catch {
+    return false;
+  }
+}
+
+function loopbackTelemetryEndpoint(value: string): boolean {
+  try {
+    const url = new URL(value);
+    return (url.protocol === 'http:' || url.protocol === 'https:')
+      && ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname);
+  } catch {
+    return false;
+  }
+}
+
 function validPort(value: string | undefined): number {
   if (value === undefined || value === '') return 3000;
   if (!/^[1-9][0-9]{0,4}$/.test(value)) throw new Error('PORT must be a valid local TCP port');
@@ -39,6 +63,12 @@ function validPort(value: string | undefined): number {
 
 export function isBrowserRehearsalProfile(environment: NodeJS.ProcessEnv = process.env): boolean {
   return environment[BROWSER_REHEARSAL_PROFILE_ENV] === 'true';
+}
+
+export function rejectBrowserRehearsalProfileFromNormalStart(environment: NodeJS.ProcessEnv = process.env): void {
+  if (isBrowserRehearsalProfile(environment)) {
+    throw new Error(`${BROWSER_REHEARSAL_PROFILE_ENV}=true may only be started through start:browser-rehearsal`);
+  }
 }
 
 /**
@@ -66,13 +96,21 @@ export function preflightBrowserRehearsal(
     throw new Error('The production Supabase ref is prohibited for browser rehearsal');
   }
   requiredValue(environment, 'SUPABASE_SERVICE_ROLE_KEY');
-  requiredValue(environment, 'DATABASE_URL');
+  const databaseUrl = requiredValue(environment, 'DATABASE_URL');
+  if (!exactRehearsalDatabaseUrl(databaseUrl)) {
+    throw new Error('DATABASE_URL must be a direct PostgreSQL URL for the approved rehearsal project database');
+  }
   requiredValue(environment, 'JWT_SECRET');
   if (environment.HOST !== undefined && environment.HOST !== '127.0.0.1') {
     throw new Error('HOST must be 127.0.0.1 for the browser rehearsal profile');
   }
   if (environment.NATS_URL !== undefined) {
     throw new Error('NATS_URL is prohibited: browser rehearsal starts its own no-consumer local capture');
+  }
+  for (const key of ['OTEL_EXPORTER_OTLP_ENDPOINT', 'OTEL_EXPORTER_OTLP_TRACES_ENDPOINT']) {
+    if (environment[key] !== undefined && !loopbackTelemetryEndpoint(environment[key]!)) {
+      throw new Error(`${key} must be a loopback URL for the browser rehearsal profile`);
+    }
   }
   for (const key of Object.keys(environment)) {
     if (providerEnvironmentPatterns.some((pattern) => pattern.test(key)) && environment[key]) {

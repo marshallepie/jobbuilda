@@ -49,7 +49,7 @@ JOBBUILDA_BROWSER_REHEARSAL_PROFILE=true
 JOBBUILDA_REHEARSAL_SUPABASE_REF=jwnfweldmfdeapfzfunq
 SUPABASE_URL=https://jwnfweldmfdeapfzfunq.supabase.co
 SUPABASE_SERVICE_ROLE_KEY=<existing rehearsal service-role key>
-DATABASE_URL=<existing rehearsal database URL>
+DATABASE_URL=postgresql://<existing-user>:<existing-password>@db.jwnfweldmfdeapfzfunq.supabase.co:5432/postgres
 JWT_SECRET=<existing matching rehearsal JWT secret>
 PORT=3000
 HOST=127.0.0.1
@@ -64,7 +64,7 @@ EXPIRY="$(date -u -v+20M '+%Y-%m-%dT%H:%M:%S.000Z')"
 printf 'Use this expiry only in the protected coordinator file: %s\n' "$EXPIRY"
 ```
 
-Replace the expiry line in the protected coordinator file before startup. Do **not** set `NATS_URL`, `JOBBUILDA_REHEARSAL_MODE`, `STRIPE_*`, `RESEND_*`, `ANTHROPIC_*`, SMTP, cloud-provider, or any payment/email/provider key. The profile fails closed if it sees them, if the ref/URL is malformed or production (`jnwxueomquywrqcgbgfd`), or if the host is not `127.0.0.1`.
+Replace the expiry line in the protected coordinator file before startup. `DATABASE_URL` must be the direct `db.jwnfweldmfdeapfzfunq.supabase.co:5432/postgres` PostgreSQL target; production, foreign, malformed, pooler, and local-proxy URLs are rejected. Do **not** set `NATS_URL`, `JOBBUILDA_REHEARSAL_MODE`, `STRIPE_*`, `RESEND_*`, `ANTHROPIC_*`, SMTP, cloud-provider, or any payment/email/provider key. If either OpenTelemetry endpoint variable is set, it must be a loopback `http(s)` URL; the profile supplies an inert `http://127.0.0.1:4318/v1/traces` endpoint to the four children. The profile fails closed if the ref/URL is malformed or production (`jnwxueomquywrqcgbgfd`), or if the host is not `127.0.0.1`.
 
 `~/.config/jobbuilda/rehearsal-admin.env` must contain only:
 
@@ -94,7 +94,7 @@ set +a
 pnpm --filter @jobbuilda/admin dev
 ```
 
-Use only `http://localhost:3002/login` in the browser. Do not enter credentials unless the approved browser-vault workflow supplies an existing rehearsal credential; do not request, paste, or create credentials.
+The Admin `dev` script binds `127.0.0.1:3002`. The rehearsal coordinator permits browser CORS only from the exact origin `http://localhost:3002` (not a configured Admin, Portal, App, IP-address, or alternate localhost origin). Use only `http://localhost:3002/login` in the browser. Do not enter credentials unless the approved browser-vault workflow supplies an existing rehearsal credential; do not request, paste, or create credentials.
 
 ## Terminal 3 — validate before browser interaction
 

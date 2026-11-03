@@ -5,6 +5,7 @@ import {
   BROWSER_REHEARSAL_PROFILE_ENV,
   browserRehearsalServices,
   preflightBrowserRehearsal,
+  rejectBrowserRehearsalProfileFromNormalStart,
   REHEARSAL_SUPABASE_REF,
 } from '../src/lib/browser-rehearsal-profile.js';
 
@@ -16,7 +17,7 @@ function environment(overrides: NodeJS.ProcessEnv = {}): NodeJS.ProcessEnv {
     JOBBUILDA_REHEARSAL_SUPABASE_REF: REHEARSAL_SUPABASE_REF,
     SUPABASE_URL: `https://${REHEARSAL_SUPABASE_REF}.supabase.co`,
     SUPABASE_SERVICE_ROLE_KEY: 'protected-test-placeholder',
-    DATABASE_URL: 'postgresql://protected-test-placeholder',
+    DATABASE_URL: `postgresql://protected-test-placeholder@db.${REHEARSAL_SUPABASE_REF}.supabase.co:5432/postgres`,
     JWT_SECRET: 'protected-test-placeholder',
     ...overrides,
   };
@@ -29,19 +30,34 @@ test('browser rehearsal preflight selects only the four reviewed MCP children an
   assert.deepEqual(configuration.services, browserRehearsalServices);
 });
 
-test('browser rehearsal preflight rejects production, malformed, bypass, remote NATS, and provider configuration', () => {
+test('browser rehearsal preflight rejects production, malformed, bypass, remote NATS, telemetry, and provider configuration', () => {
   const rejected = [
     environment({ JOBBUILDA_REHEARSAL_SUPABASE_REF: 'jnwxueomquywrqcgbgfd' }),
     environment({ SUPABASE_URL: 'https://jnwxueomquywrqcgbgfd.supabase.co' }),
     environment({ SUPABASE_URL: 'https://jwnfweldmfdeapfzfunq.supabase.co/' }),
+    environment({ DATABASE_URL: 'not-a-database-url' }),
+    environment({ DATABASE_URL: 'postgresql://protected-test-placeholder@db.jnwxueomquywrqcgbgfd.supabase.co:5432/postgres' }),
+    environment({ DATABASE_URL: 'postgresql://protected-test-placeholder@foreign.example.test:5432/postgres' }),
+    environment({ DATABASE_URL: `postgresql://protected-test-placeholder@db.${REHEARSAL_SUPABASE_REF}.supabase.co:5432/foreign` }),
     environment({ JOBBUILDA_REHEARSAL_MODE: 'true' }),
     environment({ NATS_URL: 'nats://remote.example.test:4222' }),
     environment({ STRIPE_SECRET_KEY: 'not-used' }),
     environment({ HOST: '0.0.0.0' }),
+    environment({ OTEL_EXPORTER_OTLP_ENDPOINT: 'https://telemetry.example.test/v1/traces' }),
+    environment({ OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: 'https://telemetry.example.test/v1/traces' }),
   ];
   for (const candidate of rejected) {
     assert.throws(() => preflightBrowserRehearsal(candidate, repositoryRoot));
   }
+});
+
+test('browser rehearsal permits only loopback telemetry and normal coordinator start rejects the profile marker', () => {
+  assert.doesNotThrow(() => preflightBrowserRehearsal(environment({
+    OTEL_EXPORTER_OTLP_ENDPOINT: 'http://127.0.0.1:4318/v1/traces',
+    OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: 'http://localhost:4318/v1/traces',
+  }), repositoryRoot));
+  assert.throws(() => rejectBrowserRehearsalProfileFromNormalStart(environment()));
+  assert.doesNotThrow(() => rejectBrowserRehearsalProfileFromNormalStart({}));
 });
 
 test('browser rehearsal preflight fails closed when artifacts or protected authentication configuration are absent', () => {

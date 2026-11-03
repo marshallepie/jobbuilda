@@ -13,7 +13,10 @@ import {
 } from './lib/account-isolation-containment.js';
 import { registerServerAuth } from './lib/auth.js';
 import { registerVerificationOwnerAccess } from './lib/verification-owner-access.js';
-import { isBrowserRehearsalProfile } from './lib/browser-rehearsal-profile.js';
+import {
+  isBrowserRehearsalProfile,
+  rejectBrowserRehearsalProfileFromNormalStart,
+} from './lib/browser-rehearsal-profile.js';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
@@ -39,8 +42,10 @@ declare module 'fastify' {
   }
 }
 
-export async function createServer() {
-  const browserRehearsal = isBrowserRehearsalProfile();
+export async function createServer({ browserRehearsal = false }: { browserRehearsal?: boolean } = {}) {
+  if (browserRehearsal !== isBrowserRehearsalProfile()) {
+    throw new Error('Browser rehearsal server mode must be selected only by the validated rehearsal entrypoint');
+  }
   const fastify = Fastify({
     logger: {
       level: process.env.LOG_LEVEL || 'info'
@@ -50,7 +55,7 @@ export async function createServer() {
     },
   });
 
-  await fastify.register(cors, coordinatorCorsOptions());
+  await fastify.register(cors, coordinatorCorsOptions(process.env, browserRehearsal));
   // Containment stays first: account-data routes remain paused until a separate
   // route-by-route audit explicitly allows this server-authenticated context.
   registerAccountIsolationContainment(fastify);
@@ -370,6 +375,7 @@ export async function createServer() {
 }
 
 export async function startServer() {
+  rejectBrowserRehearsalProfileFromNormalStart();
   const fastify = await createServer();
   const port = parseInt(process.env.PORT || '3000', 10);
   const host = process.env.HOST || '0.0.0.0';

@@ -14,6 +14,9 @@ const configuration = preflightBrowserRehearsal();
 const capture = await startNatsCapture();
 process.env.NATS_URL = capture.url;
 process.env.HOST = configuration.host;
+// The profile either rejects configured telemetry endpoints above or supplies
+// this inert loopback default to every reviewed child process.
+process.env.OTEL_EXPORTER_OTLP_ENDPOINT = 'http://127.0.0.1:4318/v1/traces';
 
 let fastify: Awaited<ReturnType<typeof createServer>> | undefined;
 let closing = false;
@@ -31,7 +34,7 @@ async function close(exitCode: number): Promise<void> {
 }
 
 try {
-  fastify = await createServer();
+  fastify = await createServer({ browserRehearsal: true });
   await fastify.listen({ host: configuration.host, port: configuration.port });
   console.log(`Browser rehearsal coordinator listening on http://${configuration.host}:${configuration.port}`);
   console.log(`Browser rehearsal event capture listening on ${capture.url} (no consumers)`);
