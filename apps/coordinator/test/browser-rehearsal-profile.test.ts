@@ -29,6 +29,12 @@ test('browser rehearsal preflight accepts no legacy portal JWT secret and select
   assert.deepEqual(configuration.services, browserRehearsalServices);
 });
 
+test('browser rehearsal preflight accepts only the approved session-pooler target', () => {
+  assert.doesNotThrow(() => preflightBrowserRehearsal(environment({
+    DATABASE_URL: `postgresql://postgres.${REHEARSAL_SUPABASE_REF}:protected-test-placeholder@aws-0-eu-west-1.pooler.supabase.com:5432/postgres`,
+  }), repositoryRoot));
+});
+
 test('browser rehearsal preflight rejects production, malformed, bypass, remote NATS, telemetry, and provider configuration', () => {
   const rejected = [
     environment({ JOBBUILDA_REHEARSAL_SUPABASE_REF: 'jnwxueomquywrqcgbgfd' }),
@@ -38,6 +44,12 @@ test('browser rehearsal preflight rejects production, malformed, bypass, remote 
     environment({ DATABASE_URL: 'postgresql://protected-test-placeholder@db.jnwxueomquywrqcgbgfd.supabase.co:5432/postgres' }),
     environment({ DATABASE_URL: 'postgresql://protected-test-placeholder@foreign.example.test:5432/postgres' }),
     environment({ DATABASE_URL: `postgresql://protected-test-placeholder@db.${REHEARSAL_SUPABASE_REF}.supabase.co:5432/foreign` }),
+    environment({ DATABASE_URL: `postgresql://postgres.${REHEARSAL_SUPABASE_REF}:protected-test-placeholder@aws-0-eu-west-1.pooler.supabase.com/postgres` }),
+    environment({ DATABASE_URL: 'postgresql://postgres.foreignproject:protected-test-placeholder@aws-0-eu-west-1.pooler.supabase.com:5432/postgres' }),
+    environment({ DATABASE_URL: `postgresql://postgres.${REHEARSAL_SUPABASE_REF}:protected-test-placeholder@aws-0-eu-west-1.pooler.supabase.com:6543/postgres` }),
+    environment({ DATABASE_URL: `postgresql://postgres.${REHEARSAL_SUPABASE_REF}:protected-test-placeholder@aws-0-us-east-1.pooler.supabase.com:5432/postgres` }),
+    environment({ DATABASE_URL: `postgresql://postgres.${REHEARSAL_SUPABASE_REF}:protected-test-placeholder@aws-0-eu-west-1.pooler.supabase.com:5432/foreign` }),
+    environment({ DATABASE_URL: `postgresql://postgres.${REHEARSAL_SUPABASE_REF}:protected-test-placeholder@127.0.0.1:5432/postgres` }),
     environment({ JOBBUILDA_REHEARSAL_MODE: 'true' }),
     environment({ NATS_URL: 'nats://remote.example.test:4222' }),
     environment({ STRIPE_SECRET_KEY: 'not-used' }),

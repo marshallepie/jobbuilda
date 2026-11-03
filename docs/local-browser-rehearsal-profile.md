@@ -63,7 +63,20 @@ EXPIRY="$(date -u -v+20M '+%Y-%m-%dT%H:%M:%S.000Z')"
 printf 'Use this expiry only in the protected coordinator file: %s\n' "$EXPIRY"
 ```
 
-Replace the expiry line in the protected coordinator file before startup. `DATABASE_URL` must be the direct `db.jwnfweldmfdeapfzfunq.supabase.co:5432/postgres` PostgreSQL target; production, foreign, malformed, pooler, and local-proxy URLs are rejected. `JWT_SECRET` is intentionally excluded: it is only the legacy portal-token HS256 secret, and this restricted profile does not register portal routes or pass it to children. Do **not** set `NATS_URL`, `JOBBUILDA_REHEARSAL_MODE`, `STRIPE_*`, `RESEND_*`, `ANTHROPIC_*`, SMTP, cloud-provider, or any payment/email/provider key. If either OpenTelemetry endpoint variable is set, it must be a loopback `http(s)` URL; the profile supplies an inert `http://127.0.0.1:4318/v1/traces` endpoint to the four children. The profile fails closed if the ref/URL is malformed or production (`jnwxueomquywrqcgbgfd`), or if the host is not `127.0.0.1`.
+Replace the expiry line in the protected coordinator file before startup. `DATABASE_URL` accepts either the direct `db.jwnfweldmfdeapfzfunq.supabase.co:5432/postgres` PostgreSQL target or, if the direct IPv6 target is unreachable from the Mac, the exact approved session-pooler target below. The session-pooler URL must use host `aws-0-eu-west-1.pooler.supabase.com`, port `5432`, username `postgres.jwnfweldmfdeapfzfunq`, and database `postgres`; all other poolers, users, ports, databases, production/foreign projects, malformed URLs, and local proxies are rejected.
+
+```dotenv
+DATABASE_URL=postgresql://postgres.jwnfweldmfdeapfzfunq:<existing-session-pooler-password>@aws-0-eu-west-1.pooler.supabase.com:5432/postgres
+```
+
+Before replacing the protected `DATABASE_URL`, run this credential-free Mac reachability probe. It checks only DNS/TCP reachability; it does not authenticate or contact the database with credentials:
+
+```bash
+dig +short A aws-0-eu-west-1.pooler.supabase.com
+nc -4 -vz -w 5 aws-0-eu-west-1.pooler.supabase.com 5432
+```
+
+`JWT_SECRET` is intentionally excluded: it is only the legacy portal-token HS256 secret, and this restricted profile does not register portal routes or pass it to children. Do **not** set `NATS_URL`, `JOBBUILDA_REHEARSAL_MODE`, `STRIPE_*`, `RESEND_*`, `ANTHROPIC_*`, SMTP, cloud-provider, or any payment/email/provider key. If either OpenTelemetry endpoint variable is set, it must be a loopback `http(s)` URL; the profile supplies an inert `http://127.0.0.1:4318/v1/traces` endpoint to the four children. The profile fails closed if the ref/URL is malformed or production (`jnwxueomquywrqcgbgfd`), or if the host is not `127.0.0.1`.
 
 `~/.config/jobbuilda/rehearsal-admin.env` must contain only:
 

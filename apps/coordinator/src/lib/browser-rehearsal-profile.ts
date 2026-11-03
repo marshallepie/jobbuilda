@@ -32,12 +32,16 @@ function exactRehearsalUrl(value: string): boolean {
 function exactRehearsalDatabaseUrl(value: string): boolean {
   try {
     const url = new URL(value);
-    return (url.protocol === 'postgres:' || url.protocol === 'postgresql:')
-      && url.hostname === `db.${REHEARSAL_SUPABASE_REF}.supabase.co`
-      && (url.port === '' || url.port === '5432')
+    const postgresUrl = (url.protocol === 'postgres:' || url.protocol === 'postgresql:')
       && url.pathname === '/postgres'
       && url.search === ''
       && url.hash === '';
+    const directTarget = url.hostname === `db.${REHEARSAL_SUPABASE_REF}.supabase.co`
+      && (url.port === '' || url.port === '5432');
+    const sessionPoolerTarget = url.hostname === 'aws-0-eu-west-1.pooler.supabase.com'
+      && url.port === '5432'
+      && url.username === `postgres.${REHEARSAL_SUPABASE_REF}`;
+    return postgresUrl && (directTarget || sessionPoolerTarget);
   } catch {
     return false;
   }
@@ -98,7 +102,7 @@ export function preflightBrowserRehearsal(
   requiredValue(environment, 'SUPABASE_SERVICE_ROLE_KEY');
   const databaseUrl = requiredValue(environment, 'DATABASE_URL');
   if (!exactRehearsalDatabaseUrl(databaseUrl)) {
-    throw new Error('DATABASE_URL must be a direct PostgreSQL URL for the approved rehearsal project database');
+    throw new Error('DATABASE_URL must be the approved direct target or exact session-pooler PostgreSQL URL for the rehearsal project database');
   }
   if (environment.HOST !== undefined && environment.HOST !== '127.0.0.1') {
     throw new Error('HOST must be 127.0.0.1 for the browser rehearsal profile');
