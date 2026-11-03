@@ -206,6 +206,7 @@ test('the registered GDPR handler requires confirmation and cannot delete a fore
     [foreignClientId, '88888888-8888-4888-8888-888888888888'],
   ]);
   let gdprDeleteCalls = 0;
+  let nextRawUrl: string | undefined;
   const app = Fastify();
   app.decorate('mcp', {
     clients: {
@@ -220,6 +221,14 @@ test('the registered GDPR handler requires confirmation and cannot delete a fore
       },
     },
   } as any);
+  // light-my-request normalizes a trailing `?`; preserve the real raw-request
+  // form for this containment regression before the production hooks run.
+  app.addHook('onRequest', async (request) => {
+    if (nextRawUrl) {
+      request.raw.url = nextRawUrl;
+      nextRawUrl = undefined;
+    }
+  });
   registerAccountIsolationContainment(app);
   registerServerAuth(app, authDependencies());
   registerVerificationOwnerAccess(app, { environment: environment(), now: () => now });
@@ -227,6 +236,14 @@ test('the registered GDPR handler requires confirmation and cannot delete a fore
   await app.ready();
 
   const headers = { authorization: 'Bearer configured-owner-token' };
+  nextRawUrl = `/api/clients/gdpr/${ownedClientId}?`;
+  const emptyQueryIsContained = await app.inject({
+    method: 'DELETE', url: `/api/clients/gdpr/${ownedClientId}?`, headers,
+  });
+  assert.equal(emptyQueryIsContained.statusCode, 503);
+  assert.equal(clients.has(ownedClientId), true);
+  assert.equal(gdprDeleteCalls, 0);
+
   const unauthenticatedMissingConfirmation = await app.inject({
     method: 'DELETE', url: `/api/clients/gdpr/${ownedClientId}`,
   });
@@ -279,6 +296,7 @@ test('the allowlist is limited to the reviewed route and method shapes', () => {
   assert.equal(isVerificationAccessCandidate('GET', `/api/clients/clients/${resourceId}`), true);
   assert.equal(isVerificationAccessCandidate('DELETE', `/api/clients/gdpr/${resourceId}`), true);
   assert.equal(isVerificationAccessCandidate('DELETE', `/api/clients/gdpr/${resourceId}?confirm=true`), true);
+  assert.equal(isVerificationAccessCandidate('DELETE', `/api/clients/gdpr/${resourceId}?`), false);
   assert.equal(isVerificationAccessCandidate('DELETE', `/api/clients/gdpr/${resourceId}?confirm=false`), false);
   assert.equal(isVerificationAccessCandidate('DELETE', `/api/clients/gdpr/${resourceId}?confirm=true&extra=value`), false);
   assert.equal(isVerificationAccessCandidate('DELETE', `/api/clients/clients/${resourceId}`), false);

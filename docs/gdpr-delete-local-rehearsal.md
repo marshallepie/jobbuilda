@@ -28,9 +28,13 @@ The supplied database URL must not refer to the production ref `jnwxueomquywrqcg
 
 ## Commands
 
-From the repository root at the repair commit, run the declared coordinator build script, then load the protected file only into the current shell and invoke the declared rehearsal script:
+From the repository root at the repair commit, build the four manifest-declared MCP packages that provide the required artifacts, then build the coordinator. Load the protected file only into the current shell and invoke the declared rehearsal script:
 
 ```sh
+pnpm --filter @jobbuilda/identity-mcp build
+pnpm --filter @jobbuilda/clients-mcp build
+pnpm --filter @jobbuilda/quoting-mcp build
+pnpm --filter @jobbuilda/invoicing-mcp build
 pnpm --filter @jobbuilda/coordinator build
 set -a
 . <protected-path>/jobbuilda-rehearsal.env
@@ -42,4 +46,4 @@ The operator must preserve the harness output in an access-controlled evidence s
 
 ## Expected GDPR assertions
 
-The focused real registered-route regression (`apps/coordinator/test/verification-owner-access.test.ts`) proves the request ordering without external credentials: an authenticated configured owner may delete only an owned client with exactly `?confirm=true` (`200`); a confirmed foreign client returns `404` with no mutation; and an owned client without the query reaches the same authenticated owner-gated handler but returns `404` without invoking the delete tool. Browser authentication is not exercised by this procedure.
+The focused real registered-route regression (`apps/coordinator/test/verification-owner-access.test.ts`) proves the request ordering without external credentials: an authenticated configured owner may delete only an owned client with exactly `?confirm=true` (`200`); a confirmed foreign client returns `404` with no mutation; an owned client without the query reaches the same authenticated owner-gated handler but returns `404` without invoking the delete tool; and a trailing empty query (`?`) remains contained (`503`). Browser authentication is not exercised by this procedure.

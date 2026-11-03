@@ -56,7 +56,7 @@ export function isVerificationAccessCandidate(method: string, rawUrl: string): b
     // Let an omitted confirmation reach the registered handler only after the
     // normal bearer, membership, and owner gates. The handler returns its
     // deliberate no-mutation response. Other query shapes remain contained.
-    return (query === '' || query === 'confirm=true')
+    return (queryIndex === -1 || query === 'confirm=true')
       && isVerifiedResourceId(path.slice(gdprClientPrefix.length));
   }
 
