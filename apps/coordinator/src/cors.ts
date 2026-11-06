@@ -2,8 +2,6 @@ import type { FastifyCorsOptions } from '@fastify/cors';
 
 export const LEGACY_BROWSER_ALLOWED_HEADERS = [
   'Authorization',
-  'x-tenant-id',
-  'x-user-id',
   'Content-Type',
   'X-CSRF-Token',
 ];

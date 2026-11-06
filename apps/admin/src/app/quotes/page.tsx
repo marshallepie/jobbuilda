@@ -3,7 +3,8 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import AppLayout from '@/components/AppLayout';
-import { api, ApiError } from '@/lib/api';
+import { api } from '@/lib/api';
+import { recoveryErrorMessage, useRecoveryApi } from '@/hooks/useRecoveryApi';
 import { formatCurrency, formatDate, getStatusColor } from '@/lib/utils';
 
 interface Quote {
@@ -18,27 +19,30 @@ interface Quote {
 }
 
 export default function QuotesPage() {
+  const { authLoading, hasSession, accessToken } = useRecoveryApi();
   const [quotes, setQuotes] = useState<Quote[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<string>('all');
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    if (authLoading) return;
+    if (!hasSession) {
+      setError('Sign in is required to load quotes.');
+      setLoading(false);
+      return;
+    }
     loadQuotes();
-  }, []);
+  }, [authLoading, hasSession, accessToken]);
 
   const loadQuotes = async () => {
     try {
-      const mockAuth = {
-        token: 'mock-jwt-token',
-        tenant_id: '550e8400-e29b-41d4-a716-446655440000',
-        user_id: '550e8400-e29b-41d4-a716-446655440001',
-      };
-      api.setAuth(mockAuth);
-
       const data = await api.getQuotes() as Quote[];
       setQuotes(data);
+      setError(null);
     } catch (err) {
       console.error('Failed to load quotes:', err);
+      setError(recoveryErrorMessage(err, 'quotes'));
     } finally {
       setLoading(false);
     }
@@ -47,12 +51,6 @@ export default function QuotesPage() {
   const deleteQuote = async (quoteId: string, quoteNumber: string) => {
     if (confirm(`Are you sure you want to delete quote ${quoteNumber}? This action cannot be undone.`)) {
       try {
-        const mockAuth = {
-          token: 'mock-jwt-token',
-          tenant_id: '550e8400-e29b-41d4-a716-446655440000',
-          user_id: '550e8400-e29b-41d4-a716-446655440001',
-        };
-        api.setAuth(mockAuth);
 
         await api.request(`/api/quotes/${quoteId}`, {
           method: 'DELETE',
@@ -77,6 +75,16 @@ export default function QuotesPage() {
       <AppLayout>
         <div className="flex items-center justify-center h-64">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
+        </div>
+      </AppLayout>
+    );
+  }
+
+  if (error) {
+    return (
+      <AppLayout>
+        <div role="alert" className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
+          {error}
         </div>
       </AppLayout>
     );

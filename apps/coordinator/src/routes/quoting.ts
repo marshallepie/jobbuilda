@@ -76,8 +76,9 @@ export async function quotingRoutes(fastify: FastifyInstance) {
       try {
         const result = await fastify.mcp.quoting.readResource(uri, context);
         return result.data;
-      } catch (error: any) {
-        reply.status(500).send({ error: 'Failed to fetch quote', message: error.message });
+      } catch {
+        // Foreign and absent IDs deliberately share one public representation.
+        return reply.status(404).send({ error: 'Quote not found' });
       }
     }
   );

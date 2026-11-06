@@ -24,7 +24,12 @@ import { quoteDepositWebhookRoutes } from './routes/quote-deposit-webhook.js';
 import { shareRoutes } from './routes/share.js';
 import { receiptsRoutes } from './routes/receipts.js';
 import { clientPortalRoutes } from './routes/client-portal.js';
-import { registerAccountIsolationContainment } from './lib/account-isolation-containment.js';
+import {
+  registerAccountIsolationContainment,
+  sendContainmentBadUrlResponse,
+} from './lib/account-isolation-containment.js';
+import { registerServerAuth } from './lib/auth.js';
+import { registerVerificationOwnerAccess } from './lib/verification-owner-access.js';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
@@ -54,11 +59,16 @@ export async function createServer() {
   const fastify = Fastify({
     logger: {
       level: process.env.LOG_LEVEL || 'info'
-    }
+    },
+    routerOptions: {
+      onBadUrl: (_path, _request, response) => sendContainmentBadUrlResponse(response),
+    },
   });
 
   await fastify.register(cors, coordinatorCorsOptions());
   registerAccountIsolationContainment(fastify);
+  registerServerAuth(fastify);
+  registerVerificationOwnerAccess(fastify);
 
   // Initialize MCP clients
   const identityMcpCwd = process.env.IDENTITY_MCP_CWD ||

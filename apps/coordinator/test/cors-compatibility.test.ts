@@ -22,6 +22,7 @@ async function createApp() {
   return app;
 }
 
+
 async function preflight(app: Awaited<ReturnType<typeof createApp>>, origin: string) {
   return app.inject({
     method: 'OPTIONS',
@@ -34,7 +35,7 @@ async function preflight(app: Awaited<ReturnType<typeof createApp>>, origin: str
   });
 }
 
-test('configured Admin origin permits legacy dashboard preflight headers and credentials', async () => {
+test('configured Admin origin permits authenticated dashboard preflight headers and credentials', async () => {
   const app = await createApp();
   const response = await preflight(app, origins.admin);
 
@@ -44,6 +45,7 @@ test('configured Admin origin permits legacy dashboard preflight headers and cre
   for (const header of LEGACY_BROWSER_ALLOWED_HEADERS) {
     assert.match(response.headers['access-control-allow-headers'] || '', new RegExp(header, 'i'));
   }
+  assert.doesNotMatch(response.headers['access-control-allow-headers'] || '', /x-tenant-id|x-user-id/i);
   await app.close();
 });
 
@@ -65,6 +67,7 @@ test('unconfigured origins receive no CORS approval', async () => {
   assert.equal(response.headers['access-control-allow-credentials'], undefined);
   await app.close();
 });
+
 
 test('payment and webhook routes remain available without an Origin header', async () => {
   const app = await createApp();

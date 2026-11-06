@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import AppLayout from '@/components/AppLayout';
 import { api } from '@/lib/api';
+import { recoveryErrorMessage, useRecoveryApi } from '@/hooks/useRecoveryApi';
 import { formatCurrency, formatDate, getStatusColor } from '@/lib/utils';
 
 interface Invoice {
@@ -24,31 +25,34 @@ interface Invoice {
 }
 
 export default function InvoicesPage() {
+  const { authLoading, hasSession, accessToken } = useRecoveryApi();
   const router = useRouter();
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState('all');
   const [typeFilter, setTypeFilter] = useState('all');
   const [markingPaidId, setMarkingPaidId] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    if (authLoading) return;
+    if (!hasSession) {
+      setError('Sign in is required to load invoices.');
+      setLoading(false);
+      return;
+    }
     loadInvoices();
-  }, []);
+  }, [authLoading, hasSession, accessToken]);
 
   const loadInvoices = async () => {
     try {
-      const mockAuth = {
-        token: 'mock-jwt-token',
-        tenant_id: '550e8400-e29b-41d4-a716-446655440000',
-        user_id: '550e8400-e29b-41d4-a716-446655440001',
-      };
-      api.setAuth(mockAuth);
-
       const data = await api.getInvoices() as any;
       const invoiceList = Array.isArray(data) ? data : (data.data || []);
       setInvoices(invoiceList);
+      setError(null);
     } catch (err) {
       console.error('Failed to load invoices:', err);
+      setError(recoveryErrorMessage(err, 'invoices'));
     } finally {
       setLoading(false);
     }
@@ -105,6 +109,16 @@ export default function InvoicesPage() {
       <AppLayout>
         <div className="flex items-center justify-center h-64">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
+        </div>
+      </AppLayout>
+    );
+  }
+
+  if (error) {
+    return (
+      <AppLayout>
+        <div role="alert" className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
+          {error}
         </div>
       </AppLayout>
     );
