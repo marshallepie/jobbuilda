@@ -225,14 +225,14 @@ refresh_expiry_atomically
 CLEANUP_ARMED=1
 
 progress 'starting the loopback-only browser rehearsal coordinator'
-env -i PATH="$PATH" HOME="$HOME" TMPDIR="${TMPDIR:-}" \
+env -i PATH="$PATH" HOME="$HOME" TMPDIR="${TMPDIR:-/tmp}" \
   JOBBUILDA_REHEARSAL_ENV_FILE="$COORDINATOR_ENV" \
   pnpm --filter @jobbuilda/coordinator start:browser-rehearsal &
 COORDINATOR_PID=$!
 wait_for_http_code 'http://127.0.0.1:3000/health' '200' 'coordinator health check'
 
 progress 'starting Admin with configuration sourced only from its protected file'
-env -i PATH="$PATH" HOME="$HOME" TMPDIR="${TMPDIR:-}" ADMIN_ENV="$ADMIN_ENV" /bin/bash -c '
+env -i PATH="$PATH" HOME="$HOME" TMPDIR="${TMPDIR:-/tmp}" ADMIN_ENV="$ADMIN_ENV" /bin/bash -c '
   set -a
   source "$ADMIN_ENV"
   set +a
@@ -240,6 +240,7 @@ env -i PATH="$PATH" HOME="$HOME" TMPDIR="${TMPDIR:-}" ADMIN_ENV="$ADMIN_ENV" /bi
 ' &
 ADMIN_PID=$!
 wait_for_listener 3002
+wait_for_http_code 'http://127.0.0.1:3002/login' '200' 'Admin login route check'
 
 progress 'running required API and loopback listener preflight checks'
 wait_for_http_code 'http://127.0.0.1:3000/health' '200' 'coordinator health check'
