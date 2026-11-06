@@ -64,30 +64,6 @@ require_only_allowed_keys() {
   ' "$file" || fail "protected file contains unsupported or forbidden configuration: $file"
 }
 
-# The coordinator profile rejects these names too. Check parent names before
-# constructing clean child environments so accidental inherited configuration is
-# explicit, while never revealing its values.
-reject_forbidden_parent_environment() {
-  local key value
-  while IFS= read -r key; do
-    case "$key" in
-      JOBBUILDA_REHEARSAL_MODE|NATS_URL|JWT_SECRET|SENTRY_DSN|\
-      STRIPE_*|RESEND_*|ANTHROPIC_*|SMTP*|SENDGRID*|MAILGUN*|TWILIO*|\
-      AWS_*|GOOGLE_*|AZURE_*)
-        fail "forbidden inherited configuration is set: $key"
-        ;;
-      OTEL_EXPORTER_OTLP_ENDPOINT|OTEL_EXPORTER_OTLP_TRACES_ENDPOINT|\
-      OTEL_EXPORTER_OTLP_LOGS_ENDPOINT|OTEL_EXPORTER_OTLP_METRICS_ENDPOINT)
-        value="${!key-}"
-        case "$value" in
-          http://127.0.0.1/*|https://127.0.0.1/*|http://localhost/*|https://localhost/*|http://[::1]/*|https://[::1]/*) ;;
-          *) fail "non-loopback inherited telemetry configuration is set: $key" ;;
-        esac
-        ;;
-    esac
-  done < <(env | cut -d= -f1)
-}
-
 assert_port_free() {
   local port=$1
   # Keep these lsof checks separate, as required by the Mac runbook.
@@ -199,7 +175,6 @@ require_single_nonempty_key "$COORDINATOR_ENV" 'JOBBUILDA_VERIFICATION_ACCESS_EX
 require_single_exact_line "$ADMIN_ENV" 'NEXT_PUBLIC_API_URL=http://127.0.0.1:3000'
 require_single_exact_line "$ADMIN_ENV" "NEXT_PUBLIC_SUPABASE_URL=https://$REHEARSAL_REF.supabase.co"
 require_single_nonempty_key "$ADMIN_ENV" 'NEXT_PUBLIC_SUPABASE_ANON_KEY'
-reject_forbidden_parent_environment
 
 progress 'checking that the two documented local ports are free'
 assert_port_free 3000
