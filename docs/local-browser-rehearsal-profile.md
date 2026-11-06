@@ -54,18 +54,9 @@ SUPABASE_SERVICE_ROLE_KEY=<existing rehearsal service-role key>
 DATABASE_URL=postgresql://<existing-user>:<existing-password>@db.jwnfweldmfdeapfzfunq.supabase.co:5432/postgres
 PORT=3000
 HOST=127.0.0.1
-JOBBUILDA_VERIFICATION_OWNER_AUTH_USER_ID=<existing approved synthetic owner UUID>
-JOBBUILDA_VERIFICATION_ACCESS_EXPIRES_AT=2030-01-01T01:00:00.000Z
 ```
 
-Set a short real expiry before each session. On macOS, generate a canonical UTC expiry without exposing any secret:
-
-```bash
-EXPIRY="$(date -u -v+20M '+%Y-%m-%dT%H:%M:%S.000Z')"
-printf 'Use this expiry only in the protected coordinator file: %s\n' "$EXPIRY"
-```
-
-Replace the expiry line in the protected coordinator file before startup. `DATABASE_URL` accepts either the direct `db.jwnfweldmfdeapfzfunq.supabase.co:5432/postgres` PostgreSQL target or, if the direct IPv6 target is unreachable from the Mac, the exact approved session-pooler target below. The session-pooler URL must use host `aws-0-eu-west-1.pooler.supabase.com`, port `5432`, username `postgres.jwnfweldmfdeapfzfunq`, and database `postgres`; all other poolers, users, ports, databases, production/foreign projects, malformed URLs, and local proxies are rejected.
+The protected coordinator file must already retain its pre-approved owner assignment, but it must not contain an expiry line between sessions. Do not print, copy, request, or add the owner value. The Step-35 runner verifies that the existing protected owner assignment is present, then atomically appends a new canonical UTC expiry when it is missing or replaces it when exactly one is present. Duplicate expiry lines fail closed. This refresh is the last gate-opening action before startup; cleanup is armed only after it succeeds. `DATABASE_URL` accepts either the direct `db.jwnfweldmfdeapfzfunq.supabase.co:5432/postgres` PostgreSQL target or, if the direct IPv6 target is unreachable from the Mac, the exact approved session-pooler target below. The session-pooler URL must use host `aws-0-eu-west-1.pooler.supabase.com`, port `5432`, username `postgres.jwnfweldmfdeapfzfunq`, and database `postgres`; all other poolers, users, ports, databases, production/foreign projects, malformed URLs, and local proxies are rejected.
 
 ```dotenv
 DATABASE_URL=postgresql://postgres.jwnfweldmfdeapfzfunq:<existing-session-pooler-password>@aws-0-eu-west-1.pooler.supabase.com:5432/postgres
@@ -135,13 +126,13 @@ This runbook validates local process/readiness and bounded API/browser entry onl
 
 ## Shutdown and close the window
 
-In Terminal 1 press `Ctrl-C`; in Terminal 2 press `Ctrl-C`. Then remove both owner verification lines from the protected coordinator file (or set neither):
+In Terminal 1 press `Ctrl-C`; in Terminal 2 press `Ctrl-C`. The runner removes only the expiry line after a successful refresh, preserving the protected pre-approved owner assignment for the next repeatable session. If recovery is required after an interrupted runner before its cleanup completed, remove only the expiry line manually:
 
 ```bash
-perl -i -ne 'print unless /^JOBBUILDA_VERIFICATION_(OWNER_AUTH_USER_ID|ACCESS_EXPIRES_AT)=/' \
+perl -i -ne 'print unless /^JOBBUILDA_VERIFICATION_ACCESS_EXPIRES_AT=/' \
   "$HOME/.config/jobbuilda/rehearsal-coordinator.env"
 lsof -nP -iTCP:3000 -sTCP:LISTEN || true
 lsof -nP -iTCP:3002 -sTCP:LISTEN || true
 ```
 
-The coordinator closes its MCP children and no-consumer capture on `SIGINT`/`SIGTERM`. Do not delete fixtures or modify rehearsal data as shutdown.
+Missing or expired expiry is server default-off even when the protected owner assignment remains. The coordinator closes its MCP children and no-consumer capture on `SIGINT`/`SIGTERM`. Do not delete fixtures or modify rehearsal data as shutdown.

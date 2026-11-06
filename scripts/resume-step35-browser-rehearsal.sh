@@ -101,12 +101,17 @@ refresh_expiry_atomically() {
   local expiry temp
   expiry="$(date -u -v+20M '+%Y-%m-%dT%H:%M:%S.000Z')"
   temp="$(mktemp "${COORDINATOR_ENV}.tmp.XXXXXX")"
-  # Replace exactly one expiry line. The temporary file remains owner-only and
-  # mv is atomic within the protected file's directory on macOS.
+  # Accept zero or one expiry lines: append a fresh one when absent and replace
+  # it when present. Duplicate lines fail closed. The temporary file remains
+  # owner-only and mv is atomic within the protected file's directory on macOS.
   if ! EXPIRY_VALUE="$expiry" perl -0pe '
     my $replacement = $ENV{EXPIRY_VALUE};
     my $count = s/^JOBBUILDA_VERIFICATION_ACCESS_EXPIRES_AT=.*$/JOBBUILDA_VERIFICATION_ACCESS_EXPIRES_AT=$replacement/mg;
-    die "expected exactly one expiry marker\n" unless $count == 1;
+    die "duplicate expiry markers\n" if $count > 1;
+    if ($count == 0) {
+      $_ .= "\n" unless /\n\z/;
+      $_ .= "JOBBUILDA_VERIFICATION_ACCESS_EXPIRES_AT=$replacement\n";
+    }
   ' "$COORDINATOR_ENV" >"$temp"; then
     rm -f "$temp"
     fail 'could not refresh the protected verification expiry'
@@ -130,9 +135,9 @@ cleanup() {
   [ -z "$COORDINATOR_PID" ] || wait "$COORDINATOR_PID" 2>/dev/null || true
   [ -z "$ADMIN_PID" ] || wait "$ADMIN_PID" 2>/dev/null || true
   if [ "$CLEANUP_ARMED" = '1' ]; then
-    # This is the documented Perl shutdown form: remove both verification-gate
-    # lines and leave all other protected coordinator configuration untouched.
-    perl -i -ne 'print unless /^JOBBUILDA_VERIFICATION_(OWNER_AUTH_USER_ID|ACCESS_EXPIRES_AT)=/' \
+    # Preserve the pre-approved owner marker. Removing the expiry alone returns
+    # every verification route to the server's missing-expiry default-off state.
+    perl -i -ne 'print unless /^JOBBUILDA_VERIFICATION_ACCESS_EXPIRES_AT=/' \
       "$COORDINATOR_ENV"
   fi
   exit "$status"
@@ -171,7 +176,6 @@ require_single_exact_line "$COORDINATOR_ENV" 'PORT=3000'
 require_single_nonempty_key "$COORDINATOR_ENV" 'SUPABASE_SERVICE_ROLE_KEY'
 require_single_nonempty_key "$COORDINATOR_ENV" 'DATABASE_URL'
 require_single_nonempty_key "$COORDINATOR_ENV" 'JOBBUILDA_VERIFICATION_OWNER_AUTH_USER_ID'
-require_single_nonempty_key "$COORDINATOR_ENV" 'JOBBUILDA_VERIFICATION_ACCESS_EXPIRES_AT'
 require_single_exact_line "$ADMIN_ENV" 'NEXT_PUBLIC_API_URL=http://127.0.0.1:3000'
 require_single_exact_line "$ADMIN_ENV" "NEXT_PUBLIC_SUPABASE_URL=https://$REHEARSAL_REF.supabase.co"
 require_single_nonempty_key "$ADMIN_ENV" 'NEXT_PUBLIC_SUPABASE_ANON_KEY'

@@ -106,6 +106,23 @@ test('verification access is default-off and candidate routes still require a be
   await app.close();
 });
 
+test('a valid configured owner with missing expiry receives 503 before the handler', async () => {
+  const observability = { authCalls: 0, handlerCalls: 0 };
+  const app = await verificationBoundary(
+    environment({ [VERIFICATION_ACCESS_EXPIRES_AT_ENV]: undefined }),
+    observability,
+  );
+  const response = await app.inject({
+    method: 'GET',
+    url: '/api/identity/profile',
+    headers: { authorization: 'Bearer configured-owner-token' },
+  });
+  assert.equal(response.statusCode, 503);
+  assert.equal(observability.authCalls, 1);
+  assert.equal(observability.handlerCalls, 0);
+  await app.close();
+});
+
 test('verification access rejects malformed configuration, expiry, other owners, and forged headers', async () => {
   const malformed = await verificationBoundary(environment({ [VERIFICATION_OWNER_AUTH_USER_ID_ENV]: 'not-a-uuid' }));
   assert.equal((await malformed.inject({ method: 'GET', url: '/api/identity/profile', headers: { authorization: 'Bearer configured-owner-token' } })).statusCode, 503);
