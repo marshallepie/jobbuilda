@@ -1,5 +1,7 @@
 import { FastifyInstance } from 'fastify';
 import { extractAuthContext } from '../lib/auth.js';
+import { getPool } from '../lib/db.js';
+import { assertPortalTokenTarget } from '../lib/portal-token-target.js';
 
 export async function identityRoutes(fastify: FastifyInstance) {
   /**
@@ -45,11 +47,9 @@ export async function identityRoutes(fastify: FastifyInstance) {
         );
 
         return tenant.data;
-      } catch (error: any) {
-        reply.status(500).send({
-          error: 'Failed to fetch tenant',
-          message: error.message
-        });
+      } catch {
+        // Foreign and absent tenant IDs deliberately share one public response.
+        return reply.status(404).send({ error: 'Profile not found' });
       }
     }
   );
@@ -60,6 +60,7 @@ export async function identityRoutes(fastify: FastifyInstance) {
    */
   fastify.post<{
     Body: {
+      client_id: string;
       user_id: string;
       purpose: 'quote_view' | 'invoice_payment' | 'job_status';
       resource_id: string;
@@ -71,6 +72,9 @@ export async function identityRoutes(fastify: FastifyInstance) {
       const context = extractAuthContext(request);
 
       try {
+        // Owner-only server auth establishes context; this query then proves
+        // the caller-supplied client/document pair belongs to that tenant.
+        await assertPortalTokenTarget(getPool(), request.body, context);
         const result = await fastify.mcp.identity.callTool(
           'issue_portal_token',
           request.body,
@@ -79,11 +83,9 @@ export async function identityRoutes(fastify: FastifyInstance) {
 
         const data = JSON.parse(result.content[0]?.text || '{}');
         return data;
-      } catch (error: any) {
-        reply.status(500).send({
-          error: 'Failed to issue portal token',
-          message: error.message
-        });
+      } catch {
+        // Do not disclose which component of a target relationship was absent.
+        return reply.status(404).send({ error: 'Portal target not found' });
       }
     }
   );
@@ -134,11 +136,8 @@ export async function identityRoutes(fastify: FastifyInstance) {
       );
 
       return tenant.data;
-    } catch (error: any) {
-      reply.status(500).send({
-        error: 'Failed to fetch business profile',
-        message: error.message
-      });
+    } catch {
+      return reply.status(404).send({ error: 'Profile not found' });
     }
   });
 

@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import AppLayout from '@/components/AppLayout';
 import { api, ApiError } from '@/lib/api';
+import { useApi } from '@/hooks/useApi';
 import { formatDate, getStatusColor } from '@/lib/utils';
 
 interface Lead {
@@ -19,6 +20,7 @@ interface Lead {
 }
 
 export default function LeadsPage() {
+  useApi();
   const router = useRouter();
   const [leads, setLeads] = useState<Lead[]>([]);
   const [loading, setLoading] = useState(true);
@@ -30,12 +32,6 @@ export default function LeadsPage() {
 
   const loadLeads = async () => {
     try {
-      const mockAuth = {
-        token: 'mock-jwt-token',
-        tenant_id: '550e8400-e29b-41d4-a716-446655440000',
-        user_id: '550e8400-e29b-41d4-a716-446655440001',
-      };
-      api.setAuth(mockAuth);
 
       const data = await api.getLeads() as Lead[];
       setLeads(data);

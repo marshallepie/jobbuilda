@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import AppLayout from '@/components/AppLayout';
 import { api, ApiError } from '@/lib/api';
+import { useApi } from '@/hooks/useApi';
 import { formatDate, getStatusColor } from '@/lib/utils';
 
 interface Job {
@@ -17,6 +18,7 @@ interface Job {
 }
 
 export default function JobsPage() {
+  useApi();
   const [jobs, setJobs] = useState<Job[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<string>('all');
@@ -27,12 +29,6 @@ export default function JobsPage() {
 
   const loadJobs = async () => {
     try {
-      const mockAuth = {
-        token: 'mock-jwt-token',
-        tenant_id: '550e8400-e29b-41d4-a716-446655440000',
-        user_id: '550e8400-e29b-41d4-a716-446655440001',
-      };
-      api.setAuth(mockAuth);
 
       const data = await api.getJobs() as Job[];
       setJobs(data);

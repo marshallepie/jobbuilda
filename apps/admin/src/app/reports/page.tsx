@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import AppLayout from '@/components/AppLayout';
 import { api } from '@/lib/api';
+import { useApi } from '@/hooks/useApi';
 import { formatCurrency, formatDate } from '@/lib/utils';
 
 interface ReportData {
@@ -32,6 +33,7 @@ interface ReportData {
 }
 
 export default function ReportsPage() {
+  useApi();
   const [reportData, setReportData] = useState<ReportData | null>(null);
   const [loading, setLoading] = useState(true);
   const [selectedPeriod, setSelectedPeriod] = useState<'month' | 'quarter' | 'year'>('month');
@@ -42,12 +44,6 @@ export default function ReportsPage() {
 
   const loadReportData = async () => {
     try {
-      const mockAuth = {
-        token: 'mock-jwt-token',
-        tenant_id: '550e8400-e29b-41d4-a716-446655440000',
-        user_id: '550e8400-e29b-41d4-a716-446655440001',
-      };
-      api.setAuth(mockAuth);
 
       // Fetch all data
       const [jobs, invoicesResponse] = await Promise.all([

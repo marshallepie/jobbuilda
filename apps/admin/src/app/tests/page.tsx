@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import AppLayout from '@/components/AppLayout';
 import { api, ApiError } from '@/lib/api';
+import { useApi } from '@/hooks/useApi';
 import { formatDate, getStatusColor } from '@/lib/utils';
 
 interface Test {
@@ -21,6 +22,7 @@ interface Test {
 }
 
 export default function TestsPage() {
+  useApi();
   const [tests, setTests] = useState<Test[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<string>('all');
@@ -32,12 +34,6 @@ export default function TestsPage() {
 
   const loadTests = async () => {
     try {
-      const mockAuth = {
-        token: 'mock-jwt-token',
-        tenant_id: '550e8400-e29b-41d4-a716-446655440000',
-        user_id: '550e8400-e29b-41d4-a716-446655440001',
-      };
-      api.setAuth(mockAuth);
 
       const data = await api.get('/api/tests') as Test[];
       setTests(data);

@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { api } from '@/lib/api';
+import { useApi } from '@/hooks/useApi';
 
 interface InspectionItem {
   item_code: string;
@@ -97,6 +98,7 @@ export default function InspectionChecklist({
   existingItems = [],
   onSaveSuccess,
 }: InspectionChecklistProps) {
+  useApi();
   const [items, setItems] = useState<InspectionItem[]>([]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -145,12 +147,6 @@ export default function InspectionChecklist({
     setSaveStatus(prev => ({ ...prev, [item.item_code]: false }));
 
     try {
-      const mockAuth = {
-        token: 'mock-jwt-token',
-        tenant_id: '550e8400-e29b-41d4-a716-446655440000',
-        user_id: '550e8400-e29b-41d4-a716-446655440001',
-      };
-      api.setAuth(mockAuth);
 
       await api.post(`/api/tests/${testId}/inspections`, {
         item_code: item.item_code,
@@ -177,12 +173,6 @@ export default function InspectionChecklist({
     setError(null);
 
     try {
-      const mockAuth = {
-        token: 'mock-jwt-token',
-        tenant_id: '550e8400-e29b-41d4-a716-446655440000',
-        user_id: '550e8400-e29b-41d4-a716-446655440001',
-      };
-      api.setAuth(mockAuth);
 
       // Save all items with results
       const itemsToSave = items.filter(item => item.result);

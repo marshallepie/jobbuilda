@@ -2,24 +2,17 @@ import { useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { api } from '@/lib/api';
 
-/**
- * Hook to automatically sync API client with Supabase auth
- */
+/** Synchronize only the Supabase access token; the server owns tenant context. */
 export function useApi() {
-  const { session, user, tenantId } = useAuth();
+  const { session } = useAuth();
 
   useEffect(() => {
-    if (session && user && tenantId) {
-      // Set auth context for API client
-      api.setAuth({
-        token: session.access_token,
-        tenant_id: tenantId,
-        user_id: user.id,
-      });
+    if (session?.access_token) {
+      api.setAuth({ token: session.access_token });
     } else {
       api.clearAuth();
     }
-  }, [session, user, tenantId]);
+  }, [session?.access_token]);
 
   return api;
 }

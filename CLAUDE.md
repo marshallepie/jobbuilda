@@ -84,7 +84,7 @@ fastify.get<{ Params: { id: string } }>('/api/resource/:id', async (request, rep
 });
 ```
 
-`extractAuthContext` pulls `tenant_id`, `user_id`, and `scopes` from the JWT header and passes them on every MCP call — this is how multi-tenancy is enforced.
+`extractAuthContext` passes a request context derived server-side from a verified Supabase Auth identity and one active `public.auth_tenant_memberships` mapping. It never accepts caller-supplied tenant, user, or scope headers.
 
 ### Admin Frontend Pattern
 

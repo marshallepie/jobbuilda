@@ -1,4 +1,4 @@
-export { MCPClient } from './client';
+export { buildMcpChildEnvironment, MCPClient } from './client';
 export {
   MCPResource,
   MCPToolCallParams,

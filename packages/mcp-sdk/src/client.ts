@@ -9,6 +9,35 @@ import {
   MCPCallMeta
 } from './types';
 
+const browserRehearsalInheritedEnvironment = ['PATH'] as const;
+
+/**
+ * Build the environment passed to an MCP child. Browser rehearsal children
+ * receive only their explicit connection configuration plus PATH so that
+ * unreviewed parent provider and telemetry configuration cannot leak in.
+ */
+export function buildMcpChildEnvironment(
+  connection: MCPServerConnection,
+  parentEnvironment: NodeJS.ProcessEnv = process.env,
+): Record<string, string> {
+  if (!connection.browserRehearsal) {
+    return {
+      ...(parentEnvironment as Record<string, string>),
+      ...connection.env,
+    };
+  }
+
+  const inheritedEnvironment: Record<string, string> = {};
+  for (const key of browserRehearsalInheritedEnvironment) {
+    const value = parentEnvironment[key];
+    if (value !== undefined) inheritedEnvironment[key] = value;
+  }
+  return {
+    ...inheritedEnvironment,
+    ...connection.env,
+  };
+}
+
 /**
  * Typed MCP Client wrapper with automatic AuthContext propagation
  */
@@ -38,10 +67,7 @@ export class MCPClient {
     this.transport = new StdioClientTransport({
       command: this.connection.command,
       args: this.connection.args,
-      env: {
-        ...(process.env as Record<string, string>),
-        ...this.connection.env
-      }
+      env: buildMcpChildEnvironment(this.connection)
     });
 
     await this.client.connect(this.transport);

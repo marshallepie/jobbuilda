@@ -6,6 +6,7 @@ import Link from 'next/link';
 import AppLayout from '@/components/AppLayout';
 import dynamic from 'next/dynamic';
 import { api } from '@/lib/api';
+import { useApi } from '@/hooks/useApi';
 
 const CreateTestModal = dynamic(() => import('@/components/CreateTestModal'), { ssr: false });
 import { formatCurrency, formatDate, getStatusColor } from '@/lib/utils';
@@ -94,6 +95,7 @@ interface Job {
 }
 
 export default function JobDetailPage() {
+  useApi();
   const router = useRouter();
   const params = useParams();
   const jobId = params?.id as string;
@@ -161,12 +163,6 @@ export default function JobDetailPage() {
 
   const loadJobDetails = async () => {
     try {
-      const mockAuth = {
-        token: 'mock-jwt-token',
-        tenant_id: '550e8400-e29b-41d4-a716-446655440000',
-        user_id: '550e8400-e29b-41d4-a716-446655440001',
-      };
-      api.setAuth(mockAuth);
 
       // Load job details
       const jobData = await api.getJob(jobId) as any;
@@ -260,12 +256,6 @@ export default function JobDetailPage() {
 
   const loadMaterialsCatalog = async () => {
     try {
-      const mockAuth = {
-        token: 'mock-jwt-token',
-        tenant_id: '550e8400-e29b-41d4-a716-446655440000',
-        user_id: '550e8400-e29b-41d4-a716-446655440001',
-      };
-      api.setAuth(mockAuth);
 
       const data = await api.getMaterials() as any;
       const catalogList = Array.isArray(data) ? data : (data.data || []);
@@ -375,12 +365,6 @@ export default function JobDetailPage() {
     const durationHours = (endTime.getTime() - timerStart.getTime()) / (1000 * 60 * 60);
 
     try {
-      const mockAuth = {
-        token: 'mock-jwt-token',
-        tenant_id: '550e8400-e29b-41d4-a716-446655440000',
-        user_id: '550e8400-e29b-41d4-a716-446655440001',
-      };
-      api.setAuth(mockAuth);
 
       await api.logTime(jobId, {
         date: timerStart.toISOString().split('T')[0], // YYYY-MM-DD format
@@ -415,12 +399,6 @@ export default function JobDetailPage() {
     }
 
     try {
-      const mockAuth = {
-        token: 'mock-jwt-token',
-        tenant_id: '550e8400-e29b-41d4-a716-446655440000',
-        user_id: '550e8400-e29b-41d4-a716-446655440001',
-      };
-      api.setAuth(mockAuth);
 
       const endTime = new Date();
       const startTime = new Date(endTime.getTime() - totalHours * 60 * 60 * 1000);
@@ -489,12 +467,6 @@ export default function JobDetailPage() {
     }
 
     try {
-      const mockAuth = {
-        token: 'mock-jwt-token',
-        tenant_id: '550e8400-e29b-41d4-a716-446655440000',
-        user_id: '550e8400-e29b-41d4-a716-446655440001',
-      };
-      api.setAuth(mockAuth);
 
       await api.logMaterial({
         job_id: jobId,

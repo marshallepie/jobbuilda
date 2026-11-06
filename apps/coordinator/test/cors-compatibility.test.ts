@@ -22,6 +22,18 @@ async function createApp() {
   return app;
 }
 
+async function createBrowserRehearsalApp() {
+  const app = Fastify();
+  await app.register(cors, coordinatorCorsOptions({
+    ADMIN_URL: origins.admin,
+    PORTAL_URL: origins.portal,
+    APP_URL: 'https://app.example.test',
+  }, true));
+  app.post('/api/dashboard', async () => ({ ok: true }));
+  await app.ready();
+  return app;
+}
+
 async function preflight(app: Awaited<ReturnType<typeof createApp>>, origin: string) {
   return app.inject({
     method: 'OPTIONS',
@@ -34,7 +46,7 @@ async function preflight(app: Awaited<ReturnType<typeof createApp>>, origin: str
   });
 }
 
-test('configured Admin origin permits legacy dashboard preflight headers and credentials', async () => {
+test('configured Admin origin permits authenticated dashboard preflight headers and credentials', async () => {
   const app = await createApp();
   const response = await preflight(app, origins.admin);
 
@@ -44,6 +56,7 @@ test('configured Admin origin permits legacy dashboard preflight headers and cre
   for (const header of LEGACY_BROWSER_ALLOWED_HEADERS) {
     assert.match(response.headers['access-control-allow-headers'] || '', new RegExp(header, 'i'));
   }
+  assert.doesNotMatch(response.headers['access-control-allow-headers'] || '', /x-tenant-id|x-user-id/i);
   await app.close();
 });
 
@@ -63,6 +76,18 @@ test('unconfigured origins receive no CORS approval', async () => {
 
   assert.equal(response.headers['access-control-allow-origin'], undefined);
   assert.equal(response.headers['access-control-allow-credentials'], undefined);
+  await app.close();
+});
+
+test('browser rehearsal CORS permits only the exact local Admin origin', async () => {
+  const app = await createBrowserRehearsalApp();
+  const approved = await preflight(app, 'http://localhost:3002');
+  const rejected = await preflight(app, origins.admin);
+
+  assert.equal(approved.statusCode, 204);
+  assert.equal(approved.headers['access-control-allow-origin'], 'http://localhost:3002');
+  assert.equal(rejected.headers['access-control-allow-origin'], undefined);
+  assert.equal(rejected.headers['access-control-allow-credentials'], undefined);
   await app.close();
 });
 

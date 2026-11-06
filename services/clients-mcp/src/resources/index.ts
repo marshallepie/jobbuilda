@@ -45,7 +45,9 @@ export async function handleResourceRead(uri: string, args: any): Promise<any> {
     const [, clientId] = clientMatch;
     const client = await getClient(clientId, context.tenant_id);
     if (!client) {
-      throw new Error(`Client not found: ${clientId}`);
+      // Keep a cross-tenant miss indistinguishable from an absent ID. The
+      // coordinator maps this to its fixed public not-found response.
+      throw new Error('Client not found');
     }
     return client;
   }
@@ -58,7 +60,9 @@ export async function handleResourceRead(uri: string, args: any): Promise<any> {
     const [, siteId] = siteMatch;
     const site = await getSite(siteId, context.tenant_id);
     if (!site) {
-      throw new Error(`Site not found: ${siteId}`);
+      // Keep a cross-tenant miss indistinguishable from an absent ID; the
+      // coordinator maps it to its fixed public not-found response.
+      throw new Error('Site not found');
     }
     return site;
   }

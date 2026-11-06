@@ -24,8 +24,9 @@ export async function invoicingRoutes(fastify: FastifyInstance) {
       try {
         const result = await fastify.mcp.invoicing.readResource(uri, context);
         return result.data;
-      } catch (error: any) {
-        reply.status(500).send({ error: 'Failed to fetch invoice', message: error.message });
+      } catch {
+        // Foreign and absent IDs deliberately share one public representation.
+        return reply.status(404).send({ error: 'Invoice not found' });
       }
     }
   );

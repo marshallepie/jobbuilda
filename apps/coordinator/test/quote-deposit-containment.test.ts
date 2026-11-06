@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { readFile } from 'node:fs/promises';
 import Fastify from 'fastify';
 import { paymentsRoutes } from '../src/routes/payments.js';
 import { quoteDepositWebhookRoutes } from '../src/routes/quote-deposit-webhook.js';
@@ -41,6 +42,13 @@ test('quote deposit checkout is contained before every MCP or payment effect', a
 
   assert.deepEqual(calls, { identityReads: 0, quoteReads: 0, paymentCalls: 0 });
   await app.close();
+});
+
+test('quote deposit containment route retains no caller-controlled tenant fallback', async () => {
+  const source = await readFile(new URL('../src/routes/payments.ts', import.meta.url), 'utf8');
+
+  assert.doesNotMatch(source, /x-tenant-id/);
+  assert.doesNotMatch(source, /550e8400-e29b-41d4-a716-446655440000/);
 });
 
 test('quote deposit webhook remains registered while quote deposit checkout is contained', async () => {

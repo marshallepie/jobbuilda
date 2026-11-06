@@ -65,7 +65,8 @@ export async function handleResourceRead(uri: string, args: any): Promise<any> {
     const [, quoteId] = quoteMatch;
     const quote = await getQuote(quoteId, context.tenant_id, true);
     if (!quote) {
-      throw new Error(`Quote not found: ${quoteId}`);
+      // Do not echo a caller-supplied ID from a tenant-filtered miss.
+      throw new Error('Quote not found');
     }
     return quote;
   }

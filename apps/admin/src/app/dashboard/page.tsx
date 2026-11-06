@@ -3,12 +3,13 @@
 import { useEffect, useState } from 'react';
 import AppLayout from '@/components/AppLayout';
 import { api, ApiError } from '@/lib/api';
+import { useRecoveryApi } from '@/hooks/useRecoveryApi';
 import { formatCurrency, formatDate, getStatusColor } from '@/lib/utils';
 import Link from 'next/link';
 import ReceiptScanModal from '@/components/ReceiptScanModal';
 
 interface DashboardStats {
-  activeJobs: number;
+  activeJobs: number | string;
   pendingQuotes: number;
   unpaidInvoices: number;
   monthlyRevenue: number;
@@ -33,6 +34,8 @@ interface Quote {
 }
 
 export default function DashboardPage() {
+  const { accessToken, authLoading } = useRecoveryApi();
+  const session = accessToken ? { access_token: accessToken } : null;
   const [showScanModal, setShowScanModal] = useState(false);
   const [stats, setStats] = useState<DashboardStats>({
     activeJobs: 0,
@@ -46,31 +49,27 @@ export default function DashboardPage() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    if (authLoading) return;
+    if (!session?.access_token) {
+      setError('Sign in is required to load dashboard data');
+      setLoading(false);
+      return;
+    }
     loadDashboardData();
-  }, []);
+  }, [authLoading, session?.access_token]);
 
   const loadDashboardData = async () => {
     try {
-      // Load auth context (in production, this would come from Supabase)
-      const mockAuth = {
-        token: 'mock-jwt-token',
-        tenant_id: '550e8400-e29b-41d4-a716-446655440000',
-        user_id: '550e8400-e29b-41d4-a716-446655440001',
-      };
-      api.setAuth(mockAuth);
-
       // Fetch dashboard data
-      const [jobsData, quotesData, invoicesResponse] = await Promise.all([
-        api.getJobs() as Promise<Job[]>,
+      const [quotesData, invoicesResponse] = await Promise.all([
         api.getQuotes() as Promise<Quote[]>,
         api.request('/api/invoices') as Promise<any>,
       ]);
 
       // Unwrap invoices response (API returns { data: [...] })
-      const invoicesData = invoicesResponse.data || invoicesResponse;
+      const invoicesData: any[] = (invoicesResponse.data || invoicesResponse) as any[];
 
       // Calculate stats
-      const activeJobs = jobsData.filter((j) => j.status === 'in_progress').length;
       const pending = quotesData.filter((q) => q.status === 'sent' || q.status === 'viewed').length;
 
       // Calculate unpaid invoices
@@ -95,13 +94,13 @@ export default function DashboardPage() {
         }, 0);
 
       setStats({
-        activeJobs,
+        activeJobs: 'Contained',
         pendingQuotes: pending,
         unpaidInvoices,
         monthlyRevenue,
       });
 
-      setRecentJobs(jobsData.slice(0, 5));
+      setRecentJobs([]);
       setPendingQuotes(quotesData.filter((q) => q.status === 'sent' || q.status === 'viewed').slice(0, 5));
     } catch (err) {
       console.error('Failed to load dashboard:', err);
@@ -156,10 +155,19 @@ export default function DashboardPage() {
           onItemsConfirmed={() => setShowScanModal(false)}
         />
 
+        <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-amber-900">
+          Recovery access is limited to clients, quotes, and invoices. Jobs remain contained during maintenance.
+          <div className="mt-2 flex gap-4 text-sm font-medium">
+            <Link href="/clients" className="underline">Clients</Link>
+            <Link href="/quotes" className="underline">Quotes</Link>
+            <Link href="/invoices" className="underline">Invoices</Link>
+          </div>
+        </div>
+
         {/* Stats Grid */}
         <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
           <StatCard
-            title="Active Jobs"
+            title="Jobs"
             value={stats.activeJobs}
             icon="🔧"
             color="blue"
@@ -188,16 +196,11 @@ export default function DashboardPage() {
         <section>
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-xl font-semibold text-gray-900">Recent Jobs</h2>
-            <Link
-              href="/jobs"
-              className="text-sm font-medium text-primary-600 hover:text-primary-700"
-            >
-              View all →
-            </Link>
+            <span className="text-sm font-medium text-amber-700">Contained during maintenance</span>
           </div>
           {recentJobs.length === 0 ? (
             <div className="bg-white shadow rounded-lg p-6 text-center text-gray-500">
-              No jobs yet. Create your first job to get started!
+              Job data is temporarily unavailable during maintenance.
             </div>
           ) : (
             <div className="bg-white shadow rounded-lg overflow-hidden">

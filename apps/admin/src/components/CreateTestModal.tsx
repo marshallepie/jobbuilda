@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { api } from '@/lib/api';
+import { useApi } from '@/hooks/useApi';
 
 interface CreateTestModalProps {
   isOpen: boolean;
@@ -21,6 +22,7 @@ export default function CreateTestModal({
   siteId,
   electricalWorkType,
 }: CreateTestModalProps) {
+  useApi();
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -46,12 +48,6 @@ export default function CreateTestModal({
     setLoading(true);
 
     try {
-      const mockAuth = {
-        token: 'mock-jwt-token',
-        tenant_id: '550e8400-e29b-41d4-a716-446655440000',
-        user_id: '550e8400-e29b-41d4-a716-446655440001',
-      };
-      api.setAuth(mockAuth);
 
       // Create test
       const test: any = await api.request('/api/tests', {

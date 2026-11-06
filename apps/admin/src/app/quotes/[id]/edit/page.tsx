@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import AppLayout from '@/components/AppLayout';
 import { api } from '@/lib/api';
+import { useApi } from '@/hooks/useApi';
 import { formatCurrency } from '@/lib/utils';
 
 interface Client {
@@ -48,6 +49,7 @@ interface QuoteItem {
 }
 
 export default function EditQuotePage() {
+  useApi();
   const router = useRouter();
   const params = useParams();
   const quoteId = params.id as string;
@@ -109,12 +111,6 @@ export default function EditQuotePage() {
 
   const loadData = async () => {
     try {
-      const mockAuth = {
-        token: 'mock-jwt-token',
-        tenant_id: '550e8400-e29b-41d4-a716-446655440000',
-        user_id: '550e8400-e29b-41d4-a716-446655440001',
-      };
-      api.setAuth(mockAuth);
 
       // Load clients and quote in parallel
       const [clientsData, quoteData] = await Promise.all([

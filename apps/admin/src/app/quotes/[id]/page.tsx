@@ -5,6 +5,7 @@ import { useRouter, useParams } from 'next/navigation';
 import Link from 'next/link';
 import AppLayout from '@/components/AppLayout';
 import { api } from '@/lib/api';
+import { useApi } from '@/hooks/useApi';
 import { formatCurrency, formatDate, getStatusColor } from '@/lib/utils';
 
 interface BusinessProfile {
@@ -93,6 +94,7 @@ interface QuoteInvoiceSummary {
 }
 
 export default function QuoteDetailPage() {
+  useApi();
   const router = useRouter();
   const params = useParams();
   const quoteId = params?.id as string;
@@ -128,12 +130,6 @@ export default function QuoteDetailPage() {
 
   const loadQuote = async () => {
     try {
-      const mockAuth = {
-        token: 'mock-jwt-token',
-        tenant_id: '550e8400-e29b-41d4-a716-446655440000',
-        user_id: '550e8400-e29b-41d4-a716-446655440001',
-      };
-      api.setAuth(mockAuth);
 
       const data = await api.request(`/api/quotes/${quoteId}`) as any;
 
@@ -177,12 +173,6 @@ export default function QuoteDetailPage() {
     if (confirm(`Send quote ${quote.quote_number} to client via email?\n\nThe quote will be sent as a PDF attachment.`)) {
       setActionLoading(true);
       try {
-        const mockAuth = {
-          token: 'mock-jwt-token',
-          tenant_id: '550e8400-e29b-41d4-a716-446655440000',
-          user_id: '550e8400-e29b-41d4-a716-446655440001',
-        };
-        api.setAuth(mockAuth);
 
         const result = await api.request(`/api/email/quote/${quoteId}/send`, {
           method: 'POST',
@@ -213,13 +203,6 @@ export default function QuoteDetailPage() {
         });
 
         // Step 2: Create a job from the approved quote
-        const mockAuth = {
-          tenant_id: '550e8400-e29b-41d4-a716-446655440000',
-          user_id: 'test-user',
-          scopes: [],
-          x_request_id: crypto.randomUUID(),
-        };
-        api.setAuth(mockAuth);
 
         const jobResult = await api.request('/api/jobs', {
           method: 'POST',
@@ -255,13 +238,6 @@ export default function QuoteDetailPage() {
     if (reason !== null) { // User clicked OK (even if empty string)
       setActionLoading(true);
       try {
-        const mockAuth = {
-          tenant_id: '550e8400-e29b-41d4-a716-446655440000',
-          user_id: 'test-user',
-          scopes: [],
-          x_request_id: crypto.randomUUID(),
-        };
-        api.setAuth(mockAuth);
 
         await api.request(`/api/quotes/${quoteId}/reject`, {
           method: 'POST',
@@ -298,31 +274,20 @@ export default function QuoteDetailPage() {
     }
   };
 
-  const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
-
-  const downloadPDF = async () => {
+  const downloadPDF = () => {
     if (!quote) return;
-
-    try {
-      const url = `${apiBase}/api/pdf/quote/${quoteId}`;
-      window.open(url, '_blank');
-    } catch (err) {
-      console.error('Failed to download PDF:', err);
-      alert('Failed to download PDF. Please try again.');
-    }
+    alert('Quote PDF download is temporarily unavailable because it requires an authenticated API request.');
   };
 
   const previewQuote = () => {
     if (!quote) return;
-    const url = `${apiBase}/api/preview/quote?quote_id=${quoteId}&tenant_id=550e8400-e29b-41d4-a716-446655440000`;
-    window.open(url, '_blank');
+    alert('Quote preview is temporarily unavailable because it requires an authenticated API request.');
   };
 
   const changeEngagement = async (engagement_type: string) => {
     if (!quote) return;
     setEngagementSaving(true);
     try {
-      api.setAuth({ token: 'mock-jwt-token', tenant_id: '550e8400-e29b-41d4-a716-446655440000', user_id: '550e8400-e29b-41d4-a716-446655440001' });
       await api.request(`/api/quotes/${quoteId}/engagement`, {
         method: 'POST',
         body: JSON.stringify({ engagement_type, selected_by: 'admin' }),
@@ -339,7 +304,6 @@ export default function QuoteDetailPage() {
     if (!quote) return;
     setUrlsSaving(true);
     try {
-      api.setAuth({ token: 'mock-jwt-token', tenant_id: '550e8400-e29b-41d4-a716-446655440000', user_id: '550e8400-e29b-41d4-a716-446655440001' });
       await api.request(`/api/quotes/${quoteId}/project-urls`, {
         method: 'PUT',
         body: JSON.stringify({ urls: urlDraft }),
@@ -356,12 +320,6 @@ export default function QuoteDetailPage() {
   const generateShareLink = async () => {
     setShareLoading(true);
     try {
-      const mockAuth = {
-        token: 'mock-jwt-token',
-        tenant_id: '550e8400-e29b-41d4-a716-446655440000',
-        user_id: '550e8400-e29b-41d4-a716-446655440001',
-      };
-      api.setAuth(mockAuth);
       const result = await api.request(`/api/share/quote/${quoteId}`, {
         method: 'POST',
       }) as any;

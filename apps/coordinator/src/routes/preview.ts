@@ -1,26 +1,14 @@
 import { FastifyInstance } from 'fastify';
+import { extractAuthContext } from '../lib/auth.js';
 
 export async function previewRoutes(fastify: FastifyInstance) {
   /**
    * GET /api/preview/invoice
    * Generate a preview of an invoice with current template settings
-   * Optional query param: ?tenant_id=xxx (defaults to first tenant if not provided)
    */
   fastify.get('/api/preview/invoice', async (request, reply) => {
     try {
-      // Try to get tenant_id from query param, header, or use default
-      const queryParams = request.query as { tenant_id?: string };
-      const tenantId = queryParams.tenant_id ||
-                       (request.headers['x-tenant-id'] as string) ||
-                       '550e8400-e29b-41d4-a716-446655440000'; // Default test tenant
-
-      // Create minimal auth context for preview
-      const context = {
-        tenant_id: tenantId,
-        user_id: 'preview-user',
-        scopes: [],
-        x_request_id: 'preview-request'
-      };
+      const context = extractAuthContext(request);
 
       // Fetch business profile with template settings
       const profile = await fastify.mcp.identity.readResource(
@@ -50,17 +38,8 @@ export async function previewRoutes(fastify: FastifyInstance) {
    */
   fastify.get('/api/preview/quote', async (request, reply) => {
     try {
-      const queryParams = request.query as { tenant_id?: string; quote_id?: string };
-      const tenantId = queryParams.tenant_id ||
-                       (request.headers['x-tenant-id'] as string) ||
-                       '550e8400-e29b-41d4-a716-446655440000';
-
-      const context = {
-        tenant_id: tenantId,
-        user_id: 'preview-user',
-        scopes: [],
-        x_request_id: 'preview-request'
-      };
+      const queryParams = request.query as { quote_id?: string };
+      const context = extractAuthContext(request);
 
       const profileResource = await fastify.mcp.identity.readResource(
         `res://identity/tenants/${context.tenant_id}`,

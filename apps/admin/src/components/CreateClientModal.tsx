@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { api } from '@/lib/api';
+import { useApi } from '@/hooks/useApi';
 
 interface CreateClientModalProps {
   isOpen: boolean;
@@ -10,6 +11,7 @@ interface CreateClientModalProps {
 }
 
 export default function CreateClientModal({ isOpen, onClose, onClientCreated }: CreateClientModalProps) {
+  useApi();
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
     name: '',
@@ -30,12 +32,6 @@ export default function CreateClientModal({ isOpen, onClose, onClientCreated }: 
 
     setLoading(true);
     try {
-      const mockAuth = {
-        token: 'mock-jwt-token',
-        tenant_id: '550e8400-e29b-41d4-a716-446655440000',
-        user_id: '550e8400-e29b-41d4-a716-446655440001',
-      };
-      api.setAuth(mockAuth);
 
       const clientData = {
         name: formData.name.trim(),

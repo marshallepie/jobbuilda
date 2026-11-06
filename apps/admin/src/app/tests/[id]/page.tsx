@@ -6,6 +6,7 @@ import Link from 'next/link';
 import AppLayout from '@/components/AppLayout';
 import dynamic from 'next/dynamic';
 import { api } from '@/lib/api';
+import { useApi } from '@/hooks/useApi';
 
 const CertificateCard = dynamic(() => import('@/components/CertificateCard'), { ssr: false });
 const GenerateCertificateModal = dynamic(() => import('@/components/GenerateCertificateModal'), { ssr: false });
@@ -65,6 +66,7 @@ interface Certificate {
 }
 
 export default function TestDetailPage() {
+  useApi();
   const params = useParams();
   const router = useRouter();
   const testId = params?.id as string;
@@ -83,12 +85,6 @@ export default function TestDetailPage() {
 
   const loadTestData = async () => {
     try {
-      const mockAuth = {
-        token: 'mock-jwt-token',
-        tenant_id: '550e8400-e29b-41d4-a716-446655440000',
-        user_id: '550e8400-e29b-41d4-a716-446655440001',
-      };
-      api.setAuth(mockAuth);
 
       const testData = await api.get(`/api/tests/${testId}`) as Test;
       setTest(testData);
@@ -110,12 +106,6 @@ export default function TestDetailPage() {
     if (!test) return;
 
     try {
-      const mockAuth = {
-        token: 'mock-jwt-token',
-        tenant_id: '550e8400-e29b-41d4-a716-446655440000',
-        user_id: '550e8400-e29b-41d4-a716-446655440001',
-      };
-      api.setAuth(mockAuth);
 
       await api.post(`/api/tests/${testId}/certificate`, {
         certificate_type: certificateType,

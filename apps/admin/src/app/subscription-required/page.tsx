@@ -2,8 +2,10 @@
 
 import { useState } from 'react';
 import { api } from '@/lib/api';
+import { useApi } from '@/hooks/useApi';
 
 export default function SubscriptionRequiredPage() {
+  useApi();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 

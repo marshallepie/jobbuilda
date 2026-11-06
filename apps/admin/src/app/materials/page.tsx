@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import AppLayout from '@/components/AppLayout';
 import { api } from '@/lib/api';
+import { useApi } from '@/hooks/useApi';
 import { formatCurrency } from '@/lib/utils';
 
 interface Material {
@@ -21,6 +22,7 @@ interface Material {
 }
 
 export default function MaterialsPage() {
+  useApi();
   const [materials, setMaterials] = useState<Material[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
@@ -46,12 +48,6 @@ export default function MaterialsPage() {
 
   const loadMaterials = async () => {
     try {
-      const mockAuth = {
-        token: 'mock-jwt-token',
-        tenant_id: '550e8400-e29b-41d4-a716-446655440000',
-        user_id: '550e8400-e29b-41d4-a716-446655440001',
-      };
-      api.setAuth(mockAuth);
 
       const data = await api.getMaterials() as any;
       const materialList = Array.isArray(data) ? data : (data.data || []);
@@ -73,12 +69,6 @@ export default function MaterialsPage() {
 
     setActionLoading(true);
     try {
-      const mockAuth = {
-        token: 'mock-jwt-token',
-        tenant_id: '550e8400-e29b-41d4-a716-446655440000',
-        user_id: '550e8400-e29b-41d4-a716-446655440001',
-      };
-      api.setAuth(mockAuth);
 
       await api.request('/api/materials', {
         method: 'POST',

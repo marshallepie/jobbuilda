@@ -5,8 +5,10 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import AppLayout from '@/components/AppLayout';
 import { api } from '@/lib/api';
+import { useApi } from '@/hooks/useApi';
 
 export default function NewLeadPage() {
+  useApi();
   const router = useRouter();
   const [loading, setLoading] = useState(false);
 
@@ -31,12 +33,6 @@ export default function NewLeadPage() {
 
     setLoading(true);
     try {
-      const mockAuth = {
-        token: 'mock-jwt-token',
-        tenant_id: '550e8400-e29b-41d4-a716-446655440000',
-        user_id: '550e8400-e29b-41d4-a716-446655440001',
-      };
-      api.setAuth(mockAuth);
 
       const leadData = {
         name: formData.name,

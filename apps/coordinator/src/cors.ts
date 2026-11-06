@@ -2,13 +2,21 @@ import type { FastifyCorsOptions } from '@fastify/cors';
 
 export const LEGACY_BROWSER_ALLOWED_HEADERS = [
   'Authorization',
-  'x-tenant-id',
-  'x-user-id',
   'Content-Type',
   'X-CSRF-Token',
 ];
 
-export function coordinatorCorsOptions(env: NodeJS.ProcessEnv = process.env): FastifyCorsOptions {
+export function coordinatorCorsOptions(
+  env: NodeJS.ProcessEnv = process.env,
+  browserRehearsal = false,
+): FastifyCorsOptions {
+  if (browserRehearsal) {
+    return {
+      origin: (origin, callback) => callback(null, !origin || origin === 'http://localhost:3002'),
+      credentials: true,
+      allowedHeaders: LEGACY_BROWSER_ALLOWED_HEADERS,
+    };
+  }
   const allowedOrigins = new Set([
     env.ADMIN_URL || 'http://localhost:3002',
     env.PORTAL_URL || 'http://localhost:3001',

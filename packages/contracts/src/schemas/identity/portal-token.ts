@@ -22,6 +22,8 @@ export const PortalTokenPayloadSchema: JSONSchemaType<PortalTokenPayload> = {
 };
 
 export interface IssuePortalTokenInput {
+  /** Durable client record receiving access; checked against the document. */
+  client_id: string;
   user_id: string;
   purpose: PortalTokenPayload['purpose'];
   resource_id: string;
@@ -31,11 +33,12 @@ export interface IssuePortalTokenInput {
 export const IssuePortalTokenInputSchema: JSONSchemaType<IssuePortalTokenInput> = {
   type: 'object',
   properties: {
+    client_id: { type: 'string', format: 'uuid' },
     user_id: { type: 'string', format: 'uuid' },
     purpose: { type: 'string', enum: ['quote_view', 'invoice_payment', 'job_status'] },
     resource_id: { type: 'string', format: 'uuid' },
     ttl_minutes: { type: 'number', minimum: 15, maximum: 60, nullable: true }
   },
-  required: ['user_id', 'purpose', 'resource_id'],
+  required: ['client_id', 'user_id', 'purpose', 'resource_id'],
   additionalProperties: false
 };

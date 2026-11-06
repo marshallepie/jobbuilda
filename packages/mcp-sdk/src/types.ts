@@ -38,6 +38,11 @@ export interface MCPServerConnection {
   command: string;
   args: string[];
   env?: Record<string, string>;
+  /**
+   * Use the restricted child environment required by the local browser
+   * rehearsal profile. Normal MCP startup retains its inherited environment.
+   */
+  browserRehearsal?: boolean;
 }
 
 /**

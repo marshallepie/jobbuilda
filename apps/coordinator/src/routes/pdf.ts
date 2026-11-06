@@ -1,5 +1,6 @@
 import { FastifyInstance } from 'fastify';
 import { generatePDFFromHTML } from '../lib/pdf.js';
+import { extractAuthContext } from '../lib/auth.js';
 
 export async function pdfRoutes(fastify: FastifyInstance) {
   /**
@@ -10,17 +11,7 @@ export async function pdfRoutes(fastify: FastifyInstance) {
     const { quoteId } = request.params as { quoteId: string };
 
     try {
-      // Get tenant_id from headers or use default for dev
-      const tenantId = (request.headers['x-tenant-id'] as string) ||
-                       '550e8400-e29b-41d4-a716-446655440000';
-      const userId = (request.headers['x-user-id'] as string) || 'preview-user';
-
-      const context = {
-        tenant_id: tenantId,
-        user_id: userId,
-        scopes: [],
-        x_request_id: request.id,
-      };
+      const context = extractAuthContext(request);
 
       // Fetch quote data from quoting-mcp
       const quoteResource = await fastify.mcp.quoting.readResource(
@@ -79,17 +70,7 @@ export async function pdfRoutes(fastify: FastifyInstance) {
     const { invoiceId } = request.params as { invoiceId: string };
 
     try {
-      // Get tenant_id from headers or use default for dev
-      const tenantId = (request.headers['x-tenant-id'] as string) ||
-                       '550e8400-e29b-41d4-a716-446655440000';
-      const userId = (request.headers['x-user-id'] as string) || 'preview-user';
-
-      const context = {
-        tenant_id: tenantId,
-        user_id: userId,
-        scopes: [],
-        x_request_id: request.id,
-      };
+      const context = extractAuthContext(request);
 
       // Fetch invoice data from invoicing-mcp
       const invoiceResource = await fastify.mcp.invoicing.readResource(
