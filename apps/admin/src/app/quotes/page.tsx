@@ -48,23 +48,6 @@ export default function QuotesPage() {
     }
   };
 
-  const deleteQuote = async (quoteId: string, quoteNumber: string) => {
-    if (confirm(`Are you sure you want to delete quote ${quoteNumber}? This action cannot be undone.`)) {
-      try {
-
-        await api.request(`/api/quotes/${quoteId}`, {
-          method: 'DELETE',
-        });
-
-        // Reload quotes list
-        await loadQuotes();
-      } catch (err: any) {
-        console.error('Failed to delete quote:', err);
-        alert(err.message || 'Failed to delete quote. Please try again.');
-      }
-    }
-  };
-
   const filteredQuotes = quotes.filter((quote) => {
     if (filter === 'all') return true;
     return quote.status === filter;
@@ -198,17 +181,6 @@ export default function QuotesPage() {
                       >
                         View
                       </Link>
-                      {quote.status !== 'approved' && (
-                        <button
-                          onClick={(e) => {
-                            e.preventDefault();
-                            deleteQuote(quote.id, quote.quote_number);
-                          }}
-                          className="text-red-600 hover:text-red-800"
-                        >
-                          Delete
-                        </button>
-                      )}
                     </td>
                   </tr>
                 ))}
@@ -252,17 +224,6 @@ export default function QuotesPage() {
                   >
                     View
                   </Link>
-                  {quote.status !== 'approved' && (
-                    <button
-                      onClick={(e) => {
-                        e.preventDefault();
-                        deleteQuote(quote.id, quote.quote_number);
-                      }}
-                      className="text-sm font-medium text-red-600 hover:text-red-800"
-                    >
-                      Delete
-                    </button>
-                  )}
                 </div>
               </div>
             ))}
