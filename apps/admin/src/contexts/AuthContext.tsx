@@ -53,27 +53,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const signIn = async (email: string, password: string) => {
-    // Development mode: if Supabase not configured, use mock auth
     if (!isSupabaseConfigured()) {
-      console.warn('Supabase not configured - using development mode');
-      // Create mock session
-      const mockUser: any = {
-        id: '550e8400-e29b-41d4-a716-446655440001',
-        email,
-        user_metadata: {
-          tenant_id: '550e8400-e29b-41d4-a716-446655440000',
-          role: 'admin',
-        },
-      };
-      const mockSession: any = {
-        access_token: 'mock-jwt-token',
-        user: mockUser,
-      };
-      setSession(mockSession);
-      setUser(mockUser);
-      setTenantId(mockUser.user_metadata.tenant_id);
-      router.push('/dashboard');
-      return;
+      throw new Error('Supabase authentication is not configured');
     }
 
     const { data, error } = await supabase.auth.signInWithPassword({
@@ -91,47 +72,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const signUp = async (email: string, password: string, metadata?: any) => {
-    // Development mode: if Supabase not configured, use mock auth
-    if (!isSupabaseConfigured()) {
-      console.warn('Supabase not configured - using development mode');
-      // Create mock session with provided metadata
-      const mockUser: any = {
-        id: crypto.randomUUID(),
-        email,
-        user_metadata: {
-          ...metadata,
-          tenant_id: metadata?.tenant_id || crypto.randomUUID(),
-          role: metadata?.role || 'admin',
-        },
-      };
-      const mockSession: any = {
-        access_token: 'mock-jwt-token',
-        user: mockUser,
-      };
-      setSession(mockSession);
-      setUser(mockUser);
-      setTenantId(mockUser.user_metadata.tenant_id);
-      router.push('/dashboard');
-      return;
-    }
-
-    const { data, error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        data: metadata,
-      },
-    });
-
-    if (error) throw error;
-
-    if (data.session) {
-      setSession(data.session);
-      setUser(data.user);
-      setTenantId(data.user?.user_metadata?.tenant_id ?? null);
-      router.push('/dashboard');
-    }
+  const signUp = async (_email: string, _password: string, _metadata?: any) => {
+    // Public registration remains intentionally paused until reviewed mapping
+    // provisioning exists; client metadata must never establish tenant access.
+    throw new Error('Registration is temporarily unavailable');
   };
 
   const signOut = async () => {

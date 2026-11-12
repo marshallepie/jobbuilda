@@ -199,93 +199,15 @@ export async function paymentsRoutes(fastify: FastifyInstance) {
     }
   );
 
-  // POST /api/payments/quote/:quoteId/deposit-checkout - Create Stripe checkout session for quote deposit
+  // Anonymous quote-deposit acquisition remains paused until its distinct
+  // capability flow is reviewed; it never reaches tenant or Stripe lookups.
   fastify.post<{ Params: { quoteId: string } }>(
     '/api/payments/quote/:quoteId/deposit-checkout',
-    async (request, reply) => {
-      // This anonymous payment path is intentionally paused. Keep this response before
-      // any tenant/quote lookup or payment-provider call so no supplied value can select
-      // a tenant or create a checkout while the flow is under containment.
-      return reply.status(503).send({
-        error: 'Quote deposit checkout unavailable',
-        code: 'QUOTE_DEPOSIT_CHECKOUT_DISABLED',
-        message: 'Quote deposit payments are temporarily unavailable for maintenance. Please contact the business directly.',
-      });
-
-      const { quoteId } = request.params;
-      const tenantId = (request.headers['x-tenant-id'] as string) ||
-                       '550e8400-e29b-41d4-a716-446655440000';
-      const context = {
-        tenant_id: tenantId,
-        user_id: 'portal',
-        scopes: [],
-        x_request_id: request.id,
-      };
-
-      try {
-        // Fetch tenant profile to get Stripe Connect account
-        const profileResource = await fastify.mcp.identity.readResource(
-          `res://identity/tenants/${tenantId}`,
-          context
-        );
-        const profileWrapper = profileResource.data as any;
-        const profile = profileWrapper.data || profileWrapper;
-
-        if (!profile.stripe_account_id || profile.stripe_connect_status !== 'active') {
-          return reply.status(400).send({
-            error: 'Stripe not connected',
-            message: 'This business has not connected a Stripe account yet. Please contact them directly to arrange payment.',
-          });
-        }
-
-        // Fetch quote
-        const quoteResource = await fastify.mcp.quoting.readResource(
-          `res://quoting/quotes/${quoteId}`,
-          context
-        );
-        const quoteWrapper = quoteResource.data as any;
-        const quote = quoteWrapper.data || quoteWrapper;
-
-        // Compute deposit amount
-        const depositAmount = quote.deposit_amount
-          ? parseFloat(quote.deposit_amount)
-          : quote.deposit_percent
-            ? Math.round(parseFloat(quote.total_inc_vat) * parseFloat(quote.deposit_percent) / 100 * 100) / 100
-            : parseFloat(quote.deposit_fixed_amount) || 0;
-
-        if (depositAmount <= 0) {
-          return reply.status(400).send({ error: 'No deposit configured on this quote' });
-        }
-
-        const portalUrl = process.env.PORTAL_URL || 'http://localhost:3001';
-
-        // Create Stripe checkout session via payments-mcp, passing the tenant's Connect account
-        const result = await fastify.mcp.payments.callTool(
-          'create_checkout_session',
-          {
-            invoice_id: quoteId,
-            amount: depositAmount,
-            currency: 'gbp',
-            description: `Deposit for Quote ${quote.quote_number}`,
-            success_url: `${portalUrl}/payment/quote-deposit/success?quote_id=${quoteId}`,
-            cancel_url: `${portalUrl}/payment/quote-deposit/${quoteId}`,
-            stripe_account_id: profile.stripe_account_id,
-            metadata: {
-              payment_type: 'quote_deposit',
-              quote_id: quoteId,
-              tenant_id: context.tenant_id,
-            },
-          },
-          context
-        );
-        const data = JSON.parse(result.content[0]?.text || '{}');
-
-        return reply.send({ checkoutUrl: data.checkout_url });
-      } catch (error: any) {
-        fastify.log.error({ error, quoteId }, 'Failed to create quote deposit checkout session');
-        return reply.status(500).send({ error: 'Failed to create checkout session', message: error.message });
-      }
-    }
+    async (_request, reply) => reply.status(503).send({
+      error: 'Quote deposit checkout unavailable',
+      code: 'QUOTE_DEPOSIT_CHECKOUT_DISABLED',
+      message: 'Quote deposit payments are temporarily unavailable for maintenance. Please contact the business directly.',
+    })
   );
 
   // Helper: get or create a Stripe Express Connect account for a tenant
@@ -319,17 +241,8 @@ export async function paymentsRoutes(fastify: FastifyInstance) {
 
   // GET /api/payments/connect/authorize - Start Stripe Connect onboarding
   fastify.get('/api/payments/connect/authorize', async (request, reply) => {
-    const tenantId = request.headers['x-tenant-id'] as string;
-    if (!tenantId) {
-      return reply.status(400).send({ error: 'Missing x-tenant-id header' });
-    }
-
-    const context = {
-      tenant_id: tenantId,
-      user_id: (request.headers['x-user-id'] as string) || 'admin',
-      scopes: [],
-      x_request_id: request.id,
-    };
+    const context = extractAuthContext(request);
+    const tenantId = context.tenant_id;
 
     try {
       const profileResource = await fastify.mcp.identity.readResource(
@@ -359,17 +272,8 @@ export async function paymentsRoutes(fastify: FastifyInstance) {
 
   // GET /api/payments/connect/status - Get Stripe Connect status for tenant
   fastify.get('/api/payments/connect/status', async (request, reply) => {
-    const tenantId = request.headers['x-tenant-id'] as string;
-    if (!tenantId) {
-      return reply.status(400).send({ error: 'Missing x-tenant-id header' });
-    }
-
-    const context = {
-      tenant_id: tenantId,
-      user_id: (request.headers['x-user-id'] as string) || 'admin',
-      scopes: [],
-      x_request_id: request.id,
-    };
+    const context = extractAuthContext(request);
+    const tenantId = context.tenant_id;
 
     try {
       const profileResource = await fastify.mcp.identity.readResource(
@@ -411,17 +315,8 @@ export async function paymentsRoutes(fastify: FastifyInstance) {
 
   // POST /api/payments/connect/disconnect - Disconnect Stripe Connect account
   fastify.post('/api/payments/connect/disconnect', async (request, reply) => {
-    const tenantId = request.headers['x-tenant-id'] as string;
-    if (!tenantId) {
-      return reply.status(400).send({ error: 'Missing x-tenant-id header' });
-    }
-
-    const context = {
-      tenant_id: tenantId,
-      user_id: (request.headers['x-user-id'] as string) || 'admin',
-      scopes: [],
-      x_request_id: request.id,
-    };
+    const context = extractAuthContext(request);
+    const tenantId = context.tenant_id;
 
     try {
       await fastify.mcp.identity.callTool(

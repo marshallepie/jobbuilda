@@ -200,13 +200,10 @@ export default function InvoiceDetailPage() {
     setPdfLoading(true);
     if (!isMobile) setShowPdfPreview(true);
     try {
-      const auth = api.loadAuth();
-      const headers: Record<string, string> = {};
-      if (auth) {
-        headers['Authorization'] = `Bearer ${auth.token}`;
-        headers['x-tenant-id'] = auth.tenant_id;
-        headers['x-user-id'] = auth.user_id;
-      }
+      const accessToken = api.getAccessToken();
+      const headers: Record<string, string> = accessToken
+        ? { Authorization: `Bearer ${accessToken}` }
+        : {};
       const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
       const res = await fetch(`${API_BASE_URL}/api/pdf/invoice/${invoiceId}`, { headers });
       if (!res.ok) {

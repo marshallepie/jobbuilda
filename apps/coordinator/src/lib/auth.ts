@@ -1,13 +1,119 @@
-import { FastifyRequest } from 'fastify';
+import { FastifyInstance, FastifyRequest } from 'fastify';
 import { AuthContext } from '@jobbuilda/contracts';
+import { getPool } from './db.js';
 
-/**
- * Emergency fail-closed guard for the account-isolation incident.
- *
- * This coordinator previously accepted tenant identity and scopes from caller
- * headers. Do not restore this helper until a server-verified identity and
- * durable tenant membership lookup replace those headers.
- */
-export function extractAuthContext(_request: FastifyRequest): AuthContext {
-  throw new Error('Account data access is temporarily unavailable');
+export class RequestAuthenticationError extends Error {
+  constructor(public readonly statusCode: 401 | 403, message: string) {
+    super(message);
+    this.name = 'RequestAuthenticationError';
+  }
+}
+
+interface VerifiedSupabaseUser { id: string; }
+interface MembershipRow { tenant_id: string; user_id: string; scopes: string[] | null; }
+
+export interface ServerAuthDependencies {
+  verifyAccessToken(accessToken: string): Promise<VerifiedSupabaseUser | null>;
+  findActiveMembership(authUserId: string): Promise<MembershipRow | null>;
+}
+
+declare module 'fastify' {
+  interface FastifyRequest {
+    authContext: AuthContext | null;
+    verifiedAuthUserId: string | null;
+  }
+}
+
+/** Routes with a separate, server-side authorization mechanism. */
+export function isNonStaffRoute(path: string): boolean {
+  return path === '/health' ||
+    path === '/api/auth/register' ||
+    path === '/api/subscription/webhook' ||
+    path === '/api/payments/quote-deposit/webhook' ||
+    path.startsWith('/api/client-portal/') ||
+    path.startsWith('/s/');
+}
+
+const callerSelectedIdentityHeaders = ['x-tenant-id', 'x-user-id', 'x-scopes'];
+
+function authorizationToken(request: FastifyRequest): string | null {
+  const header = request.headers.authorization;
+  if (typeof header !== 'string' || !header.startsWith('Bearer ')) return null;
+  const token = header.slice('Bearer '.length).trim();
+  return token || null;
+}
+
+function hasCallerSelectedIdentity(request: FastifyRequest): boolean {
+  return callerSelectedIdentityHeaders.some((header) => request.headers[header] !== undefined);
+}
+
+export function configuredDependencies(): ServerAuthDependencies {
+  const supabaseUrl = process.env.SUPABASE_URL;
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!supabaseUrl || !serviceRoleKey) {
+    throw new Error('SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are required for server authentication');
+  }
+
+  return {
+    async verifyAccessToken(accessToken) {
+      const response = await fetch(`${supabaseUrl.replace(/\/$/, '')}/auth/v1/user`, {
+        headers: { apikey: serviceRoleKey, Authorization: `Bearer ${accessToken}` },
+      });
+      if (!response.ok) return null;
+      const user = await response.json() as Partial<VerifiedSupabaseUser>;
+      return typeof user.id === 'string' ? { id: user.id } : null;
+    },
+    async findActiveMembership(authUserId) {
+      const result = await getPool().query<MembershipRow>(
+        `SELECT m.tenant_id, m.user_id,
+                COALESCE(array_agg(DISTINCT p.scope) FILTER (WHERE p.scope IS NOT NULL), '{}') AS scopes
+           FROM public.auth_tenant_memberships m
+           JOIN public.users u ON u.id = m.user_id
+                              AND u.tenant_id = m.tenant_id
+                              AND u.role = 'admin'
+           LEFT JOIN public.permissions p ON p.user_id = m.user_id
+          WHERE m.auth_user_id = $1
+            AND m.status = 'active'
+            AND m.revoked_at IS NULL
+          GROUP BY m.tenant_id, m.user_id`,
+        [authUserId],
+      );
+      return result.rows.length === 1 ? result.rows[0] : null;
+    },
+  };
+}
+
+export async function resolveServerAuthContext(request: FastifyRequest, dependencies?: ServerAuthDependencies): Promise<AuthContext> {
+  if (hasCallerSelectedIdentity(request)) {
+    throw new RequestAuthenticationError(401, 'Caller-selected tenant, user, and scope headers are not accepted');
+  }
+  const token = authorizationToken(request);
+  if (!token) throw new RequestAuthenticationError(401, 'A Supabase access token is required');
+  const authDependencies = dependencies ?? configuredDependencies();
+  const verifiedUser = await authDependencies.verifyAccessToken(token);
+  if (!verifiedUser) throw new RequestAuthenticationError(401, 'Invalid or expired Supabase access token');
+  const membership = await authDependencies.findActiveMembership(verifiedUser.id);
+  if (!membership) throw new RequestAuthenticationError(403, 'No active staff tenant membership is available for this account');
+  request.verifiedAuthUserId = verifiedUser.id;
+  return { tenant_id: membership.tenant_id, user_id: membership.user_id, scopes: membership.scopes ?? [], x_request_id: request.id };
+}
+
+export function registerServerAuth(fastify: FastifyInstance, dependencies?: ServerAuthDependencies): void {
+  fastify.decorateRequest('authContext', null);
+  fastify.decorateRequest('verifiedAuthUserId', null);
+  fastify.addHook('preHandler', async (request, reply) => {
+    if (isNonStaffRoute(request.url.split('?')[0])) return;
+    try {
+      request.authContext = await resolveServerAuthContext(request, dependencies);
+    } catch (error) {
+      if (error instanceof RequestAuthenticationError) return reply.status(error.statusCode).send({ error: error.message });
+      request.log.error(error, 'Server authentication unavailable');
+      return reply.status(503).send({ error: 'Authentication is temporarily unavailable' });
+    }
+  });
+}
+
+export function extractAuthContext(request: FastifyRequest): AuthContext {
+  if (!request.authContext) throw new Error('Server authentication context was not established');
+  return request.authContext;
 }

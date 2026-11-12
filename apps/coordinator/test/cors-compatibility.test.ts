@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import cors from '@fastify/cors';
 import Fastify from 'fastify';
-import { coordinatorCorsOptions, LEGACY_BROWSER_ALLOWED_HEADERS } from '../src/cors.js';
+import { coordinatorCorsOptions, STAFF_BROWSER_ALLOWED_HEADERS } from '../src/cors.js';
 
 const origins = {
   admin: 'https://admin.example.test',
@@ -29,19 +29,19 @@ async function preflight(app: Awaited<ReturnType<typeof createApp>>, origin: str
     headers: {
       origin,
       'access-control-request-method': 'POST',
-      'access-control-request-headers': LEGACY_BROWSER_ALLOWED_HEADERS.join(', '),
+      'access-control-request-headers': STAFF_BROWSER_ALLOWED_HEADERS.join(', '),
     },
   });
 }
 
-test('configured Admin origin permits legacy dashboard preflight headers and credentials', async () => {
+test('configured Admin origin permits bearer-authenticated dashboard preflight headers and credentials', async () => {
   const app = await createApp();
   const response = await preflight(app, origins.admin);
 
   assert.equal(response.statusCode, 204);
   assert.equal(response.headers['access-control-allow-origin'], origins.admin);
   assert.equal(response.headers['access-control-allow-credentials'], 'true');
-  for (const header of LEGACY_BROWSER_ALLOWED_HEADERS) {
+  for (const header of STAFF_BROWSER_ALLOWED_HEADERS) {
     assert.match(response.headers['access-control-allow-headers'] || '', new RegExp(header, 'i'));
   }
   await app.close();

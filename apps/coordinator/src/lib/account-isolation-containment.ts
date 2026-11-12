@@ -6,24 +6,11 @@ export const ACCOUNT_ACCESS_PAUSED_RESPONSE = {
   message: 'Account data access is temporarily unavailable while we complete maintenance.',
 };
 
-const allowedPaths = new Set([
-  '/health',
-  '/api/auth/register',
-  '/api/subscription/webhook',
-  '/api/payments/quote-deposit/webhook',
-]);
-
 /**
- * Emergency containment for the header-based tenancy incident.
- *
- * Do not restore tenant routes until they derive both identity and tenant
- * membership from a server-verified authentication mechanism.
+ * Legacy containment is intentionally narrow after server authentication is
+ * installed: staff routes are gated by registerServerAuth, registration stays
+ * paused in subscriptionRoutes, and webhooks/client portal/share redirects use
+ * their own server-side mechanisms. Keeping this hook no-op prevents a future
+ * broad 503 gate from silently bypassing the verified auth boundary.
  */
-export function registerAccountIsolationContainment(fastify: FastifyInstance): void {
-  fastify.addHook('onRequest', async (request, reply) => {
-    const path = request.url.split('?')[0];
-    if (allowedPaths.has(path)) return;
-
-    return reply.status(503).send(ACCOUNT_ACCESS_PAUSED_RESPONSE);
-  });
-}
+export function registerAccountIsolationContainment(_fastify: FastifyInstance): void {}

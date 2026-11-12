@@ -97,23 +97,9 @@ export default function ReceiptScanModal({
           reader.readAsDataURL(file);
         });
 
-        // 2. Upload image to Supabase Storage for audit trail
+        // Tenant-scoped storage paths cannot be browser-selected. Receipt upload
+        // remains server-mediated until a server-issued scoped upload exists.
         let receiptUrl: string | null = null;
-        const auth = api.loadAuth();
-        if (isSupabaseConfigured() && auth?.tenant_id) {
-          const ext = file.name.split('.').pop() || 'jpg';
-          const path = `${auth.tenant_id}/receipts/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
-          const { error: uploadError } = await supabase.storage
-            .from('receipts')
-            .upload(path, file, { contentType: file.type, upsert: false });
-
-          if (!uploadError) {
-            const { data: signedData } = await supabase.storage
-              .from('receipts')
-              .createSignedUrl(path, 3600 * 24 * 365); // 1-year signed URL
-            receiptUrl = signedData?.signedUrl || null;
-          }
-        }
         setStoredReceiptUrl(receiptUrl);
 
         // 3. Call AI scan endpoint

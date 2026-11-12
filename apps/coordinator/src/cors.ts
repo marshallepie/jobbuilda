@@ -1,9 +1,7 @@
 import type { FastifyCorsOptions } from '@fastify/cors';
 
-export const LEGACY_BROWSER_ALLOWED_HEADERS = [
+export const STAFF_BROWSER_ALLOWED_HEADERS = [
   'Authorization',
-  'x-tenant-id',
-  'x-user-id',
   'Content-Type',
   'X-CSRF-Token',
 ];
@@ -20,6 +18,6 @@ export function coordinatorCorsOptions(env: NodeJS.ProcessEnv = process.env): Fa
     // Non-browser requests retain the existing no-Origin behavior.
     origin: (origin, callback) => callback(null, !origin || allowedOrigins.has(origin)),
     credentials: true,
-    allowedHeaders: LEGACY_BROWSER_ALLOWED_HEADERS,
+    allowedHeaders: STAFF_BROWSER_ALLOWED_HEADERS,
   };
 }

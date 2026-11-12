@@ -2,6 +2,7 @@ import { FastifyInstance } from 'fastify';
 import { sendEmail, generateQuoteEmail, generateQuoteEmailText, generateInvoiceEmail } from '../lib/email.js';
 import { generatePDFFromHTML } from '../lib/pdf.js';
 import { generateQuoteHTML, generateInvoiceHTML } from './pdf.js';
+import { extractAuthContext } from '../lib/auth.js';
 
 export async function emailRoutes(fastify: FastifyInstance) {
   /**
@@ -12,17 +13,7 @@ export async function emailRoutes(fastify: FastifyInstance) {
     const { quoteId } = request.params as { quoteId: string };
 
     try {
-      // Get auth context
-      const tenantId = (request.headers['x-tenant-id'] as string) ||
-                       '550e8400-e29b-41d4-a716-446655440000';
-      const userId = (request.headers['x-user-id'] as string) || 'user';
-
-      const context = {
-        tenant_id: tenantId,
-        user_id: userId,
-        scopes: [],
-        x_request_id: request.id,
-      };
+      const context = extractAuthContext(request);
 
       // Fetch quote data
       const quoteResource = await fastify.mcp.quoting.readResource(
@@ -228,17 +219,7 @@ export async function emailRoutes(fastify: FastifyInstance) {
     const { invoiceId } = request.params as { invoiceId: string };
 
     try {
-      // Get auth context
-      const tenantId = (request.headers['x-tenant-id'] as string) ||
-                       '550e8400-e29b-41d4-a716-446655440000';
-      const userId = (request.headers['x-user-id'] as string) || 'user';
-
-      const context = {
-        tenant_id: tenantId,
-        user_id: userId,
-        scopes: [],
-        x_request_id: request.id,
-      };
+      const context = extractAuthContext(request);
 
       // Fetch invoice data
       const invoiceResource = await fastify.mcp.invoicing.readResource(
