@@ -3,6 +3,7 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
+import { api } from '@/lib/api';
 import { useRouter } from 'next/navigation';
 
 interface AuthContextType {
@@ -36,6 +37,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setSession(session);
       setUser(session?.user ?? null);
       setTenantId(session?.user?.user_metadata?.tenant_id ?? null);
+      if (session?.access_token) api.setAuth({ token: session.access_token });
+      else api.clearAuth();
       setLoading(false);
     });
 
@@ -46,6 +49,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setSession(session);
       setUser(session?.user ?? null);
       setTenantId(session?.user?.user_metadata?.tenant_id ?? null);
+      if (session?.access_token) api.setAuth({ token: session.access_token });
+      else api.clearAuth();
       setLoading(false);
     });
 
@@ -68,6 +73,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setSession(data.session);
       setUser(data.user);
       setTenantId(data.user?.user_metadata?.tenant_id ?? null);
+      api.setAuth({ token: data.session.access_token });
       router.push('/dashboard');
     }
   };
@@ -89,6 +95,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setSession(null);
     setUser(null);
     setTenantId(null);
+    api.clearAuth();
     router.push('/login');
   };
 
