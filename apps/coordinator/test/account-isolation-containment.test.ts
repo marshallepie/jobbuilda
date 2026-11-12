@@ -1,42 +1,75 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import Fastify from 'fastify';
-import {
-  ACCOUNT_ACCESS_PAUSED_RESPONSE,
-  registerAccountIsolationContainment,
-} from '../src/lib/account-isolation-containment.js';
+import { registerAccountIsolationContainment } from '../src/lib/account-isolation-containment.js';
 import { subscriptionRoutes } from '../src/routes/subscription.js';
 import { clientsRoutes } from '../src/routes/clients.js';
 import { jobsRoutes } from '../src/routes/jobs.js';
 import { stripe } from '../src/lib/stripe.js';
+import { registerServerAuth, ServerAuthDependencies } from '../src/lib/auth.js';
 
-test('forged tenant headers cannot reach tenant read or write handlers', async () => {
+const serverTenantId = '11111111-1111-4111-8111-111111111111';
+const serverUserId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+const serverAuthDependencies: ServerAuthDependencies = {
+  async verifyAccessToken(token) { return token === 'valid' ? { id: 'auth-a' } : null; },
+  async findActiveMembership(authUserId) {
+    return authUserId === 'auth-a'
+      ? { tenant_id: serverTenantId, user_id: serverUserId, scopes: ['jobs:read'] }
+      : null;
+  },
+};
+
+test('forged tenant headers cannot reach real tenant read or write handlers', async () => {
   const calls = { reads: 0, writes: 0 };
+  const contexts: Array<{ tenant_id: string; user_id: string; scopes: string[] }> = [];
   const app = Fastify();
   (app as any).mcp = {
-    clients: { callTool: async () => { calls.reads += 1; throw new Error('must not run'); } },
-    jobs: { callTool: async () => { calls.writes += 1; throw new Error('must not run'); } },
+    clients: {
+      readResource: async (_uri: string, context: typeof contexts[number]) => {
+        calls.reads += 1;
+        contexts.push(context);
+        return { data: { clients: [] } };
+      },
+    },
+    jobs: {
+      callTool: async (_name: string, _input: unknown, context: typeof contexts[number]) => {
+        calls.writes += 1;
+        contexts.push(context);
+        return { content: [{ text: JSON.stringify({ id: 'job-1' }) }] };
+      },
+    },
   };
+  registerServerAuth(app, serverAuthDependencies);
   registerAccountIsolationContainment(app);
   await clientsRoutes(app);
   await jobsRoutes(app);
   await app.ready();
 
-  const headers = {
+  const forgedHeaders = {
+    authorization: 'Bearer valid',
     'x-tenant-id': 'other-tenant',
     'x-user-id': 'other-user',
     'x-scopes': 'admin',
   };
   for (const request of [
-    { method: 'GET' as const, url: '/api/clients' },
+    { method: 'GET' as const, url: '/api/clients/clients' },
     { method: 'POST' as const, url: '/api/jobs', payload: { tenant_id: 'other-tenant' } },
   ]) {
-    const response = await app.inject({ ...request, headers });
-    assert.equal(response.statusCode, 503);
-    assert.deepEqual(response.json(), ACCOUNT_ACCESS_PAUSED_RESPONSE);
+    const response = await app.inject({ ...request, headers: forgedHeaders });
+    assert.equal(response.statusCode, 401);
+    assert.equal(response.json().error, 'Caller-selected tenant, user, and scope headers are not accepted');
   }
-
   assert.deepEqual(calls, { reads: 0, writes: 0 });
+
+  const read = await app.inject({ method: 'GET', url: '/api/clients/clients', headers: { authorization: 'Bearer valid' } });
+  const write = await app.inject({ method: 'POST', url: '/api/jobs', headers: { authorization: 'Bearer valid' }, payload: {} });
+  assert.equal(read.statusCode, 200);
+  assert.equal(write.statusCode, 200);
+  assert.deepEqual(calls, { reads: 1, writes: 1 });
+  assert.deepEqual(contexts.map(({ tenant_id, user_id, scopes }) => ({ tenant_id, user_id, scopes })), [
+    { tenant_id: serverTenantId, user_id: serverUserId, scopes: ['jobs:read'] },
+    { tenant_id: serverTenantId, user_id: serverUserId, scopes: ['jobs:read'] },
+  ]);
   await app.close();
 });
 
