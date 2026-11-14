@@ -71,7 +71,15 @@ test('membership migration is provider-only and has required safety controls', (
   assert.doesNotMatch(sql, /ADD\s+CONSTRAINT\s+\S+\s+UNIQUE\s*\(\s*auth_user_id\s*,\s*user_id\s*,\s*tenant_id\s*\)/i);
   assert.doesNotMatch(sql, /pg_get_indexdef\(i\.indexrelid\)\s+LIKE/i);
   assert.doesNotMatch(sql, /pg_get_expr\(i\.indpred, i\.indrelid\)\s+LIKE/i);
-  assert.match(sql, /FROM pg_index i\s+WHERE i\.indrelid = membership_oid\s+AND i\.indisunique\s+AND i\.indpred IS NULL\s+AND i\.indnkeyatts = 3 AND i\.indnatts = 3/s);
+  const legacyFullHistoryDetector = sql.slice(
+    sql.indexOf('-- The old candidate used this full-history uniqueness rule.'),
+    sql.indexOf('IF (SELECT count(*) FROM pg_constraint WHERE conrelid = membership_oid)'),
+  );
+  assert.match(
+    legacyFullHistoryDetector,
+    /FROM pg_index i\s+WHERE i\.indrelid = membership_oid\s+AND i\.indisunique\s+AND i\.indpred IS NULL\s+AND i\.indnkeyatts = 3\s+AND \(i\.indkey::smallint\[\]\)\[1:3\] = ARRAY\[/s,
+  );
+  assert.doesNotMatch(legacyFullHistoryDetector, /AND i\.indnkeyatts = 3 AND i\.indnatts = 3/);
   assert.ok(
     sql.indexOf('Canonical auth_tenant_memberships index name is already attached to another relation')
       < sql.indexOf('CREATE TABLE IF NOT EXISTS public.auth_tenant_memberships'),

@@ -123,15 +123,16 @@ BEGIN
 
   -- The old candidate used this full-history uniqueness rule. Reject a unique
   -- constraint or standalone unique index by shape, whatever its name, because it
-  -- prevents revoke then rebind of the same tuple.
+  -- prevents revoke then rebind of the same tuple. INCLUDE columns are not key
+  -- attributes, so compare only the three key attributes and permit indnatts > 3.
   IF EXISTS (
     SELECT 1
     FROM pg_index i
     WHERE i.indrelid = membership_oid
       AND i.indisunique
       AND i.indpred IS NULL
-      AND i.indnkeyatts = 3 AND i.indnatts = 3
-      AND i.indkey::smallint[] = ARRAY[
+      AND i.indnkeyatts = 3
+      AND (i.indkey::smallint[])[1:3] = ARRAY[
         (SELECT attnum FROM pg_attribute WHERE attrelid = membership_oid AND attname = 'auth_user_id'),
         (SELECT attnum FROM pg_attribute WHERE attrelid = membership_oid AND attname = 'user_id'),
         (SELECT attnum FROM pg_attribute WHERE attrelid = membership_oid AND attname = 'tenant_id')
