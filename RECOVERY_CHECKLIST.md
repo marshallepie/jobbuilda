@@ -26,6 +26,14 @@ Every item below has the following fixed fields:
 - **Validation method:** Non-production integration tests with a real server-verified session and at least one non-admin/expired-or-revoked session; safe route probes for unauthenticated and forged-context requests; browser sign-in/reload/sign-out check. Keep the existing containment test passing until replacement authorization tests prove the safe path.
 - **Classification:** **release blocker**.
 
+### R01a — Provider-owned membership schema gate
+
+- **Scope:** Prepare the server-owned staff membership schema without introducing a competing application migration ledger or a browser-readable identity mapping.
+- **Observable completion criterion:** The one provider script at `docs/provider-sql/20261107_add_auth_tenant_memberships.sql` has passed a disposable Supabase SQL Editor rehearsal and its required readback. Production application remains blocked until a named Supabase SQL Editor preflight, verified backup, one complete raw-script application, and required readback are recorded. The script is not present in `services/identity-mcp/migrations/`, and public registration remains closed.
+- **Implementation evidence / source area:** `docs/provider-sql/20261107_add_auth_tenant_memberships.sql`, `docs/AUTH_TENANT_MEMBERSHIPS_RUNBOOK.md`, `services/identity-mcp/test/membership-migration-artifact.test.mjs`.
+- **Validation method:** Run `pnpm --filter @jobbuilda/identity-mcp test:migration-artifact`; in the approved disposable provider project follow the runbook's named SQL Editor preflight, complete-script rehearsal, repeat-run idempotency check, and readback. No database migration is applied from this branch or through node-pg-migrate.
+- **Classification:** **release blocker**.
+
 ### R02 — Public registration remains closed
 
 - **Scope:** Keep new public registration, free trials, customer creation, and subscription checkout closed while recovery is in progress; do not change existing-account access.
@@ -138,7 +146,7 @@ Every item below has the following fixed fields:
 
 1. **No destructive reset:** preserve existing records; no destructive database reset, truncate, broad delete, or production seed operation. Recovery tests use a disposable non-production dataset.
 2. **Backup and rollback first:** before a production migration or deploy, take and verify a restorable backup; document the exact application/database versions and a tested rollback procedure. Do not begin production execution without both.
-3. **Migration discipline:** review migration order and application-query compatibility in non-production first; production migration and compatible application release must be coordinated. No migration is applied by this checklist document.
+3. **Migration discipline:** for the staff-membership schema, use only the named Supabase SQL Editor procedure in `docs/AUTH_TENANT_MEMBERSHIPS_RUNBOOK.md`: backup, named provider preflight, disposable raw-script rehearsal, one complete raw transaction, then required readback. Do not run it through node-pg-migrate or create a competing ledger. Production migration and compatible application release must be coordinated; no migration is applied by this checklist document.
 4. **Provider safety:** use only test/disposable email and payment configurations for validation; confirm environment separation before every test.
 5. **Authorization before availability:** no contained tenant route may be reopened until R01 and R03 have passed their server-side, database-backed checks.
 6. **Evidence before release:** record the command/test result, environment, fixture identifiers, and reviewer for every R01–R11 release-blocking item. Unknowns remain explicit verification gates and block release rather than being inferred as passing.
