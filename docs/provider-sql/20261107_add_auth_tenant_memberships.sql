@@ -22,7 +22,16 @@ BEGIN
     RAISE EXCEPTION 'Existing public.auth_tenant_memberships must be an ordinary table';
   END IF;
 
-  EXECUTE 'LOCK TABLE public.auth_tenant_memberships IN ACCESS EXCLUSIVE MODE';
+  -- Do not wait indefinitely behind a concurrent reader/writer before the
+  -- pre-DDL ACCESS EXCLUSIVE guard. SET LOCAL is scoped to this transaction
+  -- and automatically resets on commit or rollback.
+  SET LOCAL lock_timeout = '5s';
+  BEGIN
+    EXECUTE 'LOCK TABLE public.auth_tenant_memberships IN ACCESS EXCLUSIVE MODE';
+  EXCEPTION
+    WHEN lock_not_available THEN
+      RAISE EXCEPTION 'Could not acquire ACCESS EXCLUSIVE lock on public.auth_tenant_memberships within 5 seconds; a conflicting transaction is active. No DDL was applied; wait for it to finish and retry the complete script.';
+  END;
   EXECUTE 'SELECT EXISTS (SELECT 1 FROM public.auth_tenant_memberships)'
     INTO membership_has_rows;
   IF membership_has_rows THEN

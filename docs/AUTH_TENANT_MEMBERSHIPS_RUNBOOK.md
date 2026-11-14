@@ -73,7 +73,27 @@ runtime SELECT policy, and no browser-role grants. Any existing membership row i
 a stop condition: the script fails before DDL and the reviewed mapping lifecycle,
 not this schema script, is the only authorized path for that record. `public.users`
 and `public.tenants` must be ordinary tables with NOT NULL UUID keys. A same-named
-canonical constraint or index with different keys, uniqueness, included columns,
+
+### Existing-membership lock policy and retry
+
+When `public.auth_tenant_memberships` already exists, the script sets a
+transaction-local `lock_timeout` of **5 seconds** before requesting its
+`ACCESS EXCLUSIVE` lock for the populated-row guard. This prevents the SQL Editor
+query from waiting indefinitely behind a concurrent reader or writer. If the lock
+is not acquired within that bound, the script aborts with `Could not acquire
+ACCESS EXCLUSIVE lock ... within 5 seconds`; no DDL is applied and the transaction
+rolls back. This is a lock-contention stop condition, not evidence that the table
+is empty or compatible.
+
+Do not run fragments, increase/remove the timeout, terminate sessions, or bypass
+the guard. Wait until the conflicting operation has completed, reconfirm the
+approved project and the no-write catalog fingerprint, then retry the **complete
+unchanged script** in a new SQL Editor query during the approved change window.
+If it repeatedly times out, leave containment in place and escalate with the
+error timestamp and approved change record; investigate the conflicting workload
+under a separately approved operational action.
+
+A same-named canonical constraint or index with different keys, uniqueness, included columns,
 or partial predicate is incompatible—not a compatible pre-existing object. The
 script does not reject unrelated supplemental indexes; review those separately
 rather than treating them as evidence that a named canonical index is compatible.

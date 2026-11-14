@@ -72,8 +72,8 @@ function assertPopulatedMembershipGuard(artifact) {
   );
   assert.match(
     guard,
-    /EXECUTE 'LOCK TABLE public\.auth_tenant_memberships IN ACCESS EXCLUSIVE MODE';\s+EXECUTE 'SELECT EXISTS \(SELECT 1 FROM public\.auth_tenant_memberships\)'\s+INTO membership_has_rows;/,
-    'the pre-DDL guard must lock and query the existing membership table before deciding it is empty',
+    /SET LOCAL lock_timeout = '5s';\s+BEGIN\s+EXECUTE 'LOCK TABLE public\.auth_tenant_memberships IN ACCESS EXCLUSIVE MODE';\s+EXCEPTION\s+WHEN lock_not_available THEN\s+RAISE EXCEPTION 'Could not acquire ACCESS EXCLUSIVE lock on public\.auth_tenant_memberships within 5 seconds; a conflicting transaction is active\. No DDL was applied; wait for it to finish and retry the complete script\.';\s+END;\s+EXECUTE 'SELECT EXISTS \(SELECT 1 FROM public\.auth_tenant_memberships\)'\s+INTO membership_has_rows;/s,
+    'the pre-DDL guard must use a transaction-local bounded ACCESS EXCLUSIVE lock, fail clearly on contention, and query only after locking',
   );
   assert.match(
     guard,
@@ -153,6 +153,11 @@ test('membership migration is provider-only and has required safety controls', (
   assertPopulatedMembershipGuard(sql);
   assert.match(guide, /canonical relation created by this script \*\*with zero rows\*\*/);
   assert.match(guide, /Any existing membership row is\s+a stop condition: the script fails before DDL/);
+  assert.match(guide, /Existing-membership lock policy and retry/);
+  assert.match(guide, /transaction-local `lock_timeout` of \*\*5 seconds\*\* before requesting its\s+`ACCESS EXCLUSIVE` lock/);
+  assert.match(guide, /Could not acquire\s+ACCESS EXCLUSIVE lock \.\.\. within 5 seconds/);
+  assert.match(guide, /no DDL is applied and the transaction\s+rolls back/);
+  assert.match(guide, /retry the \*\*complete\s+unchanged script\*\*/);
 
   for (const [column, expression] of [
     ['id', 'gen_random_uuid()'],
@@ -317,6 +322,14 @@ test('coordinator runtime-role preflight assertions reject weakened controls', (
 });
 
 test('populated membership guard assertions reject omission or DDL reordering', () => {
+  const noBoundedLock = sql.replace("SET LOCAL lock_timeout = '5s';", "SET LOCAL lock_timeout = '0';");
+  assert.notEqual(noBoundedLock, sql, 'test mutation must alter the transaction-local lock timeout');
+  assert.throws(() => assertPopulatedMembershipGuard(noBoundedLock));
+
+  const noLockContentionFailure = sql.replace('WHEN lock_not_available THEN', 'WHEN undefined_table THEN');
+  assert.notEqual(noLockContentionFailure, sql, 'test mutation must remove the lock-contention handler');
+  assert.throws(() => assertPopulatedMembershipGuard(noLockContentionFailure));
+
   const noRowCheck = sql.replace(
     "EXECUTE 'SELECT EXISTS (SELECT 1 FROM public.auth_tenant_memberships)'",
     "EXECUTE 'SELECT false'",
