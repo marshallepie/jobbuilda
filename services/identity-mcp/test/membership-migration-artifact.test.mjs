@@ -8,9 +8,11 @@ const serviceDir = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const repoDir = resolve(serviceDir, '..', '..');
 const providerScript = resolve(repoDir, 'docs/provider-sql/20261107_add_auth_tenant_memberships.sql');
 const runbook = resolve(repoDir, 'docs/AUTH_TENANT_MEMBERSHIPS_RUNBOOK.md');
+const coordinatorDb = resolve(repoDir, 'apps/coordinator/src/lib/db.ts');
 const migrationsDir = resolve(serviceDir, 'migrations');
 const sql = readFileSync(providerScript, 'utf8');
 const guide = readFileSync(runbook, 'utf8');
+const coordinatorDbSource = readFileSync(coordinatorDb, 'utf8');
 
 const regexEscape = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
@@ -21,6 +23,45 @@ function assertCanonicalDefault(artifact, column, expression) {
       `a\\.attrelid = membership_oid\\s+AND a\\.attname = '${regexEscape(column)}'\\s+AND pg_get_expr\\(d\\.adbin, d\\.adrelid\\) = '${regexEscape(expression)}'`,
     ),
     `${column} must have canonical default ${expression}`,
+  );
+}
+
+const coordinatorPreflightHeading = '### Coordinator `DATABASE_URL` runtime-role preflight — required, no write';
+
+function firstSqlBlockAfterHeading(markdown, heading) {
+  const headingOffset = markdown.indexOf(heading);
+  assert.notEqual(headingOffset, -1, `runbook must contain ${heading}`);
+  const afterHeading = markdown.slice(headingOffset + heading.length);
+  const match = afterHeading.match(/^```sql\n([\s\S]*?)^```/m);
+  assert.ok(match, `${heading} must be followed by a SQL code block`);
+  return match[1];
+}
+
+function assertCoordinatorRuntimeRolePreflight(block) {
+  for (const required of [
+    "configured_role name := NULL::name",
+    'SELECT oid INTO coordinator_role FROM pg_roles WHERE rolname = configured_role',
+    "has_table_privilege(coordinator_role, membership_table, 'SELECT')",
+    "ARRAY['INSERT', 'UPDATE', 'DELETE', 'TRUNCATE', 'REFERENCES', 'TRIGGER']",
+    'IF EXISTS (SELECT 1 FROM pg_class WHERE oid = membership_table AND relowner = coordinator_role)',
+    'WITH RECURSIVE reachable_roles(role_oid, role_path) AS',
+    'JOIN pg_auth_members AS membership ON membership.member = reachable_roles.role_oid',
+    'WHERE NOT membership.roleid = ANY (reachable_roles.role_path)',
+    'relation.relowner = reachable_roles.role_oid',
+    'OR role.rolsuper',
+    'OR role.rolbypassrls',
+    "OR has_table_privilege(reachable_roles.role_oid, membership_table, 'INSERT')",
+    "OR has_table_privilege(reachable_roles.role_oid, membership_table, 'UPDATE')",
+    "OR has_table_privilege(reachable_roles.role_oid, membership_table, 'DELETE')",
+    "OR has_table_privilege(reachable_roles.role_oid, membership_table, 'TRUNCATE')",
+    "OR has_table_privilege(reachable_roles.role_oid, membership_table, 'REFERENCES')",
+    "OR has_table_privilege(reachable_roles.role_oid, membership_table, 'TRIGGER')",
+  ]) assert.match(block, new RegExp(regexEscape(required)));
+
+  assert.match(
+    block,
+    /WHERE oid = coordinator_role AND \(rolsuper OR rolbypassrls\)/,
+    'configured role must be rejected when superuser or BYPASSRLS',
   );
 }
 
@@ -120,17 +161,17 @@ test('membership migration is provider-only and has required safety controls', (
   assert.match(guide, /exact PostgreSQL role name only/);
   assert.match(guide, /Do not infer it from the SQL Editor's `current_user`/);
   assert.match(guide, /no concrete role name is prescribed by R01a/);
-  assert.match(guide, /configured_role name := NULL::name/);
-  assert.match(guide, /has_table_privilege\(coordinator_role, membership_table, 'SELECT'\)/);
-  assert.match(guide, /ARRAY\['INSERT', 'UPDATE', 'DELETE', 'TRUNCATE', 'REFERENCES', 'TRIGGER'\]/);
-  assert.match(guide, /rolsuper OR rolbypassrls/);
-  assert.match(guide, /WITH RECURSIVE reachable_roles/);
-  assert.match(guide, /JOIN pg_auth_members AS membership/);
-  assert.match(guide, /relation\.relowner = reachable_roles\.role_oid/);
+  const coordinatorPreflightSql = firstSqlBlockAfterHeading(guide, coordinatorPreflightHeading);
+  assertCoordinatorRuntimeRolePreflight(coordinatorPreflightSql);
   assert.match(guide, /cannot own or ALTER\/DDL public\.auth_tenant_memberships/);
   assert.match(guide, /does \*\*not\*\* grant, revoke, alter, create,\s+or reconfigure roles or privileges/);
   assert.match(guide, /rerun the exact \*\*Coordinator `DATABASE_URL` runtime-role preflight\*\* block/);
   assert.match(guide, /changed\/unknown\s+role is a stop condition/);
+  assert.match(
+    coordinatorDbSource,
+    /new Pool\(\{\s+connectionString: process\.env\.DATABASE_URL,/s,
+    'coordinator Pool must use DATABASE_URL for its connection identity',
+  );
   assert.doesNotMatch(sql, /\bGRANT\b/i, 'provider script must not guess a coordinator grant');
   assert.doesNotMatch(sql, /\b(postgres|service_role|coordinator)\b/i, 'provider script must not guess a coordinator role');
   assert.match(guide, /Readback — required before mapping or application release/);
@@ -174,6 +215,47 @@ test('membership migration is provider-only and has required safety controls', (
   assert.match(revocationSection, /`NULL` defaults intentionally update no rows if either value\s+is left unreplaced/);
   assert.match(revocationSection, /must return \*\*exactly one\*\* reviewed\s+row/);
   assert.match(revocationSection, /Zero rows or more than one row is a stop condition/);
+});
+
+test('coordinator runtime-role preflight assertions reject weakened controls', () => {
+  const coordinatorPreflightSql = firstSqlBlockAfterHeading(guide, coordinatorPreflightHeading);
+  const mutations = [
+    ['configured role existence', 'SELECT oid INTO coordinator_role FROM pg_roles WHERE rolname = configured_role', 'SELECT oid INTO coordinator_role FROM pg_roles WHERE rolname = NULL::name'],
+    ['SELECT permission', "has_table_privilege(coordinator_role, membership_table, 'SELECT')", "has_table_privilege(coordinator_role, membership_table, 'USAGE')"],
+    ['direct ownership', 'relowner = coordinator_role', 'relowner = 0'],
+    ['membership recursion direction', 'membership.member = reachable_roles.role_oid', 'membership.roleid = reachable_roles.role_oid'],
+    ['membership recursion cycle guard', 'WHERE NOT membership.roleid = ANY (reachable_roles.role_path)', 'WHERE membership.roleid IS NOT NULL'],
+  ];
+
+  const deniedPrivileges = ['INSERT', 'UPDATE', 'DELETE', 'TRUNCATE', 'REFERENCES', 'TRIGGER'];
+  const deniedPrivilegesControl = `ARRAY[${deniedPrivileges.map((privilege) => `'${privilege}'`).join(', ')}]`;
+  for (const privilege of deniedPrivileges) {
+    mutations.push([
+      `${privilege} denied privilege`,
+      deniedPrivilegesControl,
+      deniedPrivilegesControl.replace(`'${privilege}'`, `'${privilege}_REMOVED'`),
+    ]);
+  }
+
+  for (const [name, expected, replacement] of mutations) {
+    const altered = coordinatorPreflightSql.replace(expected, replacement);
+    assert.notEqual(altered, coordinatorPreflightSql, `${name} mutation must alter the preflight block`);
+    assert.throws(() => assertCoordinatorRuntimeRolePreflight(altered), `${name} assertion must reject a weakened preflight`);
+  }
+
+  for (const [name, expected, replacement] of [
+    ['reachable-role superuser denial', 'OR role.rolsuper', 'OR FALSE'],
+    ['reachable-role BYPASSRLS denial', 'OR role.rolbypassrls', 'OR FALSE'],
+    ...['INSERT', 'UPDATE', 'DELETE', 'TRUNCATE', 'REFERENCES', 'TRIGGER'].map((privilege) => [
+      `reachable-role ${privilege} denial`,
+      `OR has_table_privilege(reachable_roles.role_oid, membership_table, '${privilege}')`,
+      'OR FALSE',
+    ]),
+  ]) {
+    const altered = coordinatorPreflightSql.replace(expected, replacement);
+    assert.notEqual(altered, coordinatorPreflightSql, `${name} mutation must alter the preflight block`);
+    assert.throws(() => assertCoordinatorRuntimeRolePreflight(altered), `${name} assertion must reject a weakened preflight`);
+  }
 });
 
 test('canonical activated_at default assertion rejects an altered expectation', () => {
