@@ -341,8 +341,26 @@ the approved change record.
 
 ## Disposable rehearsal — required before production
 
-Use an approved disposable Supabase project. Do not create staff mappings in the
+**Approved disposable target — bind every rehearsal step to this exact branch:**
+`afygozgefepayoenwccl` (`jobbuilda-membership-rehearsal-20261114`), whose parent
+project reference is `jnwxueomquywrqcgbgfd`. This branch is the only approved
+non-production target for every setup query, script run, negative probe,
+readback, reset, and role test in steps 1–8. Do not create staff mappings in the
 fresh or repeat-run cases.
+
+Before **every query that can write**, visually confirm in the Supabase Dashboard
+project/branch selector and SQL Editor header that the selected project reference
+is exactly `afygozgefepayoenwccl` and the branch name is exactly
+`jobbuilda-membership-rehearsal-20261114`; also confirm the Dashboard shows parent
+project reference `jnwxueomquywrqcgbgfd`. The parent is only branch lineage, not a
+write target: the selected project reference must never be
+`jnwxueomquywrqcgbgfd`. Stop immediately and execute no query if any displayed
+branch/project reference differs, if the approved branch name or parent differs,
+or if the production parent project is selected. Re-select and visually confirm
+the approved disposable branch before continuing.
+
+Use only the Supabase Dashboard SQL Editor for this rehearsal; do not substitute a
+CLI, `psql`, migration runner, or another execution method.
 
 1. **Fresh schema:** run the complete script once and run the readback below.
 2. **Exact repeat-run:** run the unchanged complete script again. It must commit
