@@ -66,17 +66,22 @@ ORDER BY grantee, privilege_type;
 
 Expected pre-apply state is either: (a) no membership relation, or (b) the exact
 canonical relation created by this script, with the documented six constraints,
-three indexes, RLS enabled, no policies, and no browser-role grants. `public.users`
-and `public.tenants` must be ordinary tables with NOT NULL UUID keys. A same-named
-constraint or index with a different definition is incompatible—not a compatible
-pre-existing object.
+the three named canonical indexes, RLS enabled, no policies, and no browser-role
+grants. `public.users` and `public.tenants` must be ordinary tables with NOT NULL
+UUID keys. A same-named canonical constraint or index with different keys,
+uniqueness, included columns, or partial predicate is incompatible—not a compatible
+pre-existing object. The script does not reject unrelated supplemental indexes;
+review those separately rather than treating them as evidence that a named
+canonical index is compatible.
 
 **Stop conditions:** any membership rows; unexpected policy/grant; wrong relation
 kind/column type/nullability; malformed same-named constraint/index; any legacy
 `UNIQUE(auth_user_id, user_id, tenant_id)` constraint (regardless of name); or an
-unknown object. The script deliberately rejects these rather than silently
-converting data or relaxing security. Review/replace incompatible prior work in a
-separately approved change; never backfill mappings.
+unknown constraint or policy. The script deliberately rejects these rather than
+silently converting data or relaxing security. Review/replace incompatible prior
+work in a separately approved change; never backfill mappings. Unrelated
+supplemental indexes are not rejected by this artifact, but must be reviewed under
+the approved change record.
 
 ## Disposable rehearsal — required before production
 

@@ -28,6 +28,10 @@ test('membership migration is provider-only and has required safety controls', (
     'Legacy full-history UNIQUE(auth_user_id, user_id, tenant_id) is incompatible',
     'compatibility evidence: the catalog definition must be the required definition',
     "pg_get_expr(i.indpred, i.indrelid)",
+    'i.indnkeyatts = 1 AND i.indnatts = 1',
+    'i.indnkeyatts = 3 AND i.indnatts = 3',
+    'i.indkey::smallint[] = ARRAY[',
+    "pg_get_expr(i.indpred, i.indrelid) = '((status = ''active''::text) AND (revoked_at IS NULL))'",
     "confrelid = 'public.users'::regclass",
     'auth_tenant_memberships_one_active_auth_user',
     'auth_tenant_memberships_one_active_app_user',
@@ -38,6 +42,8 @@ test('membership migration is provider-only and has required safety controls', (
 
   assert.doesNotMatch(sql, /INSERT\s+INTO\s+public\.auth_tenant_memberships/i);
   assert.doesNotMatch(sql, /ADD\s+CONSTRAINT\s+\S+\s+UNIQUE\s*\(\s*auth_user_id\s*,\s*user_id\s*,\s*tenant_id\s*\)/i);
+  assert.doesNotMatch(sql, /pg_get_indexdef\(i\.indexrelid\)\s+LIKE/i);
+  assert.doesNotMatch(sql, /pg_get_expr\(i\.indpred, i\.indrelid\)\s+LIKE/i);
   assert.ok(
     sql.indexOf('ADD CONSTRAINT users_id_tenant_id_key UNIQUE (id, tenant_id)')
       < sql.indexOf('CREATE TABLE IF NOT EXISTS public.auth_tenant_memberships'),
@@ -55,4 +61,5 @@ test('membership migration is provider-only and has required safety controls', (
   assert.match(guide, /Coordinator runtime role/);
   assert.match(guide, /SELECT-only/);
   assert.match(guide, /Readback — required before mapping or application release/);
+  assert.match(guide, /does not reject unrelated supplemental indexes/);
 });

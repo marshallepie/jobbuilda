@@ -119,9 +119,22 @@ BEGIN
     WHERE i.indrelid = membership_oid
       AND x.relname IN ('auth_tenant_memberships_one_active_auth_user', 'auth_tenant_memberships_one_active_app_user', 'auth_tenant_memberships_active_lookup')
       AND NOT (
-        (x.relname = 'auth_tenant_memberships_one_active_auth_user' AND i.indisunique AND pg_get_indexdef(i.indexrelid) LIKE '%(auth_user_id)%' AND pg_get_expr(i.indpred, i.indrelid) LIKE '%status = ''active''%' AND pg_get_expr(i.indpred, i.indrelid) LIKE '%revoked_at IS NULL%') OR
-        (x.relname = 'auth_tenant_memberships_one_active_app_user' AND i.indisunique AND pg_get_indexdef(i.indexrelid) LIKE '%(user_id)%' AND pg_get_expr(i.indpred, i.indrelid) LIKE '%status = ''active''%' AND pg_get_expr(i.indpred, i.indrelid) LIKE '%revoked_at IS NULL%') OR
-        (x.relname = 'auth_tenant_memberships_active_lookup' AND NOT i.indisunique AND pg_get_indexdef(i.indexrelid) LIKE '%(auth_user_id, tenant_id, user_id)%' AND pg_get_expr(i.indpred, i.indrelid) LIKE '%status = ''active''%' AND pg_get_expr(i.indpred, i.indrelid) LIKE '%revoked_at IS NULL%')
+        (x.relname = 'auth_tenant_memberships_one_active_auth_user'
+          AND i.indisunique AND i.indnkeyatts = 1 AND i.indnatts = 1
+          AND i.indkey::smallint[] = ARRAY[(SELECT attnum FROM pg_attribute WHERE attrelid = membership_oid AND attname = 'auth_user_id')]::smallint[]
+          AND pg_get_expr(i.indpred, i.indrelid) = '((status = ''active''::text) AND (revoked_at IS NULL))') OR
+        (x.relname = 'auth_tenant_memberships_one_active_app_user'
+          AND i.indisunique AND i.indnkeyatts = 1 AND i.indnatts = 1
+          AND i.indkey::smallint[] = ARRAY[(SELECT attnum FROM pg_attribute WHERE attrelid = membership_oid AND attname = 'user_id')]::smallint[]
+          AND pg_get_expr(i.indpred, i.indrelid) = '((status = ''active''::text) AND (revoked_at IS NULL))') OR
+        (x.relname = 'auth_tenant_memberships_active_lookup'
+          AND NOT i.indisunique AND i.indnkeyatts = 3 AND i.indnatts = 3
+          AND i.indkey::smallint[] = ARRAY[
+            (SELECT attnum FROM pg_attribute WHERE attrelid = membership_oid AND attname = 'auth_user_id'),
+            (SELECT attnum FROM pg_attribute WHERE attrelid = membership_oid AND attname = 'tenant_id'),
+            (SELECT attnum FROM pg_attribute WHERE attrelid = membership_oid AND attname = 'user_id')
+          ]::smallint[]
+          AND pg_get_expr(i.indpred, i.indrelid) = '((status = ''active''::text) AND (revoked_at IS NULL))')
       )
   ) THEN
     RAISE EXCEPTION 'Existing auth_tenant_memberships index is incompatible; index name alone is insufficient';
