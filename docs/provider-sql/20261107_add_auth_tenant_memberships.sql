@@ -72,6 +72,37 @@ BEGIN
     RAISE EXCEPTION 'Existing public.auth_tenant_memberships columns are incompatible; expected exact canonical schema';
   END IF;
 
+  -- CREATE TABLE IF NOT EXISTS does not repair defaults on an existing relation.
+  -- Require the canonical defaults explicitly so an older table cannot pass shape
+  -- checks yet create incomplete or inactive membership rows.
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_attribute a
+    JOIN pg_attrdef d ON d.adrelid = a.attrelid AND d.adnum = a.attnum
+    WHERE a.attrelid = membership_oid AND a.attname = 'id'
+      AND pg_get_expr(d.adbin, d.adrelid) = 'gen_random_uuid()'
+  ) OR NOT EXISTS (
+    SELECT 1
+    FROM pg_attribute a
+    JOIN pg_attrdef d ON d.adrelid = a.attrelid AND d.adnum = a.attnum
+    WHERE a.attrelid = membership_oid AND a.attname = 'status'
+      AND pg_get_expr(d.adbin, d.adrelid) = '''active''::text'
+  ) OR NOT EXISTS (
+    SELECT 1
+    FROM pg_attribute a
+    JOIN pg_attrdef d ON d.adrelid = a.attrelid AND d.adnum = a.attnum
+    WHERE a.attrelid = membership_oid AND a.attname = 'created_at'
+      AND pg_get_expr(d.adbin, d.adrelid) = 'now()'
+  ) OR NOT EXISTS (
+    SELECT 1
+    FROM pg_attribute a
+    JOIN pg_attrdef d ON d.adrelid = a.attrelid AND d.adnum = a.attnum
+    WHERE a.attrelid = membership_oid AND a.attname = 'activated_at'
+      AND pg_get_expr(d.adbin, d.adrelid) = 'now()'
+  ) THEN
+    RAISE EXCEPTION 'Existing auth_tenant_memberships defaults are incompatible; expected id gen_random_uuid(), status active, created_at now(), and activated_at now()';
+  END IF;
+
   -- The old candidate used this full-history uniqueness rule. Reject it by shape,
   -- whatever its name, because it prevents revoke then rebind of the same tuple.
   IF EXISTS (

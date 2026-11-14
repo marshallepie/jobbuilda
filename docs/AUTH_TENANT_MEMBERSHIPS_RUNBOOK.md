@@ -34,8 +34,10 @@ WHERE n.nspname = 'public'
 ORDER BY c.relname;
 
 SELECT a.attrelid::regclass AS relation, a.attname,
-       format_type(a.atttypid, a.atttypmod) AS type, a.attnotnull
+       format_type(a.atttypid, a.atttypmod) AS type, a.attnotnull,
+       pg_get_expr(d.adbin, d.adrelid) AS default_expression
 FROM pg_attribute a
+LEFT JOIN pg_attrdef d ON d.adrelid = a.attrelid AND d.adnum = a.attnum
 WHERE a.attrelid IN ('public.users'::regclass, 'public.tenants'::regclass,
                      to_regclass('public.auth_tenant_memberships'))
   AND a.attnum > 0 AND NOT a.attisdropped
@@ -73,6 +75,11 @@ uniqueness, included columns, or partial predicate is incompatible—not a compa
 pre-existing object. The script does not reject unrelated supplemental indexes;
 review those separately rather than treating them as evidence that a named
 canonical index is compatible.
+
+For an existing membership table, the canonical defaults are required exactly:
+`id = gen_random_uuid()`, `status = 'active'::text`, and both `created_at` and
+`activated_at = now()`. A missing or different default is incompatible; `CREATE
+TABLE IF NOT EXISTS` will not repair it.
 
 **Stop conditions:** any membership rows; unexpected policy/grant; wrong relation
 kind/column type/nullability; malformed same-named constraint/index; any legacy
@@ -150,13 +157,18 @@ WHERE table_schema = 'public' AND table_name = 'auth_tenant_memberships'
   AND grantee IN ('PUBLIC', 'anon', 'authenticated')
 ORDER BY grantee, privilege_type;
 
+SELECT count(*) AS policy_count
+FROM pg_policies
+WHERE schemaname = 'public' AND tablename = 'auth_tenant_memberships';
+
 SELECT count(*) AS mapping_count FROM public.auth_tenant_memberships;
 ```
 
 Required results: RLS enabled; no direct browser-role grants; composite
 `(user_id, tenant_id)` foreign key; two partial one-active unique indexes; no
 full-history tuple unique constraint; and `mapping_count = 0`. Any unexpected
-mapping, policy, grant, constraint, or index is a stop condition.
+mapping, policy, grant, constraint, or index is a stop condition. The
+`policy_count` readback must be `0`.
 
 ## Authorize one existing staff principal — separate approved operation
 

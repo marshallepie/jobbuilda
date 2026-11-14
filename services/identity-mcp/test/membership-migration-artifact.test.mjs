@@ -27,6 +27,15 @@ test('membership migration is provider-only and has required safety controls', (
     'FOREIGN KEY (user_id, tenant_id) REFERENCES public.users (id, tenant_id)',
     'Legacy full-history UNIQUE(auth_user_id, user_id, tenant_id) is incompatible',
     'compatibility evidence: the catalog definition must be the required definition',
+    'CREATE TABLE IF NOT EXISTS does not repair defaults on an existing relation',
+    "a.attrelid = membership_oid AND a.attname = 'id'",
+    "pg_get_expr(d.adbin, d.adrelid) = 'gen_random_uuid()'",
+    "a.attrelid = membership_oid AND a.attname = 'status'",
+    "pg_get_expr(d.adbin, d.adrelid) = '''active''::text'",
+    "a.attrelid = membership_oid AND a.attname = 'created_at'",
+    "a.attrelid = membership_oid AND a.attname = 'activated_at'",
+    "pg_get_expr(d.adbin, d.adrelid) = 'now()'",
+    'Existing auth_tenant_memberships defaults are incompatible',
     "pg_get_expr(i.indpred, i.indrelid)",
     'i.indnkeyatts = 1 AND i.indnatts = 1',
     'i.indnkeyatts = 3 AND i.indnatts = 3',
@@ -62,4 +71,8 @@ test('membership migration is provider-only and has required safety controls', (
   assert.match(guide, /SELECT-only/);
   assert.match(guide, /Readback — required before mapping or application release/);
   assert.match(guide, /does not reject unrelated supplemental indexes/);
+  assert.match(guide, /default_expression/);
+  assert.match(guide, /canonical defaults are required exactly/);
+  assert.match(guide, /SELECT count\(\*\) AS policy_count\s+FROM pg_policies/);
+  assert.match(guide, /policy_count.*must be `0`/);
 });
