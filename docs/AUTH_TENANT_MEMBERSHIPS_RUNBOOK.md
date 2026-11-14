@@ -76,6 +76,113 @@ pre-existing object. The script does not reject unrelated supplemental indexes;
 review those separately rather than treating them as evidence that a named
 canonical index is compatible.
 
+### Coordinator `DATABASE_URL` runtime-role preflight — required, no write
+
+Obtain the **exact PostgreSQL role name only** (never the `DATABASE_URL`, password,
+or any other secret) from the approved deployment configuration that starts the
+coordinator. Do not infer it from the SQL Editor's `current_user`, from this
+repository, or from a provider default. In the SQL Editor, replace only
+`NULL::name` below with that reviewed non-secret role name, for example
+`'reviewed_runtime_role'::name`; no concrete role name is prescribed by R01a.
+
+This is a **release preflight**, not a substitute for the schema-shape preflight:
+run it against a project where the canonical membership relation already exists—after
+the disposable script rehearsal and, in production, immediately after the script
+before any mapping or coordinator release. It requires that table in order to
+prove the actual table privileges. If the table is absent, do not treat the role
+as approved; finish the schema operation and run this block before proceeding.
+
+This catalog preflight intentionally fails closed. It requires that the configured
+role exists, is neither superuser nor `BYPASSRLS`, cannot select through an
+inherited/effective grant unless that is the intended lookup privilege, has
+`SELECT` on `public.auth_tenant_memberships`, has none of `INSERT`, `UPDATE`,
+`DELETE`, `TRUNCATE`, `REFERENCES`, or `TRIGGER`, and neither owns the table nor
+belongs (directly or transitively) to a role that owns it or has any of those write
+privileges. Ownership is checked because it permits `ALTER`/DDL independently of
+table ACLs. The recursive membership check rejects every reachable membership
+role, including a non-inheriting role: a role that can later be assumed is not an
+acceptable SELECT-only coordinator runtime identity.
+
+```sql
+DO $$
+DECLARE
+  configured_role name := NULL::name; -- Replace only with the reviewed non-secret deployment role name.
+  coordinator_role oid;
+  membership_table oid := 'public.auth_tenant_memberships'::regclass;
+  denied_privileges text[];
+  unsafe_membership_roles text[];
+BEGIN
+  IF configured_role IS NULL OR btrim(configured_role::text) = '' THEN
+    RAISE EXCEPTION 'STOP: coordinator DATABASE_URL runtime role name is required from approved deployment configuration';
+  END IF;
+
+  SELECT oid INTO coordinator_role FROM pg_roles WHERE rolname = configured_role;
+  IF coordinator_role IS NULL THEN
+    RAISE EXCEPTION 'STOP: configured coordinator runtime role % does not exist', configured_role;
+  END IF;
+
+  IF EXISTS (
+    SELECT 1 FROM pg_roles
+    WHERE oid = coordinator_role AND (rolsuper OR rolbypassrls)
+  ) THEN
+    RAISE EXCEPTION 'STOP: configured coordinator runtime role % is superuser or BYPASSRLS', configured_role;
+  END IF;
+
+  IF NOT has_table_privilege(coordinator_role, membership_table, 'SELECT') THEN
+    RAISE EXCEPTION 'STOP: configured coordinator runtime role % lacks required SELECT on public.auth_tenant_memberships', configured_role;
+  END IF;
+
+  SELECT array_agg(privilege ORDER BY privilege) INTO denied_privileges
+  FROM unnest(ARRAY['INSERT', 'UPDATE', 'DELETE', 'TRUNCATE', 'REFERENCES', 'TRIGGER']) AS privilege
+  WHERE has_table_privilege(coordinator_role, membership_table, privilege);
+  IF denied_privileges IS NOT NULL THEN
+    RAISE EXCEPTION 'STOP: configured coordinator runtime role % has prohibited effective table privileges: %', configured_role, denied_privileges;
+  END IF;
+
+  IF EXISTS (SELECT 1 FROM pg_class WHERE oid = membership_table AND relowner = coordinator_role) THEN
+    RAISE EXCEPTION 'STOP: configured coordinator runtime role % owns public.auth_tenant_memberships and can ALTER/DDL it', configured_role;
+  END IF;
+
+  WITH RECURSIVE reachable_roles(role_oid, role_path) AS (
+    SELECT coordinator_role, ARRAY[coordinator_role]
+    UNION ALL
+    SELECT membership.roleid, reachable_roles.role_path || membership.roleid
+    FROM reachable_roles
+    JOIN pg_auth_members AS membership ON membership.member = reachable_roles.role_oid
+    WHERE NOT membership.roleid = ANY (reachable_roles.role_path)
+  )
+  SELECT array_agg(DISTINCT role.rolname ORDER BY role.rolname) INTO unsafe_membership_roles
+  FROM reachable_roles
+  JOIN pg_roles AS role ON role.oid = reachable_roles.role_oid
+  JOIN pg_class AS relation ON relation.oid = membership_table
+  WHERE reachable_roles.role_oid <> coordinator_role
+    AND (
+      relation.relowner = reachable_roles.role_oid
+      OR role.rolsuper
+      OR role.rolbypassrls
+      OR has_table_privilege(reachable_roles.role_oid, membership_table, 'INSERT')
+      OR has_table_privilege(reachable_roles.role_oid, membership_table, 'UPDATE')
+      OR has_table_privilege(reachable_roles.role_oid, membership_table, 'DELETE')
+      OR has_table_privilege(reachable_roles.role_oid, membership_table, 'TRUNCATE')
+      OR has_table_privilege(reachable_roles.role_oid, membership_table, 'REFERENCES')
+      OR has_table_privilege(reachable_roles.role_oid, membership_table, 'TRIGGER')
+    );
+  IF unsafe_membership_roles IS NOT NULL THEN
+    RAISE EXCEPTION 'STOP: configured coordinator runtime role % reaches unsafe member/inherit roles: %', configured_role, unsafe_membership_roles;
+  END IF;
+
+  RAISE NOTICE 'PASS: coordinator runtime role % is SELECT-only and cannot own or ALTER/DDL public.auth_tenant_memberships', configured_role;
+END $$;
+```
+
+**Stop conditions:** an unknown or omitted configured role; any exception from this
+block; absent `SELECT`; any effective prohibited privilege; superuser or
+`BYPASSRLS`; direct ownership; or any reachable member/inherit role that is
+superuser, `BYPASSRLS`, owns the table, or has a prohibited table privilege. Keep
+containment in place. This R01a runbook does **not** grant, revoke, alter, create,
+or reconfigure roles or privileges; correct a failing deployment role only under a
+separately approved change.
+
 For an existing membership table, the canonical defaults are required exactly:
 `id = gen_random_uuid()`, `status = 'active'::text`, and both `created_at` and
 `activated_at = now()`. A missing or different default is incompatible; `CREATE
@@ -138,6 +245,13 @@ production application authorization.
    query timestamp, operator, reviewer, and result in the approved change record.
 
 ## Readback — required before mapping or application release
+
+First rerun the exact **Coordinator `DATABASE_URL` runtime-role preflight** block
+above in the same approved production SQL Editor project, with the same reviewed
+non-secret deployment role name. It is the required role readback: record its
+`PASS` notice with the schema readback below. Any failure or a changed/unknown
+role is a stop condition; keep containment in place and do not use this R01a
+script or the SQL Editor to change grants, ownership, memberships, or roles.
 
 ```sql
 SELECT c.relname, c.relrowsecurity
