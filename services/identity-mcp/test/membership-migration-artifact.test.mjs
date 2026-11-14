@@ -65,6 +65,20 @@ function assertCoordinatorRuntimeRolePreflight(block) {
   );
 }
 
+function assertRuntimeLookupPolicy(artifact) {
+  assert.match(
+    artifact,
+    /CREATE POLICY auth_tenant_memberships_runtime_select\s+ON public\.auth_tenant_memberships\s+FOR SELECT\s+TO PUBLIC\s+USING \(current_user = session_user\);/s,
+    'the policy must allow only a direct runtime login; the table ACL supplies the exact-role boundary',
+  );
+  assert.match(
+    artifact,
+    /REVOKE ALL PRIVILEGES ON TABLE public\.auth_tenant_memberships FROM anon, authenticated, PUBLIC;[\s\S]*?CREATE POLICY auth_tenant_memberships_runtime_select/s,
+    'browser/PUBLIC privilege revocation must precede the public policy',
+  );
+  assert.doesNotMatch(artifact, /CREATE POLICY[\s\S]*?FOR ALL/s, 'runtime policy must not authorize mutations');
+}
+
 test('membership migration is provider-only and has required safety controls', () => {
   assert.equal(existsSync(providerScript), true, 'provider script must exist');
   assert.equal(existsSync(runbook), true, 'operator runbook must exist');
@@ -88,6 +102,10 @@ test('membership migration is provider-only and has required safety controls', (
     'compatibility evidence: the catalog definition must be the required definition',
     'CREATE TABLE IF NOT EXISTS does not repair defaults on an existing relation',
     'Existing auth_tenant_memberships defaults are incompatible',
+    'CREATE TEMPORARY TABLE auth_tenant_memberships_constraint_shape_probe',
+    'pg_get_constraintdef(oid) = expected_status_constraint',
+    'pg_get_constraintdef(oid) = expected_revocation_lifecycle_constraint',
+    'Existing auth_tenant_memberships RLS policy is incompatible; expected only the canonical runtime SELECT policy',
     "pg_get_expr(i.indpred, i.indrelid)",
     'i.indnkeyatts = 1 AND i.indnatts = 1',
     'i.indnkeyatts = 3 AND i.indnatts = 3',
@@ -98,6 +116,8 @@ test('membership migration is provider-only and has required safety controls', (
     'auth_tenant_memberships_one_active_app_user',
     'ENABLE ROW LEVEL SECURITY',
     'REVOKE ALL PRIVILEGES ON TABLE public.auth_tenant_memberships FROM anon, authenticated, PUBLIC',
+    'CREATE POLICY auth_tenant_memberships_runtime_select',
+    'USING (current_user = session_user)',
     'never reads email or auth metadata',
   ]) assert.match(sql, new RegExp(required.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
 
@@ -112,6 +132,8 @@ test('membership migration is provider-only and has required safety controls', (
   assert.doesNotMatch(sql, /ADD\s+CONSTRAINT\s+\S+\s+UNIQUE\s*\(\s*auth_user_id\s*,\s*user_id\s*,\s*tenant_id\s*\)/i);
   assert.doesNotMatch(sql, /pg_get_indexdef\(i\.indexrelid\)\s+LIKE/i);
   assert.doesNotMatch(sql, /pg_get_expr\(i\.indpred, i\.indrelid\)\s+LIKE/i);
+  assert.doesNotMatch(sql, /pg_get_constraintdef\(oid\)\s+LIKE/i, 'constraint compatibility must not use loose LIKE checks');
+  assertRuntimeLookupPolicy(sql);
   const legacyFullHistoryDetector = sql.slice(
     sql.indexOf('-- The old candidate used this full-history uniqueness rule.'),
     sql.indexOf('IF (SELECT count(*) FROM pg_constraint WHERE conrelid = membership_oid)'),
@@ -164,7 +186,10 @@ test('membership migration is provider-only and has required safety controls', (
   const coordinatorPreflightSql = firstSqlBlockAfterHeading(guide, coordinatorPreflightHeading);
   assertCoordinatorRuntimeRolePreflight(coordinatorPreflightSql);
   assert.match(guide, /cannot own or ALTER\/DDL public\.auth_tenant_memberships/);
-  assert.match(guide, /does \*\*not\*\* grant, revoke, alter, create,\s+or reconfigure roles or privileges/);
+  assert.match(guide, /Authorize the verified coordinator runtime lookup — separate approved operation/);
+  assert.match(guide, /direct `SELECT` grant to the reviewed deployment role/);
+  assert.match(guide, /EXECUTE format\('GRANT SELECT ON TABLE public\.auth_tenant_memberships TO %I', configured_role\)/);
+  assert.match(guide, /only the configured coordinator runtime role may hold non-owner SELECT/);
   assert.match(guide, /rerun the exact \*\*Coordinator `DATABASE_URL` runtime-role preflight\*\* block/);
   assert.match(guide, /changed\/unknown\s+role is a stop condition/);
   assert.match(
@@ -172,8 +197,8 @@ test('membership migration is provider-only and has required safety controls', (
     /new Pool\(\{\s+connectionString: process\.env\.DATABASE_URL,/s,
     'coordinator Pool must use DATABASE_URL for its connection identity',
   );
-  assert.doesNotMatch(sql, /\bGRANT\b/i, 'provider script must not guess a coordinator grant');
-  assert.doesNotMatch(sql, /\b(postgres|service_role|coordinator)\b/i, 'provider script must not guess a coordinator role');
+  assert.doesNotMatch(sql, /\bGRANT\b/i, 'provider script must not grant a guessed coordinator role');
+  assert.doesNotMatch(sql, /\b(postgres|service_role)\b/i, 'provider script must not guess a provider role');
   assert.match(guide, /Readback — required before mapping or application release/);
   assert.match(guide, /does not reject unrelated supplemental indexes/);
   assert.match(guide, /differently named\s+standalone unique index on exactly\s+`\(auth_user_id, user_id, tenant_id\)`/);
@@ -181,7 +206,7 @@ test('membership migration is provider-only and has required safety controls', (
   assert.match(guide, /default_expression/);
   assert.match(guide, /canonical defaults are required exactly/);
   assert.match(guide, /SELECT count\(\*\) AS policy_count\s+FROM pg_policies/);
-  assert.match(guide, /policy_count.*must be `0`/);
+  assert.match(guide, /policy_count.*must be `1`/);
 
   const revocationSection = guide.slice(guide.indexOf('## Revoke access'));
   const revocationSql = revocationSection.match(/```sql\n([\s\S]*?)```/)?.[1];
@@ -266,4 +291,16 @@ test('canonical activated_at default assertion rejects an altered expectation', 
 
   assert.notEqual(altered, sql, 'test mutation must alter the activated_at expected default');
   assert.throws(() => assertCanonicalDefault(altered, 'activated_at', 'now()'));
+});
+
+test('runtime lookup policy assertions reject browser-readable or role-switch variants', () => {
+  for (const [name, expected, replacement] of [
+    ['role-switch guard', 'USING (current_user = session_user)', 'USING (true)'],
+    ['select-only command', 'FOR SELECT', 'FOR ALL'],
+    ['browser privilege revocation', 'FROM anon, authenticated, PUBLIC', 'FROM anon, authenticated'],
+  ]) {
+    const altered = sql.replace(expected, replacement);
+    assert.notEqual(altered, sql, `${name} mutation must alter the provider script`);
+    assert.throws(() => assertRuntimeLookupPolicy(altered), `${name} assertion must reject a weakened RLS/ACL boundary`);
+  }
 });

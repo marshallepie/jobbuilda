@@ -68,8 +68,8 @@ ORDER BY grantee, privilege_type;
 
 Expected pre-apply state is either: (a) no membership relation, or (b) the exact
 canonical relation created by this script, with the documented six constraints,
-the three named canonical indexes, RLS enabled, no policies, and no browser-role
-grants. `public.users` and `public.tenants` must be ordinary tables with NOT NULL
+the three named canonical indexes, RLS enabled, the one canonical runtime SELECT
+policy, and no browser-role grants. `public.users` and `public.tenants` must be ordinary tables with NOT NULL
 UUID keys. A same-named canonical constraint or index with different keys,
 uniqueness, included columns, or partial predicate is incompatible—not a compatible
 pre-existing object. The script does not reject unrelated supplemental indexes;
@@ -87,21 +87,26 @@ repository, or from a provider default. In the SQL Editor, replace only
 
 This is a **release preflight**, not a substitute for the schema-shape preflight:
 run it against a project where the canonical membership relation already exists—after
-the disposable script rehearsal and, in production, immediately after the script
-before any mapping or coordinator release. It requires that table in order to
-prove the actual table privileges. If the table is absent, do not treat the role
-as approved; finish the schema operation and run this block before proceeding.
+the disposable script rehearsal and, in production, immediately after the
+separate exact-role authorization below and before any mapping or coordinator
+release. It requires that table in order to prove the actual table privileges.
+If the table is absent, do not treat the role as approved; finish the schema
+operation first.
 
 This catalog preflight intentionally fails closed. It requires that the configured
-role exists, is neither superuser nor `BYPASSRLS`, cannot select through an
-inherited/effective grant unless that is the intended lookup privilege, has
-`SELECT` on `public.auth_tenant_memberships`, has none of `INSERT`, `UPDATE`,
-`DELETE`, `TRUNCATE`, `REFERENCES`, or `TRIGGER`, and neither owns the table nor
-belongs (directly or transitively) to a role that owns it or has any of those write
-privileges. Ownership is checked because it permits `ALTER`/DDL independently of
-table ACLs. The recursive membership check rejects every reachable membership
-role, including a non-inheriting role: a role that can later be assumed is not an
-acceptable SELECT-only coordinator runtime identity.
+role exists, is neither superuser nor `BYPASSRLS`, has the explicit direct
+`SELECT` grant on `public.auth_tenant_memberships`, is the only non-owner role
+with a `SELECT` grant, has none of `INSERT`, `UPDATE`, `DELETE`, `TRUNCATE`,
+`REFERENCES`, or `TRIGGER`, and neither owns the table nor belongs (directly or
+transitively) to a role that owns it or has any of those write privileges.
+Ownership is checked because it permits `ALTER`/DDL independently of table ACLs.
+The recursive membership check rejects every reachable membership role, including
+a non-inheriting role: a role that can later be assumed is not an acceptable
+SELECT-only coordinator runtime identity. The canonical RLS policy additionally
+requires `current_user = session_user`; the direct exact-role grant is therefore
+both the application authorization boundary and the only way the coordinator's
+direct SQL lookup can pass RLS. It grants nothing to `anon`, `authenticated`, or
+`PUBLIC`.
 
 ```sql
 DO $$
@@ -111,6 +116,7 @@ DECLARE
   membership_table oid := 'public.auth_tenant_memberships'::regclass;
   denied_privileges text[];
   unsafe_membership_roles text[];
+  unexpected_select_grantees text[];
 BEGIN
   IF configured_role IS NULL OR btrim(configured_role::text) = '' THEN
     RAISE EXCEPTION 'STOP: coordinator DATABASE_URL runtime role name is required from approved deployment configuration';
@@ -130,6 +136,44 @@ BEGIN
 
   IF NOT has_table_privilege(coordinator_role, membership_table, 'SELECT') THEN
     RAISE EXCEPTION 'STOP: configured coordinator runtime role % lacks required SELECT on public.auth_tenant_memberships', configured_role;
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_class relation
+    CROSS JOIN LATERAL aclexplode(coalesce(relation.relacl, acldefault('r', relation.relowner))) acl
+    WHERE relation.oid = membership_table
+      AND acl.grantee = coordinator_role
+      AND acl.privilege_type = 'SELECT'
+  ) THEN
+    RAISE EXCEPTION 'STOP: configured coordinator runtime role % lacks the required direct SELECT grant; inherited/effective SELECT is not accepted', configured_role;
+  END IF;
+
+  SELECT array_agg(COALESCE(role.rolname, 'PUBLIC') ORDER BY COALESCE(role.rolname, 'PUBLIC'))
+  INTO unexpected_select_grantees
+  FROM pg_class relation
+  CROSS JOIN LATERAL aclexplode(coalesce(relation.relacl, acldefault('r', relation.relowner))) acl
+  LEFT JOIN pg_roles role ON role.oid = acl.grantee
+  WHERE relation.oid = membership_table
+    AND acl.privilege_type = 'SELECT'
+    AND acl.grantee <> coordinator_role
+    AND acl.grantee <> relation.relowner;
+  IF unexpected_select_grantees IS NOT NULL THEN
+    RAISE EXCEPTION 'STOP: only the configured coordinator runtime role may hold non-owner SELECT on public.auth_tenant_memberships; found %', unexpected_select_grantees;
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_policy policy
+    WHERE policy.polrelid = membership_table
+      AND policy.polname = 'auth_tenant_memberships_runtime_select'
+      AND policy.polcmd = 'r'
+      AND policy.polpermissive
+      AND policy.polroles = ARRAY[0]::oid[]
+      AND pg_get_expr(policy.polqual, policy.polrelid) = '(CURRENT_USER = SESSION_USER)'
+      AND policy.polwithcheck IS NULL
+  ) OR (SELECT count(*) FROM pg_policy WHERE polrelid = membership_table) <> 1 THEN
+    RAISE EXCEPTION 'STOP: public.auth_tenant_memberships must have exactly the canonical direct-runtime SELECT RLS policy';
   END IF;
 
   SELECT array_agg(privilege ORDER BY privilege) INTO denied_privileges
@@ -175,13 +219,110 @@ BEGIN
 END $$;
 ```
 
+### Authorize the verified coordinator runtime lookup — separate approved operation
+
+After the provider script has committed and before the preceding release
+preflight, use a **new SQL Editor query** under the approved change record. This
+is deliberately not part of the provider migration transaction and must not be
+added to any migration ledger. Replace only `NULL::name` with the exact reviewed
+non-secret deployment role name from the coordinator's `DATABASE_URL`. The block
+does not reveal, infer, or prescribe that role. It refuses a superuser,
+`BYPASSRLS`, table owner, unexpected existing non-owner `SELECT` grantee, missing
+canonical policy, any write privilege, or unsafe reachable membership before
+issuing the one direct `SELECT` grant. Do not substitute a group role or use `PUBLIC`, `anon`, or
+`authenticated`.
+
+```sql
+DO $$
+DECLARE
+  configured_role name := NULL::name; -- Replace only with the reviewed non-secret deployment role name.
+  coordinator_role oid;
+  membership_table oid := 'public.auth_tenant_memberships'::regclass;
+  unexpected_select_grantees text[];
+  denied_privileges text[];
+  unsafe_membership_roles text[];
+BEGIN
+  IF configured_role IS NULL OR btrim(configured_role::text) = '' THEN
+    RAISE EXCEPTION 'STOP: coordinator DATABASE_URL runtime role name is required from approved deployment configuration';
+  END IF;
+  SELECT oid INTO coordinator_role FROM pg_roles WHERE rolname = configured_role;
+  IF coordinator_role IS NULL THEN
+    RAISE EXCEPTION 'STOP: configured coordinator runtime role % does not exist', configured_role;
+  END IF;
+  IF EXISTS (SELECT 1 FROM pg_roles WHERE oid = coordinator_role AND (rolsuper OR rolbypassrls))
+     OR EXISTS (SELECT 1 FROM pg_class WHERE oid = membership_table AND relowner = coordinator_role) THEN
+    RAISE EXCEPTION 'STOP: configured coordinator runtime role % is superuser, BYPASSRLS, or table owner', configured_role;
+  END IF;
+  SELECT array_agg(privilege ORDER BY privilege) INTO denied_privileges
+  FROM unnest(ARRAY['INSERT', 'UPDATE', 'DELETE', 'TRUNCATE', 'REFERENCES', 'TRIGGER']) AS privilege
+  WHERE has_table_privilege(coordinator_role, membership_table, privilege);
+  IF denied_privileges IS NOT NULL THEN
+    RAISE EXCEPTION 'STOP: configured coordinator runtime role % already has prohibited effective table privileges: %', configured_role, denied_privileges;
+  END IF;
+  WITH RECURSIVE reachable_roles(role_oid, role_path) AS (
+    SELECT coordinator_role, ARRAY[coordinator_role]
+    UNION ALL
+    SELECT membership.roleid, reachable_roles.role_path || membership.roleid
+    FROM reachable_roles
+    JOIN pg_auth_members AS membership ON membership.member = reachable_roles.role_oid
+    WHERE NOT membership.roleid = ANY (reachable_roles.role_path)
+  )
+  SELECT array_agg(DISTINCT role.rolname ORDER BY role.rolname) INTO unsafe_membership_roles
+  FROM reachable_roles
+  JOIN pg_roles AS role ON role.oid = reachable_roles.role_oid
+  JOIN pg_class AS relation ON relation.oid = membership_table
+  WHERE reachable_roles.role_oid <> coordinator_role
+    AND (
+      relation.relowner = reachable_roles.role_oid
+      OR role.rolsuper
+      OR role.rolbypassrls
+      OR has_table_privilege(reachable_roles.role_oid, membership_table, 'INSERT')
+      OR has_table_privilege(reachable_roles.role_oid, membership_table, 'UPDATE')
+      OR has_table_privilege(reachable_roles.role_oid, membership_table, 'DELETE')
+      OR has_table_privilege(reachable_roles.role_oid, membership_table, 'TRUNCATE')
+      OR has_table_privilege(reachable_roles.role_oid, membership_table, 'REFERENCES')
+      OR has_table_privilege(reachable_roles.role_oid, membership_table, 'TRIGGER')
+    );
+  IF unsafe_membership_roles IS NOT NULL THEN
+    RAISE EXCEPTION 'STOP: configured coordinator runtime role % reaches unsafe member/inherit roles: %', configured_role, unsafe_membership_roles;
+  END IF;
+  SELECT array_agg(COALESCE(role.rolname, 'PUBLIC') ORDER BY COALESCE(role.rolname, 'PUBLIC'))
+  INTO unexpected_select_grantees
+  FROM pg_class relation
+  CROSS JOIN LATERAL aclexplode(coalesce(relation.relacl, acldefault('r', relation.relowner))) acl
+  LEFT JOIN pg_roles role ON role.oid = acl.grantee
+  WHERE relation.oid = membership_table
+    AND acl.privilege_type = 'SELECT'
+    AND acl.grantee <> relation.relowner
+    AND acl.grantee <> coordinator_role;
+  IF unexpected_select_grantees IS NOT NULL THEN
+    RAISE EXCEPTION 'STOP: unexpected non-owner SELECT grantees exist on public.auth_tenant_memberships: %', unexpected_select_grantees;
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policy policy
+    WHERE policy.polrelid = membership_table
+      AND policy.polname = 'auth_tenant_memberships_runtime_select'
+      AND policy.polcmd = 'r'
+      AND policy.polpermissive
+      AND policy.polroles = ARRAY[0]::oid[]
+      AND pg_get_expr(policy.polqual, policy.polrelid) = '(CURRENT_USER = SESSION_USER)'
+      AND policy.polwithcheck IS NULL
+  ) OR (SELECT count(*) FROM pg_policy WHERE polrelid = membership_table) <> 1 THEN
+    RAISE EXCEPTION 'STOP: public.auth_tenant_memberships must have exactly the canonical direct-runtime SELECT RLS policy';
+  END IF;
+  EXECUTE format('GRANT SELECT ON TABLE public.auth_tenant_memberships TO %I', configured_role);
+END $$;
+```
+
 **Stop conditions:** an unknown or omitted configured role; any exception from this
 block; absent `SELECT`; any effective prohibited privilege; superuser or
 `BYPASSRLS`; direct ownership; or any reachable member/inherit role that is
 superuser, `BYPASSRLS`, owns the table, or has a prohibited table privilege. Keep
-containment in place. This R01a runbook does **not** grant, revoke, alter, create,
-or reconfigure roles or privileges; correct a failing deployment role only under a
-separately approved change.
+containment in place. This R01a runbook permits only the preceding separately
+approved direct `SELECT` grant to the reviewed deployment role; it never grants
+browser access or changes role ownership, membership, login, superuser, or
+`BYPASSRLS` attributes. Correct any other failing deployment role condition only
+under a separately approved change.
 
 For an existing membership table, the canonical defaults are required exactly:
 `id = gen_random_uuid()`, `status = 'active'::text`, and both `created_at` and
@@ -222,8 +363,8 @@ fresh or repeat-run cases.
    immutable `(auth_user_id, user_id, tenant_id)` tuple again. It must succeed;
    the revoked historical row remains and exactly one row is active.
 7. **Browser role denial:** `SET ROLE anon` and, separately, `SET ROLE authenticated`
-   must not select, insert, update, or delete from the table. Restore role after
-each probe.
+   must not select, insert, update, or delete from the table. Also prove a
+   non-granted non-owner role cannot select. Restore role after each probe.
 8. **Coordinator runtime role:** using the configured coordinator runtime role,
    prove one active membership lookup succeeds and direct `INSERT`, `UPDATE`,
    `DELETE`, `TRUNCATE`, and DDL against this table are denied. The runtime is
@@ -285,7 +426,9 @@ Required results: RLS enabled; no direct browser-role grants; composite
 `(user_id, tenant_id)` foreign key; two partial one-active unique indexes; no
 full-history tuple unique constraint; and `mapping_count = 0`. Any unexpected
 mapping, policy, grant, constraint, or index is a stop condition. The
-`policy_count` readback must be `0`.
+`policy_count` readback must be `1`, for the canonical
+`auth_tenant_memberships_runtime_select` SELECT policy only; it does not grant
+table privileges to browser roles.
 
 ## Authorize one existing staff principal — separate approved operation
 

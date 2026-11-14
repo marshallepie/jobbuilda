@@ -11,6 +11,8 @@ CREATE EXTENSION IF NOT EXISTS pgcrypto;
 DO $$
 DECLARE
   membership_oid oid := to_regclass('public.auth_tenant_memberships');
+  expected_status_constraint text;
+  expected_revocation_lifecycle_constraint text;
   expected_membership_columns text[] := ARRAY[
     'id:uuid:NO', 'auth_user_id:uuid:NO', 'user_id:uuid:NO', 'tenant_id:uuid:NO',
     'status:text:NO', 'created_at:timestamp with time zone:NO',
@@ -75,6 +77,33 @@ BEGIN
   IF membership_oid IS NULL THEN
     RETURN;
   END IF;
+
+  -- Compare normalized catalog definitions against constraints constructed by
+  -- PostgreSQL itself, not loose text fragments. This rejects, for example,
+  -- a constraint which mentions both permitted status literals but admits a
+  -- third value or omits part of the revocation lifecycle.
+  CREATE TEMPORARY TABLE auth_tenant_memberships_constraint_shape_probe (
+    status text,
+    revoked_at timestamptz,
+    revoked_reason text,
+    CONSTRAINT auth_tenant_memberships_status_check
+      CHECK (status IN ('active', 'revoked')),
+    CONSTRAINT auth_tenant_memberships_revocation_lifecycle_check
+      CHECK (
+        (status = 'active' AND revoked_at IS NULL AND revoked_reason IS NULL) OR
+        (status = 'revoked' AND revoked_at IS NOT NULL)
+      )
+  ) ON COMMIT DROP;
+  SELECT pg_get_constraintdef(oid)
+  INTO expected_status_constraint
+  FROM pg_constraint
+  WHERE conrelid = 'pg_temp.auth_tenant_memberships_constraint_shape_probe'::regclass
+    AND conname = 'auth_tenant_memberships_status_check';
+  SELECT pg_get_constraintdef(oid)
+  INTO expected_revocation_lifecycle_constraint
+  FROM pg_constraint
+  WHERE conrelid = 'pg_temp.auth_tenant_memberships_constraint_shape_probe'::regclass
+    AND conname = 'auth_tenant_memberships_revocation_lifecycle_check';
 
   IF NOT EXISTS (
     SELECT 1 FROM pg_class WHERE oid = membership_oid AND relkind = 'r'
@@ -149,13 +178,25 @@ BEGIN
      OR NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid = membership_oid AND conname = 'auth_tenant_memberships_auth_user_fkey' AND contype = 'f' AND conkey = ARRAY[(SELECT attnum FROM pg_attribute WHERE attrelid = membership_oid AND attname = 'auth_user_id')]::smallint[] AND confrelid = 'auth.users'::regclass AND confdeltype = 'r')
      OR NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid = membership_oid AND conname = 'auth_tenant_memberships_tenant_fkey' AND contype = 'f' AND conkey = ARRAY[(SELECT attnum FROM pg_attribute WHERE attrelid = membership_oid AND attname = 'tenant_id')]::smallint[] AND confrelid = 'public.tenants'::regclass AND confdeltype = 'r')
      OR NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid = membership_oid AND conname = 'auth_tenant_memberships_user_tenant_fkey' AND contype = 'f' AND conkey = ARRAY[(SELECT attnum FROM pg_attribute WHERE attrelid = membership_oid AND attname = 'user_id'), (SELECT attnum FROM pg_attribute WHERE attrelid = membership_oid AND attname = 'tenant_id')]::smallint[] AND confrelid = 'public.users'::regclass AND confkey = ARRAY[(SELECT attnum FROM pg_attribute WHERE attrelid = 'public.users'::regclass AND attname = 'id'), (SELECT attnum FROM pg_attribute WHERE attrelid = 'public.users'::regclass AND attname = 'tenant_id')]::smallint[] AND confdeltype = 'r')
-     OR NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid = membership_oid AND conname = 'auth_tenant_memberships_status_check' AND contype = 'c' AND pg_get_constraintdef(oid) LIKE '%status%' AND pg_get_constraintdef(oid) LIKE '%''active''%' AND pg_get_constraintdef(oid) LIKE '%''revoked''%')
-     OR NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid = membership_oid AND conname = 'auth_tenant_memberships_revocation_lifecycle_check' AND contype = 'c' AND pg_get_constraintdef(oid) LIKE '%status = ''active''%' AND pg_get_constraintdef(oid) LIKE '%revoked_at IS NULL%' AND pg_get_constraintdef(oid) LIKE '%revoked_reason IS NULL%' AND pg_get_constraintdef(oid) LIKE '%status = ''revoked''%' AND pg_get_constraintdef(oid) LIKE '%revoked_at IS NOT NULL%') THEN
+     OR NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid = membership_oid AND conname = 'auth_tenant_memberships_status_check' AND contype = 'c' AND pg_get_constraintdef(oid) = expected_status_constraint)
+     OR NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid = membership_oid AND conname = 'auth_tenant_memberships_revocation_lifecycle_check' AND contype = 'c' AND pg_get_constraintdef(oid) = expected_revocation_lifecycle_constraint) THEN
     RAISE EXCEPTION 'Existing auth_tenant_memberships constraints are incompatible; object names are insufficient';
   END IF;
 
-  IF EXISTS (SELECT 1 FROM pg_policies WHERE schemaname = 'public' AND tablename = 'auth_tenant_memberships') THEN
-    RAISE EXCEPTION 'Existing RLS policies on public.auth_tenant_memberships require review; this script never broadens browser access';
+  IF EXISTS (
+    SELECT 1
+    FROM pg_policy policy
+    WHERE policy.polrelid = membership_oid
+      AND (
+        policy.polname <> 'auth_tenant_memberships_runtime_select'
+        OR policy.polcmd <> 'r'
+        OR NOT policy.polpermissive
+        OR policy.polroles <> ARRAY[0]::oid[]
+        OR pg_get_expr(policy.polqual, policy.polrelid) <> '(CURRENT_USER = SESSION_USER)'
+        OR policy.polwithcheck IS NOT NULL
+      )
+  ) OR (SELECT count(*) FROM pg_policy WHERE polrelid = membership_oid) > 1 THEN
+    RAISE EXCEPTION 'Existing auth_tenant_memberships RLS policy is incompatible; expected only the canonical runtime SELECT policy';
   END IF;
 
   IF EXISTS (
@@ -283,6 +324,25 @@ END $$;
 
 ALTER TABLE public.auth_tenant_memberships ENABLE ROW LEVEL SECURITY;
 REVOKE ALL PRIVILEGES ON TABLE public.auth_tenant_memberships FROM anon, authenticated, PUBLIC;
+-- RLS does not confer table privileges. This policy requires a direct login
+-- identity (no SET ROLE) while the separately approved exact coordinator role
+-- receives SELECT in the runbook. anon/authenticated/PUBLIC have no SELECT ACL,
+-- so this policy cannot make mappings browser-readable.
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_policy
+    WHERE polrelid = 'public.auth_tenant_memberships'::regclass
+      AND polname = 'auth_tenant_memberships_runtime_select'
+  ) THEN
+    CREATE POLICY auth_tenant_memberships_runtime_select
+      ON public.auth_tenant_memberships
+      FOR SELECT
+      TO PUBLIC
+      USING (current_user = session_user);
+  END IF;
+END $$;
 COMMENT ON TABLE public.auth_tenant_memberships IS
   'Server-owned, manually reviewed Supabase identity to active JobBuilda staff principal mapping.';
 
