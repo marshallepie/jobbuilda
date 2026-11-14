@@ -1,26 +1,130 @@
 -- PROVIDER SQL EDITOR ONLY — do not run through node-pg-migrate or pnpm db:migrate.
---
--- Evidence for this path: the prior identity migration documents Supabase SQL Editor
--- application, while the production history is provider-owned (remote_schema) rather
--- than a verified node-pg-migrate ledger. This is one complete raw SQL transaction.
--- It creates no identity-to-principal mappings and never reads email or auth metadata.
+-- One complete transaction. It creates no identity-to-principal mappings and never reads email or auth metadata.
+-- Mappings are a separately approved manual action.
 
 BEGIN;
 
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
+-- Reject an unknown existing shape before changing it. Object names alone are not
+-- compatibility evidence: the catalog definition must be the required definition.
 DO $$
+DECLARE
+  membership_oid oid := to_regclass('public.auth_tenant_memberships');
+  expected_membership_columns text[] := ARRAY[
+    'id:uuid:NO', 'auth_user_id:uuid:NO', 'user_id:uuid:NO', 'tenant_id:uuid:NO',
+    'status:text:NO', 'created_at:timestamp with time zone:NO',
+    'activated_at:timestamp with time zone:NO', 'revoked_at:timestamp with time zone:YES',
+    'revoked_reason:text:YES'
+  ];
+  actual_membership_columns text[];
 BEGIN
   IF to_regclass('public.users') IS NULL OR to_regclass('public.tenants') IS NULL THEN
     RAISE EXCEPTION 'Expected public.users and public.tenants before applying 20261107_add_auth_tenant_memberships';
   END IF;
 
+  IF EXISTS (
+    SELECT 1 FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+    WHERE n.nspname = 'public' AND c.relname IN ('users', 'tenants') AND c.relkind <> 'r'
+  ) THEN
+    RAISE EXCEPTION 'public.users and public.tenants must be ordinary tables';
+  END IF;
+
   IF NOT EXISTS (
+    SELECT 1 FROM pg_attribute a
+    WHERE a.attrelid = 'public.users'::regclass AND a.attname = 'id'
+      AND a.atttypid = 'uuid'::regtype AND a.attnotnull AND NOT a.attisdropped
+  ) OR NOT EXISTS (
+    SELECT 1 FROM pg_attribute a
+    WHERE a.attrelid = 'public.users'::regclass AND a.attname = 'tenant_id'
+      AND a.atttypid = 'uuid'::regtype AND a.attnotnull AND NOT a.attisdropped
+  ) OR NOT EXISTS (
+    SELECT 1 FROM pg_attribute a
+    WHERE a.attrelid = 'public.tenants'::regclass AND a.attname = 'id'
+      AND a.atttypid = 'uuid'::regtype AND a.attnotnull AND NOT a.attisdropped
+  ) THEN
+    RAISE EXCEPTION 'public.users(id, tenant_id) and public.tenants(id) must be NOT NULL UUID columns';
+  END IF;
+
+  IF EXISTS (
     SELECT 1 FROM pg_constraint
     WHERE conrelid = 'public.users'::regclass AND conname = 'users_id_tenant_id_key'
+      AND (contype <> 'u' OR pg_get_constraintdef(oid, true) <> 'UNIQUE (id, tenant_id)')
   ) THEN
-    ALTER TABLE public.users
-      ADD CONSTRAINT users_id_tenant_id_key UNIQUE (id, tenant_id);
+    RAISE EXCEPTION 'Existing users_id_tenant_id_key is incompatible; expected UNIQUE (id, tenant_id)';
+  END IF;
+
+  IF membership_oid IS NULL THEN
+    RETURN;
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_class WHERE oid = membership_oid AND relkind = 'r'
+  ) THEN
+    RAISE EXCEPTION 'Existing public.auth_tenant_memberships must be an ordinary table';
+  END IF;
+
+  SELECT array_agg(attname || ':' || format_type(atttypid, atttypmod) || ':' || CASE WHEN attnotnull THEN 'NO' ELSE 'YES' END ORDER BY attnum)
+  INTO actual_membership_columns
+  FROM pg_attribute
+  WHERE attrelid = membership_oid AND attnum > 0 AND NOT attisdropped;
+  IF actual_membership_columns IS DISTINCT FROM expected_membership_columns THEN
+    RAISE EXCEPTION 'Existing public.auth_tenant_memberships columns are incompatible; expected exact canonical schema';
+  END IF;
+
+  -- The old candidate used this full-history uniqueness rule. Reject it by shape,
+  -- whatever its name, because it prevents revoke then rebind of the same tuple.
+  IF EXISTS (
+    SELECT 1
+    FROM pg_constraint c
+    WHERE c.conrelid = membership_oid AND c.contype = 'u'
+      AND c.conkey = ARRAY[
+        (SELECT attnum FROM pg_attribute WHERE attrelid = membership_oid AND attname = 'auth_user_id'),
+        (SELECT attnum FROM pg_attribute WHERE attrelid = membership_oid AND attname = 'user_id'),
+        (SELECT attnum FROM pg_attribute WHERE attrelid = membership_oid AND attname = 'tenant_id')
+      ]::smallint[]
+  ) THEN
+    RAISE EXCEPTION 'Legacy full-history UNIQUE(auth_user_id, user_id, tenant_id) is incompatible; do not apply this script over it';
+  END IF;
+
+  IF (SELECT count(*) FROM pg_constraint WHERE conrelid = membership_oid) <> 6
+     OR NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid = membership_oid AND conname = 'auth_tenant_memberships_pkey' AND contype = 'p' AND conkey = ARRAY[(SELECT attnum FROM pg_attribute WHERE attrelid = membership_oid AND attname = 'id')]::smallint[])
+     OR NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid = membership_oid AND conname = 'auth_tenant_memberships_auth_user_fkey' AND contype = 'f' AND conkey = ARRAY[(SELECT attnum FROM pg_attribute WHERE attrelid = membership_oid AND attname = 'auth_user_id')]::smallint[] AND confrelid = 'auth.users'::regclass AND confdeltype = 'r')
+     OR NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid = membership_oid AND conname = 'auth_tenant_memberships_tenant_fkey' AND contype = 'f' AND conkey = ARRAY[(SELECT attnum FROM pg_attribute WHERE attrelid = membership_oid AND attname = 'tenant_id')]::smallint[] AND confrelid = 'public.tenants'::regclass AND confdeltype = 'r')
+     OR NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid = membership_oid AND conname = 'auth_tenant_memberships_user_tenant_fkey' AND contype = 'f' AND conkey = ARRAY[(SELECT attnum FROM pg_attribute WHERE attrelid = membership_oid AND attname = 'user_id'), (SELECT attnum FROM pg_attribute WHERE attrelid = membership_oid AND attname = 'tenant_id')]::smallint[] AND confrelid = 'public.users'::regclass AND confkey = ARRAY[(SELECT attnum FROM pg_attribute WHERE attrelid = 'public.users'::regclass AND attname = 'id'), (SELECT attnum FROM pg_attribute WHERE attrelid = 'public.users'::regclass AND attname = 'tenant_id')]::smallint[] AND confdeltype = 'r')
+     OR NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid = membership_oid AND conname = 'auth_tenant_memberships_status_check' AND contype = 'c' AND pg_get_constraintdef(oid) LIKE '%status%' AND pg_get_constraintdef(oid) LIKE '%''active''%' AND pg_get_constraintdef(oid) LIKE '%''revoked''%')
+     OR NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid = membership_oid AND conname = 'auth_tenant_memberships_revocation_lifecycle_check' AND contype = 'c' AND pg_get_constraintdef(oid) LIKE '%status = ''active''%' AND pg_get_constraintdef(oid) LIKE '%revoked_at IS NULL%' AND pg_get_constraintdef(oid) LIKE '%revoked_reason IS NULL%' AND pg_get_constraintdef(oid) LIKE '%status = ''revoked''%' AND pg_get_constraintdef(oid) LIKE '%revoked_at IS NOT NULL%') THEN
+    RAISE EXCEPTION 'Existing auth_tenant_memberships constraints are incompatible; object names are insufficient';
+  END IF;
+
+  IF EXISTS (SELECT 1 FROM pg_policies WHERE schemaname = 'public' AND tablename = 'auth_tenant_memberships') THEN
+    RAISE EXCEPTION 'Existing RLS policies on public.auth_tenant_memberships require review; this script never broadens browser access';
+  END IF;
+
+  IF EXISTS (
+    SELECT 1
+    FROM pg_class c
+    CROSS JOIN LATERAL aclexplode(coalesce(c.relacl, acldefault('r', c.relowner))) acl
+    LEFT JOIN pg_roles r ON r.oid = acl.grantee
+    WHERE c.oid = membership_oid
+      AND (acl.grantee = 0 OR r.rolname IN ('anon', 'authenticated'))
+      AND acl.privilege_type IN ('SELECT', 'INSERT', 'UPDATE', 'DELETE', 'TRUNCATE', 'REFERENCES', 'TRIGGER')
+  ) OR NOT (SELECT relrowsecurity FROM pg_class WHERE oid = membership_oid) THEN
+    RAISE EXCEPTION 'Existing auth_tenant_memberships RLS or grants are incompatible; expected RLS enabled without browser-role access';
+  END IF;
+
+  IF EXISTS (
+    SELECT 1 FROM pg_index i
+    JOIN pg_class x ON x.oid = i.indexrelid
+    WHERE i.indrelid = membership_oid
+      AND x.relname IN ('auth_tenant_memberships_one_active_auth_user', 'auth_tenant_memberships_one_active_app_user', 'auth_tenant_memberships_active_lookup')
+      AND NOT (
+        (x.relname = 'auth_tenant_memberships_one_active_auth_user' AND i.indisunique AND pg_get_indexdef(i.indexrelid) LIKE '%(auth_user_id)%' AND pg_get_expr(i.indpred, i.indrelid) LIKE '%status = ''active''%' AND pg_get_expr(i.indpred, i.indrelid) LIKE '%revoked_at IS NULL%') OR
+        (x.relname = 'auth_tenant_memberships_one_active_app_user' AND i.indisunique AND pg_get_indexdef(i.indexrelid) LIKE '%(user_id)%' AND pg_get_expr(i.indpred, i.indrelid) LIKE '%status = ''active''%' AND pg_get_expr(i.indpred, i.indrelid) LIKE '%revoked_at IS NULL%') OR
+        (x.relname = 'auth_tenant_memberships_active_lookup' AND NOT i.indisunique AND pg_get_indexdef(i.indexrelid) LIKE '%(auth_user_id, tenant_id, user_id)%' AND pg_get_expr(i.indpred, i.indrelid) LIKE '%status = ''active''%' AND pg_get_expr(i.indpred, i.indrelid) LIKE '%revoked_at IS NULL%')
+      )
+  ) THEN
+    RAISE EXCEPTION 'Existing auth_tenant_memberships index is incompatible; index name alone is insufficient';
   END IF;
 END $$;
 
@@ -34,141 +138,22 @@ CREATE TABLE IF NOT EXISTS public.auth_tenant_memberships (
   activated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   revoked_at TIMESTAMPTZ,
   revoked_reason TEXT,
-  CONSTRAINT auth_tenant_memberships_auth_user_fkey
-    FOREIGN KEY (auth_user_id) REFERENCES auth.users(id) ON DELETE RESTRICT,
-  CONSTRAINT auth_tenant_memberships_tenant_fkey
-    FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE RESTRICT
+  CONSTRAINT auth_tenant_memberships_auth_user_fkey FOREIGN KEY (auth_user_id) REFERENCES auth.users(id) ON DELETE RESTRICT,
+  CONSTRAINT auth_tenant_memberships_tenant_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE RESTRICT,
+  CONSTRAINT auth_tenant_memberships_user_tenant_fkey FOREIGN KEY (user_id, tenant_id) REFERENCES public.users (id, tenant_id) ON DELETE RESTRICT,
+  CONSTRAINT auth_tenant_memberships_status_check CHECK (status IN ('active', 'revoked')),
+  CONSTRAINT auth_tenant_memberships_revocation_lifecycle_check CHECK (
+    (status = 'active' AND revoked_at IS NULL AND revoked_reason IS NULL) OR
+    (status = 'revoked' AND revoked_at IS NOT NULL)
+  )
 );
 
--- Safe forward upgrade for an already-created empty or compatible table. New columns
--- are intentionally nullable here: populated legacy rows must be reviewed, never
--- silently converted into active mappings.
-ALTER TABLE public.auth_tenant_memberships
-  ADD COLUMN IF NOT EXISTS id UUID DEFAULT gen_random_uuid(),
-  ADD COLUMN IF NOT EXISTS auth_user_id UUID,
-  ADD COLUMN IF NOT EXISTS user_id UUID,
-  ADD COLUMN IF NOT EXISTS tenant_id UUID,
-  ADD COLUMN IF NOT EXISTS status TEXT,
-  ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT now(),
-  ADD COLUMN IF NOT EXISTS activated_at TIMESTAMPTZ DEFAULT now(),
-  ADD COLUMN IF NOT EXISTS revoked_at TIMESTAMPTZ,
-  ADD COLUMN IF NOT EXISTS revoked_reason TEXT;
-
-DO $$
-DECLARE
-  populated boolean;
-BEGIN
-  SELECT EXISTS (SELECT 1 FROM public.auth_tenant_memberships) INTO populated;
-
-  IF populated AND EXISTS (
-    SELECT 1
-    FROM public.auth_tenant_memberships
-    WHERE id IS NULL
-       OR auth_user_id IS NULL
-       OR user_id IS NULL
-       OR tenant_id IS NULL
-       OR status IS NULL
-       OR status NOT IN ('active', 'revoked')
-       OR (status = 'active' AND (revoked_at IS NOT NULL OR revoked_reason IS NOT NULL))
-       OR (status = 'revoked' AND revoked_at IS NULL)
-  ) THEN
-    RAISE EXCEPTION
-      'Existing auth_tenant_memberships rows are not canonical; stop and review explicit UUID tuples before this migration';
-  END IF;
-
-  IF EXISTS (
-    SELECT 1
-    FROM pg_policies
-    WHERE schemaname = 'public' AND tablename = 'auth_tenant_memberships'
-  ) THEN
-    RAISE EXCEPTION
-      'Existing RLS policies on public.auth_tenant_memberships require review; this script never broadens browser access';
-  END IF;
-END $$;
-
-ALTER TABLE public.auth_tenant_memberships
-  ALTER COLUMN id SET NOT NULL,
-  ALTER COLUMN auth_user_id SET NOT NULL,
-  ALTER COLUMN user_id SET NOT NULL,
-  ALTER COLUMN tenant_id SET NOT NULL,
-  ALTER COLUMN status SET DEFAULT 'active',
-  ALTER COLUMN status SET NOT NULL,
-  ALTER COLUMN created_at SET DEFAULT now(),
-  ALTER COLUMN created_at SET NOT NULL,
-  ALTER COLUMN activated_at SET DEFAULT now(),
-  ALTER COLUMN activated_at SET NOT NULL;
-
 DO $$
 BEGIN
   IF NOT EXISTS (
-    SELECT 1 FROM pg_constraint
-    WHERE conrelid = 'public.auth_tenant_memberships'::regclass
-      AND conname = 'auth_tenant_memberships_pkey'
+    SELECT 1 FROM pg_constraint WHERE conrelid = 'public.users'::regclass AND conname = 'users_id_tenant_id_key'
   ) THEN
-    ALTER TABLE public.auth_tenant_memberships
-      ADD CONSTRAINT auth_tenant_memberships_pkey PRIMARY KEY (id);
-  END IF;
-
-  IF NOT EXISTS (
-    SELECT 1 FROM pg_constraint
-    WHERE conrelid = 'public.auth_tenant_memberships'::regclass
-      AND conname = 'auth_tenant_memberships_auth_user_fkey'
-  ) THEN
-    ALTER TABLE public.auth_tenant_memberships
-      ADD CONSTRAINT auth_tenant_memberships_auth_user_fkey
-      FOREIGN KEY (auth_user_id) REFERENCES auth.users(id) ON DELETE RESTRICT;
-  END IF;
-
-  IF NOT EXISTS (
-    SELECT 1 FROM pg_constraint
-    WHERE conrelid = 'public.auth_tenant_memberships'::regclass
-      AND conname = 'auth_tenant_memberships_tenant_fkey'
-  ) THEN
-    ALTER TABLE public.auth_tenant_memberships
-      ADD CONSTRAINT auth_tenant_memberships_tenant_fkey
-      FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE RESTRICT;
-  END IF;
-
-  IF NOT EXISTS (
-    SELECT 1 FROM pg_constraint
-    WHERE conrelid = 'public.auth_tenant_memberships'::regclass
-      AND conname = 'auth_tenant_memberships_user_tenant_fkey'
-  ) THEN
-    ALTER TABLE public.auth_tenant_memberships
-      ADD CONSTRAINT auth_tenant_memberships_user_tenant_fkey
-      FOREIGN KEY (user_id, tenant_id) REFERENCES public.users (id, tenant_id) ON DELETE RESTRICT;
-  END IF;
-
-  IF NOT EXISTS (
-    SELECT 1 FROM pg_constraint
-    WHERE conrelid = 'public.auth_tenant_memberships'::regclass
-      AND conname = 'auth_tenant_memberships_status_check'
-  ) THEN
-    ALTER TABLE public.auth_tenant_memberships
-      ADD CONSTRAINT auth_tenant_memberships_status_check
-      CHECK (status IN ('active', 'revoked'));
-  END IF;
-
-  IF NOT EXISTS (
-    SELECT 1 FROM pg_constraint
-    WHERE conrelid = 'public.auth_tenant_memberships'::regclass
-      AND conname = 'auth_tenant_memberships_revocation_lifecycle_check'
-  ) THEN
-    ALTER TABLE public.auth_tenant_memberships
-      ADD CONSTRAINT auth_tenant_memberships_revocation_lifecycle_check CHECK (
-        (status = 'active' AND revoked_at IS NULL AND revoked_reason IS NULL) OR
-        (status = 'revoked' AND revoked_at IS NOT NULL)
-      );
-  END IF;
-
-  IF NOT EXISTS (
-    SELECT 1 FROM pg_constraint
-    WHERE conrelid = 'public.auth_tenant_memberships'::regclass
-      AND conname = 'auth_tenant_memberships_identity_history_key'
-  ) THEN
-    ALTER TABLE public.auth_tenant_memberships
-      ADD CONSTRAINT auth_tenant_memberships_identity_history_key
-      UNIQUE (auth_user_id, user_id, tenant_id);
+    ALTER TABLE public.users ADD CONSTRAINT users_id_tenant_id_key UNIQUE (id, tenant_id);
   END IF;
 END $$;
 
