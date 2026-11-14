@@ -48,3 +48,15 @@ test('admin login remains available but does not link to self-service signup', (
   assert.match(login, /MAINTENANCE_MESSAGE/);
   assert.doesNotMatch(login, /href="\/signup"/);
 });
+
+test('maintenance notices do not promise unavailable quote-deposit checkout', () => {
+  const notices = [
+    source('apps/web/src/components/MaintenanceNotice.tsx'),
+    source('apps/admin/src/components/MaintenanceNotice.tsx'),
+  ];
+
+  for (const notice of notices) {
+    assert.match(notice, /customer invoice payments, payment history, and billing portal remain available/);
+    assert.doesNotMatch(notice, /quote-deposit payments.*remain available/i);
+  }
+});

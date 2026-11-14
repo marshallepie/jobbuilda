@@ -1,7 +1,7 @@
 import Link from 'next/link';
 
 export const MAINTENANCE_MESSAGE =
-  'New JobBuilda registrations, free trials, and subscription checkout are temporarily paused for maintenance. Existing account access, customer invoice and quote-deposit payments, payment history, and billing portal remain available.';
+  'New JobBuilda registrations, free trials, and subscription checkout are temporarily paused for maintenance. Existing account access, customer invoice payments, payment history, and billing portal remain available.';
 
 export default function MaintenanceNotice() {
   return (
