@@ -128,6 +128,16 @@ BEGIN
   END IF;
 END $$;
 
+-- The referenced composite key must exist before the membership foreign key is created.
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint WHERE conrelid = 'public.users'::regclass AND conname = 'users_id_tenant_id_key'
+  ) THEN
+    ALTER TABLE public.users ADD CONSTRAINT users_id_tenant_id_key UNIQUE (id, tenant_id);
+  END IF;
+END $$;
+
 CREATE TABLE IF NOT EXISTS public.auth_tenant_memberships (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   auth_user_id UUID NOT NULL,
@@ -147,15 +157,6 @@ CREATE TABLE IF NOT EXISTS public.auth_tenant_memberships (
     (status = 'revoked' AND revoked_at IS NOT NULL)
   )
 );
-
-DO $$
-BEGIN
-  IF NOT EXISTS (
-    SELECT 1 FROM pg_constraint WHERE conrelid = 'public.users'::regclass AND conname = 'users_id_tenant_id_key'
-  ) THEN
-    ALTER TABLE public.users ADD CONSTRAINT users_id_tenant_id_key UNIQUE (id, tenant_id);
-  END IF;
-END $$;
 
 CREATE UNIQUE INDEX IF NOT EXISTS auth_tenant_memberships_one_active_auth_user
   ON public.auth_tenant_memberships (auth_user_id)

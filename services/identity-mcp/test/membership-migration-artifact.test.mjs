@@ -38,6 +38,11 @@ test('membership migration is provider-only and has required safety controls', (
 
   assert.doesNotMatch(sql, /INSERT\s+INTO\s+public\.auth_tenant_memberships/i);
   assert.doesNotMatch(sql, /ADD\s+CONSTRAINT\s+\S+\s+UNIQUE\s*\(\s*auth_user_id\s*,\s*user_id\s*,\s*tenant_id\s*\)/i);
+  assert.ok(
+    sql.indexOf('ADD CONSTRAINT users_id_tenant_id_key UNIQUE (id, tenant_id)')
+      < sql.indexOf('CREATE TABLE IF NOT EXISTS public.auth_tenant_memberships'),
+    'the referenced composite key must exist before the membership foreign key',
+  );
   assert.match(guide, /Use only the Supabase Dashboard SQL Editor/);
   assert.match(guide, /Do \*\*not\*\* run `pnpm db:migrate`, `node-pg-migrate`,\s*`psql`/);
   assert.match(guide, /Required provider preflight — no write/);
