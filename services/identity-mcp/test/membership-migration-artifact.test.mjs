@@ -50,7 +50,7 @@ test('membership migration is provider-only and has required safety controls', (
     "pg_get_expr(i.indpred, i.indrelid)",
     'i.indnkeyatts = 1 AND i.indnatts = 1',
     'i.indnkeyatts = 3 AND i.indnatts = 3',
-    'i.indkey::smallint[] = ARRAY[',
+    '(i.indkey::smallint[])[0:2] = ARRAY[',
     "pg_get_expr(i.indpred, i.indrelid) = '((status = ''active''::text) AND (revoked_at IS NULL))'",
     "confrelid = 'public.users'::regclass",
     'auth_tenant_memberships_one_active_auth_user',
@@ -77,9 +77,16 @@ test('membership migration is provider-only and has required safety controls', (
   );
   assert.match(
     legacyFullHistoryDetector,
-    /FROM pg_index i\s+WHERE i\.indrelid = membership_oid\s+AND i\.indisunique\s+AND i\.indpred IS NULL\s+AND i\.indnkeyatts = 3\s+AND \(i\.indkey::smallint\[\]\)\[1:3\] = ARRAY\[/s,
+    /FROM pg_index i\s+WHERE i\.indrelid = membership_oid\s+AND i\.indisunique\s+AND i\.indpred IS NULL\s+AND i\.indnkeyatts = 3\s+-- pg_index\.indkey is an int2vector[\s\S]*?AND \(i\.indkey::smallint\[\]\)\[0:2\] = ARRAY\[/s,
   );
   assert.doesNotMatch(legacyFullHistoryDetector, /AND i\.indnkeyatts = 3 AND i\.indnatts = 3/);
+  assert.match(sql, /\(i\.indkey::smallint\[\]\)\[0:0\] = ARRAY\[/);
+  assert.doesNotMatch(
+    sql,
+    /i\.indkey::smallint\[\]\s*=\s*ARRAY\[/,
+    'int2vector casts are zero-based and must be sliced before comparison to one-based ARRAY literals',
+  );
+  assert.doesNotMatch(sql, /\(i\.indkey::smallint\[\]\)\[1:3\]/);
   assert.ok(
     sql.indexOf('Canonical auth_tenant_memberships index name is already attached to another relation')
       < sql.indexOf('CREATE TABLE IF NOT EXISTS public.auth_tenant_memberships'),

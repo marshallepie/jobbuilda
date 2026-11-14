@@ -132,7 +132,10 @@ BEGIN
       AND i.indisunique
       AND i.indpred IS NULL
       AND i.indnkeyatts = 3
-      AND (i.indkey::smallint[])[1:3] = ARRAY[
+      -- pg_index.indkey is an int2vector. Its cast array is zero-based, while
+      -- ARRAY[...] literals are one-based; slice from its catalog bounds to
+      -- normalize both bounds and preserve the required key order.
+      AND (i.indkey::smallint[])[0:2] = ARRAY[
         (SELECT attnum FROM pg_attribute WHERE attrelid = membership_oid AND attname = 'auth_user_id'),
         (SELECT attnum FROM pg_attribute WHERE attrelid = membership_oid AND attname = 'user_id'),
         (SELECT attnum FROM pg_attribute WHERE attrelid = membership_oid AND attname = 'tenant_id')
@@ -175,15 +178,15 @@ BEGIN
       AND NOT (
         (x.relname = 'auth_tenant_memberships_one_active_auth_user'
           AND i.indisunique AND i.indnkeyatts = 1 AND i.indnatts = 1
-          AND i.indkey::smallint[] = ARRAY[(SELECT attnum FROM pg_attribute WHERE attrelid = membership_oid AND attname = 'auth_user_id')]::smallint[]
+          AND (i.indkey::smallint[])[0:0] = ARRAY[(SELECT attnum FROM pg_attribute WHERE attrelid = membership_oid AND attname = 'auth_user_id')]::smallint[]
           AND pg_get_expr(i.indpred, i.indrelid) = '((status = ''active''::text) AND (revoked_at IS NULL))') OR
         (x.relname = 'auth_tenant_memberships_one_active_app_user'
           AND i.indisunique AND i.indnkeyatts = 1 AND i.indnatts = 1
-          AND i.indkey::smallint[] = ARRAY[(SELECT attnum FROM pg_attribute WHERE attrelid = membership_oid AND attname = 'user_id')]::smallint[]
+          AND (i.indkey::smallint[])[0:0] = ARRAY[(SELECT attnum FROM pg_attribute WHERE attrelid = membership_oid AND attname = 'user_id')]::smallint[]
           AND pg_get_expr(i.indpred, i.indrelid) = '((status = ''active''::text) AND (revoked_at IS NULL))') OR
         (x.relname = 'auth_tenant_memberships_active_lookup'
           AND NOT i.indisunique AND i.indnkeyatts = 3 AND i.indnatts = 3
-          AND i.indkey::smallint[] = ARRAY[
+          AND (i.indkey::smallint[])[0:2] = ARRAY[
             (SELECT attnum FROM pg_attribute WHERE attrelid = membership_oid AND attname = 'auth_user_id'),
             (SELECT attnum FROM pg_attribute WHERE attrelid = membership_oid AND attname = 'tenant_id'),
             (SELECT attnum FROM pg_attribute WHERE attrelid = membership_oid AND attname = 'user_id')
@@ -253,21 +256,21 @@ BEGIN
        WHERE i.indrelid = 'public.auth_tenant_memberships'::regclass
          AND x.relname = 'auth_tenant_memberships_one_active_auth_user'
          AND i.indisunique AND i.indnkeyatts = 1 AND i.indnatts = 1
-         AND i.indkey::smallint[] = ARRAY[(SELECT attnum FROM pg_attribute WHERE attrelid = 'public.auth_tenant_memberships'::regclass AND attname = 'auth_user_id')]::smallint[]
+         AND (i.indkey::smallint[])[0:0] = ARRAY[(SELECT attnum FROM pg_attribute WHERE attrelid = 'public.auth_tenant_memberships'::regclass AND attname = 'auth_user_id')]::smallint[]
          AND pg_get_expr(i.indpred, i.indrelid) = '((status = ''active''::text) AND (revoked_at IS NULL))'
      ) OR NOT EXISTS (
        SELECT 1 FROM pg_index i JOIN pg_class x ON x.oid = i.indexrelid
        WHERE i.indrelid = 'public.auth_tenant_memberships'::regclass
          AND x.relname = 'auth_tenant_memberships_one_active_app_user'
          AND i.indisunique AND i.indnkeyatts = 1 AND i.indnatts = 1
-         AND i.indkey::smallint[] = ARRAY[(SELECT attnum FROM pg_attribute WHERE attrelid = 'public.auth_tenant_memberships'::regclass AND attname = 'user_id')]::smallint[]
+         AND (i.indkey::smallint[])[0:0] = ARRAY[(SELECT attnum FROM pg_attribute WHERE attrelid = 'public.auth_tenant_memberships'::regclass AND attname = 'user_id')]::smallint[]
          AND pg_get_expr(i.indpred, i.indrelid) = '((status = ''active''::text) AND (revoked_at IS NULL))'
      ) OR NOT EXISTS (
        SELECT 1 FROM pg_index i JOIN pg_class x ON x.oid = i.indexrelid
        WHERE i.indrelid = 'public.auth_tenant_memberships'::regclass
          AND x.relname = 'auth_tenant_memberships_active_lookup'
          AND NOT i.indisunique AND i.indnkeyatts = 3 AND i.indnatts = 3
-         AND i.indkey::smallint[] = ARRAY[
+         AND (i.indkey::smallint[])[0:2] = ARRAY[
            (SELECT attnum FROM pg_attribute WHERE attrelid = 'public.auth_tenant_memberships'::regclass AND attname = 'auth_user_id'),
            (SELECT attnum FROM pg_attribute WHERE attrelid = 'public.auth_tenant_memberships'::regclass AND attname = 'tenant_id'),
            (SELECT attnum FROM pg_attribute WHERE attrelid = 'public.auth_tenant_memberships'::regclass AND attname = 'user_id')
