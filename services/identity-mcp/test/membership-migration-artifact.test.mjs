@@ -37,7 +37,13 @@ test('membership migration is provider-only and has required safety controls', (
     'BEGIN;',
     'COMMIT;',
     'FOREIGN KEY (user_id, tenant_id) REFERENCES public.users (id, tenant_id)',
-    'Legacy full-history UNIQUE(auth_user_id, user_id, tenant_id) is incompatible',
+    'Legacy full-history unique index on (auth_user_id, user_id, tenant_id) is incompatible',
+    'JOIN pg_index i ON i.indexrelid = x.oid',
+    'i.indrelid IS DISTINCT FROM membership_oid',
+    'Canonical auth_tenant_memberships index name is already attached to another relation',
+    'AND i.indpred IS NULL',
+    "i.indrelid = 'public.auth_tenant_memberships'::regclass",
+    'Canonical auth_tenant_memberships indexes must be attached to the membership relation with exact predicates',
     'compatibility evidence: the catalog definition must be the required definition',
     'CREATE TABLE IF NOT EXISTS does not repair defaults on an existing relation',
     'Existing auth_tenant_memberships defaults are incompatible',
@@ -65,6 +71,20 @@ test('membership migration is provider-only and has required safety controls', (
   assert.doesNotMatch(sql, /ADD\s+CONSTRAINT\s+\S+\s+UNIQUE\s*\(\s*auth_user_id\s*,\s*user_id\s*,\s*tenant_id\s*\)/i);
   assert.doesNotMatch(sql, /pg_get_indexdef\(i\.indexrelid\)\s+LIKE/i);
   assert.doesNotMatch(sql, /pg_get_expr\(i\.indpred, i\.indrelid\)\s+LIKE/i);
+  assert.match(sql, /FROM pg_index i\s+WHERE i\.indrelid = membership_oid\s+AND i\.indisunique\s+AND i\.indpred IS NULL\s+AND i\.indnkeyatts = 3 AND i\.indnatts = 3/s);
+  assert.ok(
+    sql.indexOf('Canonical auth_tenant_memberships index name is already attached to another relation')
+      < sql.indexOf('CREATE TABLE IF NOT EXISTS public.auth_tenant_memberships'),
+    'canonical index-name collisions must be rejected before membership DDL',
+  );
+  const postCreateIndexAssertion = sql.slice(sql.indexOf('-- CREATE INDEX IF NOT EXISTS is not evidence'));
+  for (const canonicalIndex of [
+    'auth_tenant_memberships_one_active_auth_user',
+    'auth_tenant_memberships_one_active_app_user',
+    'auth_tenant_memberships_active_lookup',
+  ]) assert.match(postCreateIndexAssertion, new RegExp(canonicalIndex));
+  assert.match(postCreateIndexAssertion, /\)\) <> 3/);
+  assert.match(postCreateIndexAssertion, /pg_get_expr\(i\.indpred, i\.indrelid\) = '\(\(status = ''active''::text\) AND \(revoked_at IS NULL\)\)'/);
   assert.ok(
     sql.indexOf('ADD CONSTRAINT users_id_tenant_id_key UNIQUE (id, tenant_id)')
       < sql.indexOf('CREATE TABLE IF NOT EXISTS public.auth_tenant_memberships'),
@@ -83,6 +103,8 @@ test('membership migration is provider-only and has required safety controls', (
   assert.match(guide, /SELECT-only/);
   assert.match(guide, /Readback — required before mapping or application release/);
   assert.match(guide, /does not reject unrelated supplemental indexes/);
+  assert.match(guide, /differently named\s+standalone unique index on exactly\s+`\(auth_user_id, user_id, tenant_id\)`/);
+  assert.match(guide, /attach one canonical index name to another table/);
   assert.match(guide, /default_expression/);
   assert.match(guide, /canonical defaults are required exactly/);
   assert.match(guide, /SELECT count\(\*\) AS policy_count\s+FROM pg_policies/);

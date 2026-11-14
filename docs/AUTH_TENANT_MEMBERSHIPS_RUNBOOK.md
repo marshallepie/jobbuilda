@@ -83,7 +83,8 @@ TABLE IF NOT EXISTS` will not repair it.
 
 **Stop conditions:** any membership rows; unexpected policy/grant; wrong relation
 kind/column type/nullability; malformed same-named constraint/index; any legacy
-`UNIQUE(auth_user_id, user_id, tenant_id)` constraint (regardless of name); or an
+full-history unique index or `UNIQUE(auth_user_id, user_id, tenant_id)` constraint
+(regardless of name); any canonical index name attached to another relation; or an
 unknown constraint or policy. The script deliberately rejects these rather than
 silently converting data or relaxing security. Review/replace incompatible prior
 work in a separately approved change; never backfill mappings. Unrelated
@@ -100,9 +101,11 @@ fresh or repeat-run cases.
    without schema drift and still show zero mappings.
 3. **Incompatible existing relation/object:** in a separate disposable reset,
    create a same-named malformed membership table, constraint, or active index;
-   also test the legacy full-history unique constraint. The script must fail
-   before mutation. Capture the error and verify the incompatible object remains
-   unchanged after rollback.
+   also test the legacy full-history unique constraint and a differently named
+   standalone unique index on exactly `(auth_user_id, user_id, tenant_id)`. In a
+   separate reset, attach one canonical index name to another table. The script
+   must fail before mutation in each case. Capture the error and verify the
+   incompatible object remains unchanged after rollback.
 4. **Tenant mismatch:** after a fresh successful schema, attempt a mapping whose
    `user_id` belongs to another tenant. The composite foreign key must reject it.
 5. **Duplicate active bindings:** insert one reviewed tuple, then separately try

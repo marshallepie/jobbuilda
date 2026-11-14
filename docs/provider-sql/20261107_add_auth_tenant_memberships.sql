@@ -54,6 +54,24 @@ BEGIN
     RAISE EXCEPTION 'Existing users_id_tenant_id_key is incompatible; expected UNIQUE (id, tenant_id)';
   END IF;
 
+  -- Index names are schema-wide. A canonical name attached to another relation
+  -- makes CREATE INDEX IF NOT EXISTS silently skip the required membership index.
+  IF EXISTS (
+    SELECT 1
+    FROM pg_class x
+    JOIN pg_namespace n ON n.oid = x.relnamespace
+    JOIN pg_index i ON i.indexrelid = x.oid
+    WHERE n.nspname = 'public'
+      AND x.relname IN (
+        'auth_tenant_memberships_one_active_auth_user',
+        'auth_tenant_memberships_one_active_app_user',
+        'auth_tenant_memberships_active_lookup'
+      )
+      AND i.indrelid IS DISTINCT FROM membership_oid
+  ) THEN
+    RAISE EXCEPTION 'Canonical auth_tenant_memberships index name is already attached to another relation';
+  END IF;
+
   IF membership_oid IS NULL THEN
     RETURN;
   END IF;
@@ -103,19 +121,23 @@ BEGIN
     RAISE EXCEPTION 'Existing auth_tenant_memberships defaults are incompatible; expected id gen_random_uuid(), status active, created_at now(), and activated_at now()';
   END IF;
 
-  -- The old candidate used this full-history uniqueness rule. Reject it by shape,
-  -- whatever its name, because it prevents revoke then rebind of the same tuple.
+  -- The old candidate used this full-history uniqueness rule. Reject a unique
+  -- constraint or standalone unique index by shape, whatever its name, because it
+  -- prevents revoke then rebind of the same tuple.
   IF EXISTS (
     SELECT 1
-    FROM pg_constraint c
-    WHERE c.conrelid = membership_oid AND c.contype = 'u'
-      AND c.conkey = ARRAY[
+    FROM pg_index i
+    WHERE i.indrelid = membership_oid
+      AND i.indisunique
+      AND i.indpred IS NULL
+      AND i.indnkeyatts = 3 AND i.indnatts = 3
+      AND i.indkey::smallint[] = ARRAY[
         (SELECT attnum FROM pg_attribute WHERE attrelid = membership_oid AND attname = 'auth_user_id'),
         (SELECT attnum FROM pg_attribute WHERE attrelid = membership_oid AND attname = 'user_id'),
         (SELECT attnum FROM pg_attribute WHERE attrelid = membership_oid AND attname = 'tenant_id')
       ]::smallint[]
   ) THEN
-    RAISE EXCEPTION 'Legacy full-history UNIQUE(auth_user_id, user_id, tenant_id) is incompatible; do not apply this script over it';
+    RAISE EXCEPTION 'Legacy full-history unique index on (auth_user_id, user_id, tenant_id) is incompatible; do not apply this script over it';
   END IF;
 
   IF (SELECT count(*) FROM pg_constraint WHERE conrelid = membership_oid) <> 6
@@ -211,6 +233,49 @@ CREATE UNIQUE INDEX IF NOT EXISTS auth_tenant_memberships_one_active_app_user
 CREATE INDEX IF NOT EXISTS auth_tenant_memberships_active_lookup
   ON public.auth_tenant_memberships (auth_user_id, tenant_id, user_id)
   WHERE status = 'active' AND revoked_at IS NULL;
+
+-- CREATE INDEX IF NOT EXISTS is not evidence that the named indexes were created
+-- on this relation. Assert all three definitions after DDL before committing.
+DO $$
+BEGIN
+  IF (SELECT count(*)
+      FROM pg_index i
+      JOIN pg_class x ON x.oid = i.indexrelid
+      WHERE i.indrelid = 'public.auth_tenant_memberships'::regclass
+        AND x.relname IN (
+          'auth_tenant_memberships_one_active_auth_user',
+          'auth_tenant_memberships_one_active_app_user',
+          'auth_tenant_memberships_active_lookup'
+        )) <> 3
+     OR NOT EXISTS (
+       SELECT 1 FROM pg_index i JOIN pg_class x ON x.oid = i.indexrelid
+       WHERE i.indrelid = 'public.auth_tenant_memberships'::regclass
+         AND x.relname = 'auth_tenant_memberships_one_active_auth_user'
+         AND i.indisunique AND i.indnkeyatts = 1 AND i.indnatts = 1
+         AND i.indkey::smallint[] = ARRAY[(SELECT attnum FROM pg_attribute WHERE attrelid = 'public.auth_tenant_memberships'::regclass AND attname = 'auth_user_id')]::smallint[]
+         AND pg_get_expr(i.indpred, i.indrelid) = '((status = ''active''::text) AND (revoked_at IS NULL))'
+     ) OR NOT EXISTS (
+       SELECT 1 FROM pg_index i JOIN pg_class x ON x.oid = i.indexrelid
+       WHERE i.indrelid = 'public.auth_tenant_memberships'::regclass
+         AND x.relname = 'auth_tenant_memberships_one_active_app_user'
+         AND i.indisunique AND i.indnkeyatts = 1 AND i.indnatts = 1
+         AND i.indkey::smallint[] = ARRAY[(SELECT attnum FROM pg_attribute WHERE attrelid = 'public.auth_tenant_memberships'::regclass AND attname = 'user_id')]::smallint[]
+         AND pg_get_expr(i.indpred, i.indrelid) = '((status = ''active''::text) AND (revoked_at IS NULL))'
+     ) OR NOT EXISTS (
+       SELECT 1 FROM pg_index i JOIN pg_class x ON x.oid = i.indexrelid
+       WHERE i.indrelid = 'public.auth_tenant_memberships'::regclass
+         AND x.relname = 'auth_tenant_memberships_active_lookup'
+         AND NOT i.indisunique AND i.indnkeyatts = 3 AND i.indnatts = 3
+         AND i.indkey::smallint[] = ARRAY[
+           (SELECT attnum FROM pg_attribute WHERE attrelid = 'public.auth_tenant_memberships'::regclass AND attname = 'auth_user_id'),
+           (SELECT attnum FROM pg_attribute WHERE attrelid = 'public.auth_tenant_memberships'::regclass AND attname = 'tenant_id'),
+           (SELECT attnum FROM pg_attribute WHERE attrelid = 'public.auth_tenant_memberships'::regclass AND attname = 'user_id')
+         ]::smallint[]
+         AND pg_get_expr(i.indpred, i.indrelid) = '((status = ''active''::text) AND (revoked_at IS NULL))'
+     ) THEN
+    RAISE EXCEPTION 'Canonical auth_tenant_memberships indexes must be attached to the membership relation with exact predicates';
+  END IF;
+END $$;
 
 ALTER TABLE public.auth_tenant_memberships ENABLE ROW LEVEL SECURITY;
 REVOKE ALL PRIVILEGES ON TABLE public.auth_tenant_memberships FROM anon, authenticated, PUBLIC;
