@@ -101,17 +101,27 @@ function assertLifecycleUniqueIndexPreflight(artifact) {
     artifact.indexOf('-- A populated mapping table is never an idempotent reapply:'),
     artifact.indexOf('CREATE EXTENSION IF NOT EXISTS pgcrypto;'),
   );
-  assert.match(
-    guard,
-    /FROM pg_index i\s+CROSS JOIN LATERAL unnest\(i\.indkey::smallint\[\]\) WITH ORDINALITY\s+AS key_attribute\(attnum, key_position\)\s+WHERE i\.indrelid = membership_oid\s+AND i\.indisunique\s+AND i\.indpred IS NULL\s+AND key_attribute\.key_position <= i\.indnkeyatts\s+AND key_attribute\.attnum IN \(auth_user_id_attnum, user_id_attnum\)/s,
-    'before DDL, every non-partial unique key containing either durable identity must be rejected regardless of name or extra key columns',
-  );
-  assert.match(
-    guard,
-    /Existing non-partial unique index keyed by auth_user_id or user_id is incompatible; it prevents the revoked-history rebind lifecycle/,
-  );
+  for (const required of [
+    'FROM pg_index i',
+    'AND i.indisunique',
+    'AND NOT (',
+    'i.indisprimary',
+    'i.indnkeyatts = 1 AND i.indnatts = 1',
+    'i.indexprs IS NULL',
+    'i.indpred IS NULL',
+    'ARRAY[id_attnum]::smallint[]',
+    'ARRAY[auth_user_id_attnum]::smallint[]',
+    'ARRAY[user_id_attnum]::smallint[]',
+    "pg_get_expr(i.indpred, i.indrelid) = '((status = ''active''::text) AND (revoked_at IS NULL))'",
+    'Existing unique index or constraint is incompatible',
+  ]) assert.match(guard, new RegExp(regexEscape(required)));
+  assert.equal((guard.match(/AND i\.indexprs IS NULL/g) ?? []).length, 3,
+    'only the three direct-key canonical unique shapes may avoid expression keys');
+  assert.equal((guard.match(/i\.indnkeyatts = 1 AND i\.indnatts = 1/g) ?? []).length, 3,
+    'the canonical primary and active-only unique shapes must have no INCLUDE columns');
+  assert.equal((guard.match(/pg_get_expr\(i\.indpred, i\.indrelid\) = '\(\(status = ''active''::text\) AND \(revoked_at IS NULL\)\)'/g) ?? []).length, 2,
+    'both active-only canonical identity keys must retain the exact predicate');
 }
-
 function assertWorkflowSelfTrigger(artifact) {
   for (const trigger of ['push', 'pull_request']) {
     const triggerPaths = artifact.match(new RegExp(
@@ -155,7 +165,7 @@ test('membership migration is provider-only and has required safety controls', (
     'BEGIN;',
     'COMMIT;',
     'FOREIGN KEY (user_id, tenant_id) REFERENCES public.users (id, tenant_id)',
-    'Existing non-partial unique index keyed by auth_user_id or user_id is incompatible',
+    'Existing unique index or constraint is incompatible',
     'JOIN pg_index i ON i.indexrelid = x.oid',
     'i.indrelid IS DISTINCT FROM membership_oid',
     'Canonical auth_tenant_memberships index name is already attached to another relation',
@@ -209,9 +219,9 @@ test('membership migration is provider-only and has required safety controls', (
   assert.doesNotMatch(sql, /pg_get_constraintdef\(oid\)\s+LIKE/i, 'constraint compatibility must not use loose LIKE checks');
   assertRuntimeLookupPolicy(sql);
   assert.ok(
-    sql.indexOf('Existing non-partial unique index keyed by auth_user_id or user_id is incompatible')
+    sql.indexOf('Existing unique index or constraint is incompatible')
       < sql.indexOf('CREATE EXTENSION IF NOT EXISTS pgcrypto;'),
-    'non-partial lifecycle-blocking unique indexes must be rejected before DDL',
+    'non-canonical unique indexes must be rejected before DDL',
   );
   assert.match(sql, /\(i\.indkey::smallint\[\]\)\[0:0\] = ARRAY\[/);
   assert.doesNotMatch(
@@ -270,8 +280,9 @@ test('membership migration is provider-only and has required safety controls', (
   assert.doesNotMatch(sql, /\bGRANT\b/i, 'provider script must not grant a guessed coordinator role');
   assert.doesNotMatch(sql, /\b(postgres|service_role)\b/i, 'provider script must not guess a provider role');
   assert.match(guide, /Readback — required before mapping or application release/);
-  assert.match(guide, /rejects every non-partial unique constraint or index\s+whose key contains `auth_user_id` or `user_id`/);
-  assert.match(guide, /does not reject unrelated supplemental \*\*non-unique\*\* indexes/);
+  assert.match(guide, /fails closed for every unique index or constraint except the\s+exact canonical `id` primary key/);
+  assert.match(guide, /expression-key indexes\s+\(`indkey` attribute `0`\) and semantically all-row predicates such as `WHERE TRUE`/);
+  assert.match(guide, /does not reject\s+unrelated supplemental \*\*non-unique\*\* indexes/);
   assert.match(guide, /differently named\s+non-partial multi-column unique indexes containing each of\s+`auth_user_id` and `user_id`/);
   assert.match(guide, /attach one canonical index\s+name to another table/);
   assert.match(guide, /default_expression/);
@@ -378,13 +389,14 @@ test('populated membership guard assertions reject omission or DDL reordering', 
   assert.throws(() => assertPopulatedMembershipGuard(ddlBeforeGuard));
 });
 
-test('lifecycle unique-index preflight assertions reject omission or weakening', () => {
+test('lifecycle unique-index preflight assertions reject expression and all-row predicate bypasses', () => {
   for (const [name, expected, replacement] of [
     ['unique-only filter', 'AND i.indisunique', 'AND NOT i.indisunique'],
-    ['non-partial filter', 'AND i.indpred IS NULL', 'AND i.indpred IS NOT NULL'],
-    ['key-position boundary', 'key_attribute.key_position <= i.indnkeyatts', 'key_attribute.key_position = i.indnkeyatts'],
-    ['auth identity key', 'auth_user_id_attnum, user_id_attnum', 'user_id_attnum'],
-    ['app identity key', 'auth_user_id_attnum, user_id_attnum', 'auth_user_id_attnum'],
+    ['expression-key rejection', 'AND i.indexprs IS NULL', 'AND i.indexprs IS NOT NULL'],
+    ['included-column rejection', 'i.indnkeyatts = 1 AND i.indnatts = 1', 'i.indnkeyatts = 1 AND i.indnatts = 2'],
+    ['auth canonical key', 'ARRAY[auth_user_id_attnum]::smallint[]', 'ARRAY[id_attnum]::smallint[]'],
+    ['app canonical key', 'ARRAY[user_id_attnum]::smallint[]', 'ARRAY[id_attnum]::smallint[]'],
+    ['all-row WHERE TRUE rejection', "pg_get_expr(i.indpred, i.indrelid) = '((status = ''active''::text) AND (revoked_at IS NULL))'", "pg_get_expr(i.indpred, i.indrelid) IN ('((status = ''active''::text) AND (revoked_at IS NULL))', 'true')"],
   ]) {
     const altered = sql.replace(expected, replacement);
     assert.notEqual(altered, sql, `${name} mutation must alter the provider script`);

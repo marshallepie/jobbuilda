@@ -95,14 +95,15 @@ under a separately approved operational action.
 
 A same-named canonical constraint or index with different keys, uniqueness, included columns,
 or partial predicate is incompatible—not a compatible pre-existing object. Before
-any DDL, the script also rejects every non-partial unique constraint or index
-whose key contains `auth_user_id` or `user_id`, regardless of its name, key order,
-or additional key columns: each can preserve a revoked row as a uniqueness blocker
-and prevent the documented revoke-then-rebind lifecycle. The two canonical
-one-active indexes are explicitly compatible because they are partial. The script
-does not reject unrelated supplemental **non-unique** indexes; review those
-separately rather than treating them as evidence that a named canonical index is
-compatible.
+any DDL, the script fails closed for every unique index or constraint except the
+exact canonical `id` primary key and the two direct, one-key active-only unique
+shapes on `auth_user_id` and `user_id`. The allowed identity shapes have no
+expression keys or `INCLUDE` columns and use the exact canonical predicate
+`status = 'active' AND revoked_at IS NULL`; this rejects expression-key indexes
+(`indkey` attribute `0`) and semantically all-row predicates such as `WHERE TRUE`
+without attempting to prove arbitrary predicate logic. The script does not reject
+unrelated supplemental **non-unique** indexes; review those separately rather
+than treating them as evidence that a named canonical index is compatible.
 
 ### Coordinator `DATABASE_URL` runtime-role preflight — required, no write
 
@@ -358,14 +359,15 @@ For an existing membership table, the canonical defaults are required exactly:
 TABLE IF NOT EXISTS` will not repair it.
 
 **Stop conditions:** any membership rows; unexpected policy/grant; wrong relation
-kind/column type/nullability; malformed same-named constraint/index; any
-non-partial unique constraint or index with `auth_user_id` or `user_id` in its key
-(regardless of name, key order, or extra key columns); any canonical index name
-attached to another relation; or an unknown constraint or policy. The script
-deliberately rejects these rather than silently converting data or relaxing
-security. Review/replace incompatible prior work in a separately approved change;
-never backfill mappings. Unrelated supplemental non-unique indexes are not
-rejected by this artifact, but must be reviewed under the approved change record.
+kind/column type/nullability; malformed same-named constraint/index; any unique
+index or constraint other than the exact canonical `id` primary key or direct,
+active-only `auth_user_id`/`user_id` unique shapes (including expression keys,
+`INCLUDE` columns, and `WHERE TRUE`); any canonical index name attached to another
+relation; or an unknown constraint or policy. The script deliberately rejects
+these rather than silently converting data or relaxing security. Review/replace
+incompatible prior work in a separately approved change; never backfill mappings.
+Unrelated supplemental non-unique indexes are not rejected by this artifact, but
+must be reviewed under the approved change record.
 
 ## Disposable rehearsal — required before production
 

@@ -11,6 +11,7 @@ DO $$
 DECLARE
   membership_oid oid := to_regclass('public.auth_tenant_memberships');
   membership_has_rows boolean;
+  id_attnum smallint;
   auth_user_id_attnum smallint;
   user_id_attnum smallint;
 BEGIN
@@ -40,11 +41,14 @@ BEGIN
     RAISE EXCEPTION 'Existing public.auth_tenant_memberships contains rows; stop before DDL and use the approved mapping lifecycle';
   END IF;
 
-  -- A non-partial unique key containing either durable identity can make a
-  -- revoked row permanently block the approved revoke-then-rebind lifecycle.
-  -- Names and extra key columns do not make that safe, so inspect every unique
-  -- index/constraint by catalog shape before any DDL. INCLUDE attributes are
-  -- deliberately excluded because they do not participate in uniqueness.
+  -- Every unique index is fail-closed unless it is one of the exact canonical
+  -- shapes below. This catches direct keys, expression keys (indkey attnum 0),
+  -- INCLUDE columns, and predicates that are semantically all-row (for example
+  -- WHERE TRUE) without trying to prove arbitrary expression or predicate logic.
+  -- The primary key on id is the only non-lifecycle unique shape permitted.
+  SELECT attnum INTO id_attnum
+  FROM pg_attribute
+  WHERE attrelid = membership_oid AND attname = 'id' AND NOT attisdropped;
   SELECT attnum INTO auth_user_id_attnum
   FROM pg_attribute
   WHERE attrelid = membership_oid AND attname = 'auth_user_id' AND NOT attisdropped;
@@ -54,15 +58,26 @@ BEGIN
   IF EXISTS (
     SELECT 1
     FROM pg_index i
-    CROSS JOIN LATERAL unnest(i.indkey::smallint[]) WITH ORDINALITY
-      AS key_attribute(attnum, key_position)
     WHERE i.indrelid = membership_oid
       AND i.indisunique
-      AND i.indpred IS NULL
-      AND key_attribute.key_position <= i.indnkeyatts
-      AND key_attribute.attnum IN (auth_user_id_attnum, user_id_attnum)
+      AND NOT (
+        (i.indisprimary
+          AND i.indnkeyatts = 1 AND i.indnatts = 1
+          AND i.indexprs IS NULL AND i.indpred IS NULL
+          AND (i.indkey::smallint[])[0:0] = ARRAY[id_attnum]::smallint[]) OR
+        (NOT i.indisprimary
+          AND i.indnkeyatts = 1 AND i.indnatts = 1
+          AND i.indexprs IS NULL
+          AND (i.indkey::smallint[])[0:0] = ARRAY[auth_user_id_attnum]::smallint[]
+          AND pg_get_expr(i.indpred, i.indrelid) = '((status = ''active''::text) AND (revoked_at IS NULL))') OR
+        (NOT i.indisprimary
+          AND i.indnkeyatts = 1 AND i.indnatts = 1
+          AND i.indexprs IS NULL
+          AND (i.indkey::smallint[])[0:0] = ARRAY[user_id_attnum]::smallint[]
+          AND pg_get_expr(i.indpred, i.indrelid) = '((status = ''active''::text) AND (revoked_at IS NULL))')
+      )
   ) THEN
-    RAISE EXCEPTION 'Existing non-partial unique index keyed by auth_user_id or user_id is incompatible; it prevents the revoked-history rebind lifecycle';
+    RAISE EXCEPTION 'Existing unique index or constraint is incompatible; only the canonical id primary key and active-only auth_user_id/user_id unique indexes are permitted before the revoked-history rebind lifecycle';
   END IF;
 END $$;
 
