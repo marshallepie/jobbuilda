@@ -1,0 +1,27 @@
+name: Membership migration artifact validation
+
+on:
+  push:
+    paths:
+      - docs/provider-sql/20261107_add_auth_tenant_memberships.sql
+      - docs/AUTH_TENANT_MEMBERSHIPS_RUNBOOK.md
+      - services/identity-mcp/test/membership-migration-artifact.test.mjs
+  pull_request:
+    paths:
+      - docs/provider-sql/20261107_add_auth_tenant_memberships.sql
+      - docs/AUTH_TENANT_MEMBERSHIPS_RUNBOOK.md
+      - services/identity-mcp/test/membership-migration-artifact.test.mjs
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "26"
+      - run: node --test services/identity-mcp/test/membership-migration-artifact.test.mjs
