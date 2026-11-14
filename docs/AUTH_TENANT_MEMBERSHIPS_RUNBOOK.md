@@ -123,7 +123,7 @@ If the table is absent, do not treat the role as approved; finish the schema
 operation first.
 
 This catalog preflight intentionally fails closed. It requires that the configured
-role exists, is neither superuser nor `BYPASSRLS`, has the explicit direct
+role exists, has `LOGIN`, is neither superuser nor `BYPASSRLS`, has the explicit direct
 `SELECT` grant on `public.auth_tenant_memberships`, is the only non-owner role
 with a `SELECT` grant, has none of `INSERT`, `UPDATE`, `DELETE`, `TRUNCATE`,
 `REFERENCES`, or `TRIGGER`, and neither owns the table nor belongs (directly or
@@ -158,9 +158,9 @@ BEGIN
 
   IF EXISTS (
     SELECT 1 FROM pg_roles
-    WHERE oid = coordinator_role AND (rolsuper OR rolbypassrls)
+    WHERE oid = coordinator_role AND (NOT rolcanlogin OR rolsuper OR rolbypassrls)
   ) THEN
-    RAISE EXCEPTION 'STOP: configured coordinator runtime role % is superuser or BYPASSRLS', configured_role;
+    RAISE EXCEPTION 'STOP: configured coordinator runtime role % must have LOGIN and must not be superuser or BYPASSRLS', configured_role;
   END IF;
 
   IF NOT has_table_privilege(coordinator_role, membership_table, 'SELECT') THEN
@@ -278,9 +278,9 @@ BEGIN
   IF coordinator_role IS NULL THEN
     RAISE EXCEPTION 'STOP: configured coordinator runtime role % does not exist', configured_role;
   END IF;
-  IF EXISTS (SELECT 1 FROM pg_roles WHERE oid = coordinator_role AND (rolsuper OR rolbypassrls))
+  IF EXISTS (SELECT 1 FROM pg_roles WHERE oid = coordinator_role AND (NOT rolcanlogin OR rolsuper OR rolbypassrls))
      OR EXISTS (SELECT 1 FROM pg_class WHERE oid = membership_table AND relowner = coordinator_role) THEN
-    RAISE EXCEPTION 'STOP: configured coordinator runtime role % is superuser, BYPASSRLS, or table owner', configured_role;
+    RAISE EXCEPTION 'STOP: configured coordinator runtime role % must have LOGIN and must not be superuser, BYPASSRLS, or table owner', configured_role;
   END IF;
   SELECT array_agg(privilege ORDER BY privilege) INTO denied_privileges
   FROM unnest(ARRAY['INSERT', 'UPDATE', 'DELETE', 'TRUNCATE', 'REFERENCES', 'TRIGGER']) AS privilege
@@ -389,8 +389,12 @@ branch/project reference differs, if the approved branch name or parent differs,
 or if the production parent project is selected. Re-select and visually confirm
 the approved disposable branch before continuing.
 
-Use only the Supabase Dashboard SQL Editor for this rehearsal; do not substitute a
-CLI, `psql`, migration runner, or another execution method.
+Use only the Supabase Dashboard SQL Editor for schema application and steps 1–7;
+do not substitute a CLI, `psql`, migration runner, or another execution method for
+the provider script. SQL Editor evidence is deliberately limited to schema,
+catalog, lifecycle, and RLS-negative rehearsal. Its `SET ROLE` probes necessarily
+make `current_user <> session_user`, so they cannot prove the canonical policy's
+positive direct-login path or the coordinator's real runtime lookup.
 
 1. **Fresh schema:** run the complete script once and run the readback below.
 2. **Exact repeat-run:** run the unchanged complete script again. It must commit
@@ -415,14 +419,74 @@ CLI, `psql`, migration runner, or another execution method.
 7. **Browser role denial:** `SET ROLE anon` and, separately, `SET ROLE authenticated`
    must not select, insert, update, or delete from the table. Also prove a
    non-granted non-owner role cannot select. Restore role after each probe.
-8. **Coordinator runtime role:** using the configured coordinator runtime role,
-   prove one active membership lookup succeeds and direct `INSERT`, `UPDATE`,
-   `DELETE`, `TRUNCATE`, and DDL against this table are denied. The runtime is
-   SELECT-only and must not mutate membership state.
+8. **Coordinator runtime role — structural/negative evidence only:** run the
+   catalog preflight and, if separately approved, `SET ROLE` negative probes for
+   denied DML. Do **not** call a SQL Editor `SET ROLE` result a coordinator login
+   or positive lookup: `current_user = session_user` is intentionally false in
+   that session. The mandatory positive probe is the direct-login procedure below.
 
 Do not use a service-role credential, JWT, or password in tickets, logs, or this
 file. The disposable role rehearsal is evidence about the named roles only, not
 production application authorization.
+
+### Mandatory direct coordinator-role positive probe — disposable target only
+
+This is the **only** positive evidence for the coordinator runtime lookup. It is
+an isolated direct database connection as the actual configured coordinator role,
+not SQL Editor and never `SET ROLE`. It is mandatory after an active synthetic
+membership tuple has been approved and created on the disposable branch, before
+production application release or mapping.
+
+Use an approved restricted probe environment that supplies these **non-secret**
+values: `MEMBERSHIP_REHEARSAL_TARGET_REF=afygozgefepayoenwccl`,
+`MEMBERSHIP_REHEARSAL_PARENT_REF=jnwxueomquywrqcgbgfd`, the exact reviewed
+`MEMBERSHIP_REHEARSAL_RUNTIME_ROLE`, and the pre-approved direct connection tuple
+`MEMBERSHIP_REHEARSAL_DB_HOST`, `MEMBERSHIP_REHEARSAL_DB_PORT`, and
+`MEMBERSHIP_REHEARSAL_DB_NAME`. It may supply the direct runtime connection
+credential only in `MEMBERSHIP_REHEARSAL_DATABASE_URL`; never print, export to a
+transcript, pass it as a command-line argument, or include it in an error report.
+The approved synthetic UUID tuple is supplied separately as
+`MEMBERSHIP_REHEARSAL_AUTH_USER_ID`, `MEMBERSHIP_REHEARSAL_USER_ID`, and
+`MEMBERSHIP_REHEARSAL_TENANT_ID`. UUIDs and role/target tuple are non-secret but
+should be redacted from the change record unless that record explicitly approves
+their retention.
+
+Before connecting, the restricted probe must reject unless the target ref and
+parent ref exactly equal the literals above, every host/port/database/role value
+equals the pre-approved tuple for that branch, and the role equals the reviewed
+coordinator role. It must reject a missing value, a production parent/ref, any
+proxy/pooler/foreign host, or any fallback connection string. There is **no
+provider fallback and no production fallback**: a target-binding or connection
+failure is a stop condition, not permission to retry elsewhere.
+
+Connect once with the approved direct runtime credential and no role switch. The
+probe must issue a parameterized/read-only lookup equivalent to this query. Bind
+`$4` to the exact reviewed non-secret `MEMBERSHIP_REHEARSAL_RUNTIME_ROLE`; the
+returned boolean is a **server-side exact configured-role identity comparison**,
+not a client-side comparison or a role label inferred from the connection:
+
+```sql
+SELECT
+  current_user = session_user AS direct_login_identity,
+  current_user = $4::name AS configured_runtime_role_identity,
+  count(*) AS active_membership_count
+FROM public.auth_tenant_memberships
+WHERE auth_user_id = $1::uuid
+  AND user_id = $2::uuid
+  AND tenant_id = $3::uuid
+  AND status = 'active'
+  AND revoked_at IS NULL;
+```
+
+Accept only `direct_login_identity = true`,
+`configured_runtime_role_identity = true`, and `active_membership_count = 1`.
+Record only pass/fail, approved disposable target ref, timestamp, and a redacted
+tuple/role label; do not record the URL, password, full connection string, raw
+query parameters, or server error text. The direct probe must not mutate data,
+create a mapping, use a service-role credential, or test against production.
+After this positive lookup, use the SQL Editor structural preflight and the table
+ACL catalog to establish SELECT-only privilege; do not attempt to manufacture a
+positive direct-login result with `SET ROLE`.
 
 ## Apply — production change window only
 
@@ -459,6 +523,12 @@ FROM pg_indexes
 WHERE schemaname = 'public' AND tablename = 'auth_tenant_memberships'
 ORDER BY indexname;
 
+SELECT trigger.tgname, trigger.tgenabled, pg_get_triggerdef(trigger.oid) AS definition
+FROM pg_trigger AS trigger
+WHERE trigger.tgrelid = 'public.auth_tenant_memberships'::regclass
+  AND NOT trigger.tgisinternal
+ORDER BY trigger.tgname;
+
 SELECT grantee, privilege_type
 FROM information_schema.role_table_grants
 WHERE table_schema = 'public' AND table_name = 'auth_tenant_memberships'
@@ -473,9 +543,12 @@ SELECT count(*) AS mapping_count FROM public.auth_tenant_memberships;
 ```
 
 Required results: RLS enabled; no direct browser-role grants; composite
-`(user_id, tenant_id)` foreign key; two partial one-active unique indexes; no
-full-history tuple unique constraint; and `mapping_count = 0`. Any unexpected
-mapping, policy, grant, constraint, or index is a stop condition. The
+`(user_id, tenant_id)` foreign key; two partial one-active unique indexes; exactly
+two enabled non-internal triggers—the row-level lifecycle trigger and
+statement-level no-truncate trigger—both attached to the canonical guard function;
+no full-history tuple unique constraint; and
+`mapping_count = 0`. Any unexpected mapping, policy, grant, constraint, index, or
+trigger is a stop condition. The
 `policy_count` readback must be `1`, for the canonical
 `auth_tenant_memberships_runtime_select` SELECT policy only; it does not grant
 table privileges to browser roles.

@@ -43,6 +43,7 @@ function assertCoordinatorRuntimeRolePreflight(block) {
   for (const required of [
     "configured_role name := NULL::name",
     'SELECT oid INTO coordinator_role FROM pg_roles WHERE rolname = configured_role',
+    'NOT rolcanlogin',
     "has_table_privilege(coordinator_role, membership_table, 'SELECT')",
     "ARRAY['INSERT', 'UPDATE', 'DELETE', 'TRUNCATE', 'REFERENCES', 'TRIGGER']",
     'IF EXISTS (SELECT 1 FROM pg_class WHERE oid = membership_table AND relowner = coordinator_role)',
@@ -62,8 +63,8 @@ function assertCoordinatorRuntimeRolePreflight(block) {
 
   assert.match(
     block,
-    /WHERE oid = coordinator_role AND \(rolsuper OR rolbypassrls\)/,
-    'configured role must be rejected when superuser or BYPASSRLS',
+    /WHERE oid = coordinator_role AND \(NOT rolcanlogin OR rolsuper OR rolbypassrls\)/,
+    'configured role must have LOGIN and be rejected when superuser or BYPASSRLS',
   );
 }
 
@@ -151,6 +152,77 @@ function assertRuntimeLookupPolicy(artifact) {
   assert.doesNotMatch(artifact, /CREATE POLICY[\s\S]*?FOR ALL/s, 'runtime policy must not authorize mutations');
 }
 
+function assertMembershipLifecycleGuard(artifact) {
+  for (const required of [
+    'CREATE OR REPLACE FUNCTION public.auth_tenant_memberships_lifecycle_guard()',
+    "IF TG_OP = 'DELETE' OR TG_OP = 'TRUNCATE' THEN",
+    "IF TG_OP = 'INSERT' THEN",
+    "NEW.status <> 'active' OR NEW.revoked_at IS NOT NULL OR NEW.revoked_reason IS NOT NULL",
+    'NEW.auth_user_id IS DISTINCT FROM OLD.auth_user_id',
+    'NEW.user_id IS DISTINCT FROM OLD.user_id',
+    'NEW.tenant_id IS DISTINCT FROM OLD.tenant_id',
+    'NEW.created_at IS DISTINCT FROM OLD.created_at',
+    'NEW.activated_at IS DISTINCT FROM OLD.activated_at',
+    "IF OLD.status <> 'active' OR OLD.revoked_at IS NOT NULL OR OLD.revoked_reason IS NOT NULL THEN",
+    "IF NEW.status <> 'revoked'",
+    'OR NEW.revoked_at IS NULL',
+    'OR NEW.revoked_at < OLD.activated_at',
+    "OR btrim(NEW.revoked_reason) = ''",
+    'REVOKE ALL ON FUNCTION public.auth_tenant_memberships_lifecycle_guard() FROM PUBLIC;',
+    'CREATE TRIGGER auth_tenant_memberships_lifecycle_guard',
+    'BEFORE INSERT OR UPDATE OR DELETE ON public.auth_tenant_memberships',
+    'CREATE TRIGGER auth_tenant_memberships_no_truncate',
+    'BEFORE TRUNCATE ON public.auth_tenant_memberships',
+    'trigger.tgtype = 31',
+    'trigger.tgtype = 34',
+    "trigger.tgfoid = 'public.auth_tenant_memberships_lifecycle_guard()'::regprocedure",
+    "WHERE tgrelid = 'public.auth_tenant_memberships'::regclass\n        AND NOT tgisinternal) <> 2",
+  ]) assert.match(artifact, new RegExp(regexEscape(required)));
+  assert.equal(
+    (artifact.match(/^CREATE TRIGGER /gm) ?? []).length,
+    2,
+    'the relation must define exactly the two canonical triggers, with no supplemental trigger definition',
+  );
+  assert.equal(
+    (artifact.match(/trigger\.tgenabled = 'O'/g) ?? []).length,
+    2,
+    'both canonical triggers must be enabled',
+  );
+  assert.equal(
+    (artifact.match(/trigger\.tgfoid = 'public\.auth_tenant_memberships_lifecycle_guard\(\)'::regprocedure/g) ?? []).length,
+    2,
+    'both canonical triggers must resolve to the exact lifecycle guard function identity',
+  );
+  assert.equal(
+    (artifact.match(/WHERE status = 'active' AND revoked_at IS NULL;/g) ?? []).length,
+    3,
+    'the two one-active unique indexes and active lookup index must retain active-only rebind predicates',
+  );
+}
+
+function assertDirectRuntimeEvidenceBoundary(markdown) {
+  for (const required of [
+    'SQL Editor evidence is deliberately limited to schema,\ncatalog, lifecycle, and RLS-negative rehearsal.',
+    'current_user <> session_user',
+    'Mandatory direct coordinator-role positive probe — disposable target only',
+    'MEMBERSHIP_REHEARSAL_TARGET_REF=afygozgefepayoenwccl',
+    'MEMBERSHIP_REHEARSAL_PARENT_REF=jnwxueomquywrqcgbgfd',
+    'MEMBERSHIP_REHEARSAL_RUNTIME_ROLE',
+    'MEMBERSHIP_REHEARSAL_DB_HOST',
+    'MEMBERSHIP_REHEARSAL_DB_PORT',
+    'MEMBERSHIP_REHEARSAL_DB_NAME',
+    'MEMBERSHIP_REHEARSAL_DATABASE_URL',
+    'There is **no\nprovider fallback and no production fallback**',
+    'current_user = session_user AS direct_login_identity',
+    'Bind\n`$4` to the exact reviewed non-secret `MEMBERSHIP_REHEARSAL_RUNTIME_ROLE`',
+    'server-side exact configured-role identity comparison',
+    'current_user = $4::name AS configured_runtime_role_identity',
+    'configured_runtime_role_identity = true',
+    'active_membership_count = 1',
+    'do not record the URL, password, full connection string, raw\nquery parameters, or server error text',
+  ]) assert.match(markdown, new RegExp(regexEscape(required)));
+}
+
 test('membership migration is provider-only and has required safety controls', () => {
   assert.equal(existsSync(providerScript), true, 'provider script must exist');
   assert.equal(existsSync(runbook), true, 'operator runbook must exist');
@@ -196,6 +268,7 @@ test('membership migration is provider-only and has required safety controls', (
 
   assertPopulatedMembershipGuard(sql);
   assertLifecycleUniqueIndexPreflight(sql);
+  assertMembershipLifecycleGuard(sql);
   assertWorkflowSelfTrigger(workflowSource);
   assert.match(guide, /canonical relation created by this script \*\*with zero rows\*\*/);
   assert.match(guide, /Any existing membership row is\s+a stop condition: the script fails before DDL/);
@@ -261,10 +334,12 @@ test('membership migration is provider-only and has required safety controls', (
   assert.match(guide, /SELECT-only/);
   assert.match(guide, /Coordinator `DATABASE_URL` runtime-role preflight — required, no write/);
   assert.match(guide, /exact PostgreSQL role name only/);
+  assert.match(guide, /has `LOGIN`/);
   assert.match(guide, /Do not infer it from the SQL Editor's `current_user`/);
   assert.match(guide, /no concrete role name is prescribed by R01a/);
   const coordinatorPreflightSql = firstSqlBlockAfterHeading(guide, coordinatorPreflightHeading);
   assertCoordinatorRuntimeRolePreflight(coordinatorPreflightSql);
+  assertDirectRuntimeEvidenceBoundary(guide);
   assert.match(guide, /cannot own or ALTER\/DDL public\.auth_tenant_memberships/);
   assert.match(guide, /Authorize the verified coordinator runtime lookup — separate approved operation/);
   assert.match(guide, /direct `SELECT` grant to the reviewed deployment role/);
@@ -328,6 +403,7 @@ test('coordinator runtime-role preflight assertions reject weakened controls', (
   const coordinatorPreflightSql = firstSqlBlockAfterHeading(guide, coordinatorPreflightHeading);
   const mutations = [
     ['configured role existence', 'SELECT oid INTO coordinator_role FROM pg_roles WHERE rolname = configured_role', 'SELECT oid INTO coordinator_role FROM pg_roles WHERE rolname = NULL::name'],
+    ['LOGIN capability', 'NOT rolcanlogin', 'FALSE'],
     ['SELECT permission', "has_table_privilege(coordinator_role, membership_table, 'SELECT')", "has_table_privilege(coordinator_role, membership_table, 'USAGE')"],
     ['direct ownership', 'relowner = coordinator_role', 'relowner = 0'],
     ['membership recursion direction', 'membership.member = reachable_roles.role_oid', 'membership.roleid = reachable_roles.role_oid'],
@@ -441,5 +517,66 @@ test('runtime lookup policy assertions reject browser-readable or role-switch va
     const altered = sql.replace(expected, replacement);
     assert.notEqual(altered, sql, `${name} mutation must alter the provider script`);
     assert.throws(() => assertRuntimeLookupPolicy(altered), `${name} assertion must reject a weakened RLS/ACL boundary`);
+  }
+});
+
+test('lifecycle trigger assertions reject deletion, reactivation, tuple mutation, or active-rebind weakening', () => {
+  for (const [name, expected, replacement] of [
+    ['DELETE guard', "IF TG_OP = 'DELETE' OR TG_OP = 'TRUNCATE' THEN", "IF TG_OP = 'TRUNCATE' THEN"],
+    ['tuple immutability', 'NEW.tenant_id IS DISTINCT FROM OLD.tenant_id', 'FALSE'],
+    ['revoked terminal state', "IF OLD.status <> 'active' OR OLD.revoked_at IS NOT NULL OR OLD.revoked_reason IS NOT NULL THEN", 'IF FALSE THEN'],
+    ['active-to-revoked transition', "IF NEW.status <> 'revoked'", 'IF FALSE'],
+    ['partial active auth index', "WHERE status = 'active' AND revoked_at IS NULL;", 'WHERE status = \'active\';'],
+  ]) {
+    const altered = sql.replace(expected, replacement);
+    assert.notEqual(altered, sql, `${name} mutation must alter the provider script`);
+    assert.throws(() => {
+      assertMembershipLifecycleGuard(altered);
+      assertLifecycleUniqueIndexPreflight(altered);
+    }, `${name} assertion must reject weakened lifecycle controls`);
+  }
+});
+
+test('lifecycle trigger assertions reject supplemental trigger definitions and catalog-count bypasses', () => {
+  const supplementalTrigger = sql.replace(
+    '-- CREATE TRIGGER has no IF NOT EXISTS.',
+    `CREATE TRIGGER auth_tenant_memberships_supplemental_bypass
+  BEFORE INSERT ON public.auth_tenant_memberships
+  FOR EACH ROW EXECUTE FUNCTION public.auth_tenant_memberships_lifecycle_guard();
+
+-- CREATE TRIGGER has no IF NOT EXISTS.`,
+  );
+  assert.notEqual(supplementalTrigger, sql, 'supplemental trigger mutation must alter the provider script');
+  assert.throws(
+    () => assertMembershipLifecycleGuard(supplementalTrigger),
+    'a supplemental trigger definition must be rejected before provider execution',
+  );
+
+  const namedOnlyCatalogCount = sql.replace(
+    "WHERE tgrelid = 'public.auth_tenant_memberships'::regclass\n        AND NOT tgisinternal) <> 2",
+    "WHERE tgrelid = 'public.auth_tenant_memberships'::regclass\n        AND tgname IN ('auth_tenant_memberships_lifecycle_guard', 'auth_tenant_memberships_no_truncate')\n        AND NOT tgisinternal) <> 2",
+  );
+  assert.notEqual(namedOnlyCatalogCount, sql, 'catalog-count bypass mutation must alter the provider script');
+  assert.throws(
+    () => assertMembershipLifecycleGuard(namedOnlyCatalogCount),
+    'a named-only trigger count must be rejected because it permits supplemental triggers',
+  );
+});
+
+test('direct runtime evidence boundary rejects SQL Editor substitution or target fallback', () => {
+  for (const [name, expected, replacement] of [
+    ['SQL Editor negative boundary', 'current_user <> session_user', 'current_user = session_user'],
+    ['disposable target binding', 'MEMBERSHIP_REHEARSAL_TARGET_REF=afygozgefepayoenwccl', 'MEMBERSHIP_REHEARSAL_TARGET_REF=foreign'],
+    ['no production fallback', 'provider fallback and no production fallback', 'provider fallback is allowed'],
+    ['login identity check', 'current_user = session_user AS direct_login_identity', 'true AS direct_login_identity'],
+    ['reviewed-role parameter binding', 'Bind\n`$4` to the exact reviewed non-secret `MEMBERSHIP_REHEARSAL_RUNTIME_ROLE`', 'read the role label from the client'],
+    ['server-side configured-role comparison', 'current_user = $4::name AS configured_runtime_role_identity', 'true AS configured_runtime_role_identity'],
+    ['server-observed current-user comparison', 'current_user = $4::name AS configured_runtime_role_identity', 'session_user = $4::name AS configured_runtime_role_identity'],
+    ['configured-role acceptance criterion', 'configured_runtime_role_identity = true', 'configured_runtime_role_identity = false'],
+    ['redacted evidence', 'do not record the URL, password, full connection string, raw\nquery parameters, or server error text', 'record all connection details'],
+  ]) {
+    const altered = guide.replace(expected, replacement);
+    assert.notEqual(altered, guide, `${name} mutation must alter the runbook`);
+    assert.throws(() => assertDirectRuntimeEvidenceBoundary(altered), `${name} assertion must reject a weakened direct-probe boundary`);
   }
 });

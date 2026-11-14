@@ -377,6 +377,97 @@ BEGIN
   END IF;
 END $$;
 
+-- Membership rows are historical authorization records. RLS and table ACLs do
+-- not constrain an owner, service role, or other privileged direct-DML path, so
+-- enforce the lifecycle in a table trigger as well. An approved rebind is a new
+-- active row; it never overwrites or deletes the revoked row.
+CREATE OR REPLACE FUNCTION public.auth_tenant_memberships_lifecycle_guard()
+RETURNS trigger
+LANGUAGE plpgsql
+SET search_path = pg_catalog
+AS $$
+BEGIN
+  IF TG_OP = 'DELETE' OR TG_OP = 'TRUNCATE' THEN
+    RAISE EXCEPTION 'auth_tenant_memberships is append-only: % is forbidden', TG_OP;
+  END IF;
+
+  IF TG_OP = 'INSERT' THEN
+    IF NEW.status <> 'active' OR NEW.revoked_at IS NOT NULL OR NEW.revoked_reason IS NOT NULL THEN
+      RAISE EXCEPTION 'auth_tenant_memberships lifecycle requires new rows to be active and unrevoked';
+    END IF;
+    RETURN NEW;
+  END IF;
+
+  -- Identity linkage and creation evidence are immutable for the complete
+  -- lifetime of a row. A revocation may only add its own terminal evidence.
+  IF NEW.id IS DISTINCT FROM OLD.id
+     OR NEW.auth_user_id IS DISTINCT FROM OLD.auth_user_id
+     OR NEW.user_id IS DISTINCT FROM OLD.user_id
+     OR NEW.tenant_id IS DISTINCT FROM OLD.tenant_id
+     OR NEW.created_at IS DISTINCT FROM OLD.created_at
+     OR NEW.activated_at IS DISTINCT FROM OLD.activated_at THEN
+    RAISE EXCEPTION 'auth_tenant_memberships historical identity linkage is immutable';
+  END IF;
+
+  IF OLD.status <> 'active' OR OLD.revoked_at IS NOT NULL OR OLD.revoked_reason IS NOT NULL THEN
+    RAISE EXCEPTION 'auth_tenant_memberships revoked rows are terminal and cannot be changed or reactivated';
+  END IF;
+
+  IF NEW.status <> 'revoked'
+     OR NEW.revoked_at IS NULL
+     OR NEW.revoked_at < OLD.activated_at
+     OR NEW.revoked_reason IS NULL
+     OR btrim(NEW.revoked_reason) = '' THEN
+    RAISE EXCEPTION 'auth_tenant_memberships permits only an active-to-revoked transition with a nonblank revocation reason and valid timestamp';
+  END IF;
+
+  RETURN NEW;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.auth_tenant_memberships_lifecycle_guard() FROM PUBLIC;
+DROP TRIGGER IF EXISTS auth_tenant_memberships_lifecycle_guard
+  ON public.auth_tenant_memberships;
+DROP TRIGGER IF EXISTS auth_tenant_memberships_no_truncate
+  ON public.auth_tenant_memberships;
+CREATE TRIGGER auth_tenant_memberships_lifecycle_guard
+  BEFORE INSERT OR UPDATE OR DELETE ON public.auth_tenant_memberships
+  FOR EACH ROW EXECUTE FUNCTION public.auth_tenant_memberships_lifecycle_guard();
+CREATE TRIGGER auth_tenant_memberships_no_truncate
+  BEFORE TRUNCATE ON public.auth_tenant_memberships
+  FOR EACH STATEMENT EXECUTE FUNCTION public.auth_tenant_memberships_lifecycle_guard();
+
+-- CREATE TRIGGER has no IF NOT EXISTS. Recreate the two canonical triggers and
+-- fail closed unless they are the relation's only non-internal triggers. This
+-- prevents a supplemental trigger from mutating NEW after the lifecycle guard.
+DO $$
+BEGIN
+  IF (SELECT count(*) FROM pg_trigger
+      WHERE tgrelid = 'public.auth_tenant_memberships'::regclass
+        AND NOT tgisinternal) <> 2
+     OR NOT EXISTS (
+       SELECT 1
+       FROM pg_trigger trigger
+       WHERE trigger.tgrelid = 'public.auth_tenant_memberships'::regclass
+         AND trigger.tgname = 'auth_tenant_memberships_lifecycle_guard'
+         AND NOT trigger.tgisinternal
+         AND trigger.tgenabled = 'O'
+         AND trigger.tgtype = 31
+         AND trigger.tgfoid = 'public.auth_tenant_memberships_lifecycle_guard()'::regprocedure
+     ) OR NOT EXISTS (
+       SELECT 1
+       FROM pg_trigger trigger
+       WHERE trigger.tgrelid = 'public.auth_tenant_memberships'::regclass
+         AND trigger.tgname = 'auth_tenant_memberships_no_truncate'
+         AND NOT trigger.tgisinternal
+         AND trigger.tgenabled = 'O'
+         AND trigger.tgtype = 34
+         AND trigger.tgfoid = 'public.auth_tenant_memberships_lifecycle_guard()'::regprocedure
+     ) THEN
+    RAISE EXCEPTION 'auth_tenant_memberships must have exactly two enabled non-internal canonical lifecycle triggers';
+  END IF;
+END $$;
+
 ALTER TABLE public.auth_tenant_memberships ENABLE ROW LEVEL SECURITY;
 REVOKE ALL PRIVILEGES ON TABLE public.auth_tenant_memberships FROM anon, authenticated, PUBLIC;
 -- RLS does not confer table privileges. This policy requires a direct login
