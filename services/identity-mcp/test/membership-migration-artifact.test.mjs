@@ -8,10 +8,12 @@ const serviceDir = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const repoDir = resolve(serviceDir, '..', '..');
 const providerScript = resolve(repoDir, 'docs/provider-sql/20261107_add_auth_tenant_memberships.sql');
 const runbook = resolve(repoDir, 'docs/AUTH_TENANT_MEMBERSHIPS_RUNBOOK.md');
+const workflow = resolve(repoDir, '.github/workflows/membership-migration-artifact.yml');
 const coordinatorDb = resolve(repoDir, 'apps/coordinator/src/lib/db.ts');
 const migrationsDir = resolve(serviceDir, 'migrations');
 const sql = readFileSync(providerScript, 'utf8');
 const guide = readFileSync(runbook, 'utf8');
+const workflowSource = readFileSync(workflow, 'utf8');
 const coordinatorDbSource = readFileSync(coordinatorDb, 'utf8');
 
 const regexEscape = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -94,6 +96,37 @@ function assertPopulatedMembershipGuard(artifact) {
   }
 }
 
+function assertLifecycleUniqueIndexPreflight(artifact) {
+  const guard = artifact.slice(
+    artifact.indexOf('-- A populated mapping table is never an idempotent reapply:'),
+    artifact.indexOf('CREATE EXTENSION IF NOT EXISTS pgcrypto;'),
+  );
+  assert.match(
+    guard,
+    /FROM pg_index i\s+CROSS JOIN LATERAL unnest\(i\.indkey::smallint\[\]\) WITH ORDINALITY\s+AS key_attribute\(attnum, key_position\)\s+WHERE i\.indrelid = membership_oid\s+AND i\.indisunique\s+AND i\.indpred IS NULL\s+AND key_attribute\.key_position <= i\.indnkeyatts\s+AND key_attribute\.attnum IN \(auth_user_id_attnum, user_id_attnum\)/s,
+    'before DDL, every non-partial unique key containing either durable identity must be rejected regardless of name or extra key columns',
+  );
+  assert.match(
+    guard,
+    /Existing non-partial unique index keyed by auth_user_id or user_id is incompatible; it prevents the revoked-history rebind lifecycle/,
+  );
+}
+
+function assertWorkflowSelfTrigger(artifact) {
+  for (const trigger of ['push', 'pull_request']) {
+    const triggerPaths = artifact.match(new RegExp(
+      `^  ${trigger}:\\n    paths:\\n((?:      - .+\\n)+)`,
+      'm',
+    ))?.[1];
+    assert.ok(triggerPaths, `${trigger} must declare a paths filter`);
+    assert.match(
+      triggerPaths,
+      /^      - \.github\/workflows\/membership-migration-artifact\.yml$/m,
+      `${trigger} paths must include this workflow so workflow-only edits validate it`,
+    );
+  }
+}
+
 function assertRuntimeLookupPolicy(artifact) {
   assert.match(
     artifact,
@@ -111,6 +144,7 @@ function assertRuntimeLookupPolicy(artifact) {
 test('membership migration is provider-only and has required safety controls', () => {
   assert.equal(existsSync(providerScript), true, 'provider script must exist');
   assert.equal(existsSync(runbook), true, 'operator runbook must exist');
+  assert.equal(existsSync(workflow), true, 'artifact workflow must exist');
   assert.equal(
     readdirSync(migrationsDir).some((name) => name.includes('auth_tenant_memberships')),
     false,
@@ -121,7 +155,7 @@ test('membership migration is provider-only and has required safety controls', (
     'BEGIN;',
     'COMMIT;',
     'FOREIGN KEY (user_id, tenant_id) REFERENCES public.users (id, tenant_id)',
-    'Legacy full-history unique index on (auth_user_id, user_id, tenant_id) is incompatible',
+    'Existing non-partial unique index keyed by auth_user_id or user_id is incompatible',
     'JOIN pg_index i ON i.indexrelid = x.oid',
     'i.indrelid IS DISTINCT FROM membership_oid',
     'Canonical auth_tenant_memberships index name is already attached to another relation',
@@ -151,6 +185,8 @@ test('membership migration is provider-only and has required safety controls', (
   ]) assert.match(sql, new RegExp(required.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
 
   assertPopulatedMembershipGuard(sql);
+  assertLifecycleUniqueIndexPreflight(sql);
+  assertWorkflowSelfTrigger(workflowSource);
   assert.match(guide, /canonical relation created by this script \*\*with zero rows\*\*/);
   assert.match(guide, /Any existing membership row is\s+a stop condition: the script fails before DDL/);
   assert.match(guide, /Existing-membership lock policy and retry/);
@@ -172,15 +208,11 @@ test('membership migration is provider-only and has required safety controls', (
   assert.doesNotMatch(sql, /pg_get_expr\(i\.indpred, i\.indrelid\)\s+LIKE/i);
   assert.doesNotMatch(sql, /pg_get_constraintdef\(oid\)\s+LIKE/i, 'constraint compatibility must not use loose LIKE checks');
   assertRuntimeLookupPolicy(sql);
-  const legacyFullHistoryDetector = sql.slice(
-    sql.indexOf('-- The old candidate used this full-history uniqueness rule.'),
-    sql.indexOf('IF (SELECT count(*) FROM pg_constraint WHERE conrelid = membership_oid)'),
+  assert.ok(
+    sql.indexOf('Existing non-partial unique index keyed by auth_user_id or user_id is incompatible')
+      < sql.indexOf('CREATE EXTENSION IF NOT EXISTS pgcrypto;'),
+    'non-partial lifecycle-blocking unique indexes must be rejected before DDL',
   );
-  assert.match(
-    legacyFullHistoryDetector,
-    /FROM pg_index i\s+WHERE i\.indrelid = membership_oid\s+AND i\.indisunique\s+AND i\.indpred IS NULL\s+AND i\.indnkeyatts = 3\s+-- pg_index\.indkey is an int2vector[\s\S]*?AND \(i\.indkey::smallint\[\]\)\[0:2\] = ARRAY\[/s,
-  );
-  assert.doesNotMatch(legacyFullHistoryDetector, /AND i\.indnkeyatts = 3 AND i\.indnatts = 3/);
   assert.match(sql, /\(i\.indkey::smallint\[\]\)\[0:0\] = ARRAY\[/);
   assert.doesNotMatch(
     sql,
@@ -238,9 +270,10 @@ test('membership migration is provider-only and has required safety controls', (
   assert.doesNotMatch(sql, /\bGRANT\b/i, 'provider script must not grant a guessed coordinator role');
   assert.doesNotMatch(sql, /\b(postgres|service_role)\b/i, 'provider script must not guess a provider role');
   assert.match(guide, /Readback — required before mapping or application release/);
-  assert.match(guide, /does not reject unrelated supplemental indexes/);
-  assert.match(guide, /differently named\s+standalone unique index on exactly\s+`\(auth_user_id, user_id, tenant_id\)`/);
-  assert.match(guide, /attach one canonical index name to another table/);
+  assert.match(guide, /rejects every non-partial unique constraint or index\s+whose key contains `auth_user_id` or `user_id`/);
+  assert.match(guide, /does not reject unrelated supplemental \*\*non-unique\*\* indexes/);
+  assert.match(guide, /differently named\s+non-partial multi-column unique indexes containing each of\s+`auth_user_id` and `user_id`/);
+  assert.match(guide, /attach one canonical index\s+name to another table/);
   assert.match(guide, /default_expression/);
   assert.match(guide, /canonical defaults are required exactly/);
   assert.match(guide, /SELECT count\(\*\) AS policy_count\s+FROM pg_policies/);
@@ -343,6 +376,38 @@ test('populated membership guard assertions reject omission or DDL reordering', 
   );
   assert.notEqual(ddlBeforeGuard, sql, 'test mutation must move DDL before the guard');
   assert.throws(() => assertPopulatedMembershipGuard(ddlBeforeGuard));
+});
+
+test('lifecycle unique-index preflight assertions reject omission or weakening', () => {
+  for (const [name, expected, replacement] of [
+    ['unique-only filter', 'AND i.indisunique', 'AND NOT i.indisunique'],
+    ['non-partial filter', 'AND i.indpred IS NULL', 'AND i.indpred IS NOT NULL'],
+    ['key-position boundary', 'key_attribute.key_position <= i.indnkeyatts', 'key_attribute.key_position = i.indnkeyatts'],
+    ['auth identity key', 'auth_user_id_attnum, user_id_attnum', 'user_id_attnum'],
+    ['app identity key', 'auth_user_id_attnum, user_id_attnum', 'auth_user_id_attnum'],
+  ]) {
+    const altered = sql.replace(expected, replacement);
+    assert.notEqual(altered, sql, `${name} mutation must alter the provider script`);
+    assert.throws(() => assertLifecycleUniqueIndexPreflight(altered), `${name} assertion must reject a weakened lifecycle preflight`);
+  }
+});
+
+test('workflow self-trigger assertions reject omitted push or pull-request paths', () => {
+  for (const trigger of ['push', 'pull_request']) {
+    const marker = `  ${trigger}:\n    paths:\n`;
+    const start = workflowSource.indexOf(marker);
+    assert.notEqual(start, -1, `${trigger} trigger block must exist`);
+    const triggerBlock = workflowSource.slice(start).match(
+      /^  [^\n]+:\n(?:    [^\n]*\n|      [^\n]*\n)*/,
+    )?.[0];
+    assert.ok(triggerBlock, `${trigger} trigger block must be readable`);
+    const altered = workflowSource.replace(
+      triggerBlock,
+      triggerBlock.replace('      - .github/workflows/membership-migration-artifact.yml\n', ''),
+    );
+    assert.notEqual(altered, workflowSource, `${trigger} mutation must remove the workflow path`);
+    assert.throws(() => assertWorkflowSelfTrigger(altered), `${trigger} assertion must reject a missing workflow self-trigger path`);
+  }
 });
 
 test('canonical activated_at default assertion rejects an altered expectation', () => {

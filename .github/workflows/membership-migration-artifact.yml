@@ -6,11 +6,13 @@ on:
       - docs/provider-sql/20261107_add_auth_tenant_memberships.sql
       - docs/AUTH_TENANT_MEMBERSHIPS_RUNBOOK.md
       - services/identity-mcp/test/membership-migration-artifact.test.mjs
+      - .github/workflows/membership-migration-artifact.yml
   pull_request:
     paths:
       - docs/provider-sql/20261107_add_auth_tenant_memberships.sql
       - docs/AUTH_TENANT_MEMBERSHIPS_RUNBOOK.md
       - services/identity-mcp/test/membership-migration-artifact.test.mjs
+      - .github/workflows/membership-migration-artifact.yml
   workflow_dispatch:
 
 permissions:

@@ -94,9 +94,15 @@ error timestamp and approved change record; investigate the conflicting workload
 under a separately approved operational action.
 
 A same-named canonical constraint or index with different keys, uniqueness, included columns,
-or partial predicate is incompatible—not a compatible pre-existing object. The
-script does not reject unrelated supplemental indexes; review those separately
-rather than treating them as evidence that a named canonical index is compatible.
+or partial predicate is incompatible—not a compatible pre-existing object. Before
+any DDL, the script also rejects every non-partial unique constraint or index
+whose key contains `auth_user_id` or `user_id`, regardless of its name, key order,
+or additional key columns: each can preserve a revoked row as a uniqueness blocker
+and prevent the documented revoke-then-rebind lifecycle. The two canonical
+one-active indexes are explicitly compatible because they are partial. The script
+does not reject unrelated supplemental **non-unique** indexes; review those
+separately rather than treating them as evidence that a named canonical index is
+compatible.
 
 ### Coordinator `DATABASE_URL` runtime-role preflight — required, no write
 
@@ -352,14 +358,14 @@ For an existing membership table, the canonical defaults are required exactly:
 TABLE IF NOT EXISTS` will not repair it.
 
 **Stop conditions:** any membership rows; unexpected policy/grant; wrong relation
-kind/column type/nullability; malformed same-named constraint/index; any legacy
-full-history unique index or `UNIQUE(auth_user_id, user_id, tenant_id)` constraint
-(regardless of name); any canonical index name attached to another relation; or an
-unknown constraint or policy. The script deliberately rejects these rather than
-silently converting data or relaxing security. Review/replace incompatible prior
-work in a separately approved change; never backfill mappings. Unrelated
-supplemental indexes are not rejected by this artifact, but must be reviewed under
-the approved change record.
+kind/column type/nullability; malformed same-named constraint/index; any
+non-partial unique constraint or index with `auth_user_id` or `user_id` in its key
+(regardless of name, key order, or extra key columns); any canonical index name
+attached to another relation; or an unknown constraint or policy. The script
+deliberately rejects these rather than silently converting data or relaxing
+security. Review/replace incompatible prior work in a separately approved change;
+never backfill mappings. Unrelated supplemental non-unique indexes are not
+rejected by this artifact, but must be reviewed under the approved change record.
 
 ## Disposable rehearsal — required before production
 
@@ -389,9 +395,11 @@ CLI, `psql`, migration runner, or another execution method.
    without schema drift and still show zero mappings.
 3. **Incompatible existing relation/object:** in a separate disposable reset,
    create a same-named malformed membership table, constraint, or active index;
-   also test the legacy full-history unique constraint and a differently named
-   standalone unique index on exactly `(auth_user_id, user_id, tenant_id)`. In a
-   separate reset, attach one canonical index name to another table. The script
+   also test a legacy full-history unique constraint, a differently named
+   standalone unique index on exactly `(auth_user_id, user_id, tenant_id)`, and
+   differently named non-partial multi-column unique indexes containing each of
+   `auth_user_id` and `user_id`. In a separate reset, attach one canonical index
+   name to another table. The script
    must fail before mutation in each case. Capture the error and verify the
    incompatible object remains unchanged after rollback.
 4. **Tenant mismatch:** after a fresh successful schema, attempt a mapping whose

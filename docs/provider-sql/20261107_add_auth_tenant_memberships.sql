@@ -11,6 +11,8 @@ DO $$
 DECLARE
   membership_oid oid := to_regclass('public.auth_tenant_memberships');
   membership_has_rows boolean;
+  auth_user_id_attnum smallint;
+  user_id_attnum smallint;
 BEGIN
   IF membership_oid IS NULL THEN
     RETURN;
@@ -36,6 +38,31 @@ BEGIN
     INTO membership_has_rows;
   IF membership_has_rows THEN
     RAISE EXCEPTION 'Existing public.auth_tenant_memberships contains rows; stop before DDL and use the approved mapping lifecycle';
+  END IF;
+
+  -- A non-partial unique key containing either durable identity can make a
+  -- revoked row permanently block the approved revoke-then-rebind lifecycle.
+  -- Names and extra key columns do not make that safe, so inspect every unique
+  -- index/constraint by catalog shape before any DDL. INCLUDE attributes are
+  -- deliberately excluded because they do not participate in uniqueness.
+  SELECT attnum INTO auth_user_id_attnum
+  FROM pg_attribute
+  WHERE attrelid = membership_oid AND attname = 'auth_user_id' AND NOT attisdropped;
+  SELECT attnum INTO user_id_attnum
+  FROM pg_attribute
+  WHERE attrelid = membership_oid AND attname = 'user_id' AND NOT attisdropped;
+  IF EXISTS (
+    SELECT 1
+    FROM pg_index i
+    CROSS JOIN LATERAL unnest(i.indkey::smallint[]) WITH ORDINALITY
+      AS key_attribute(attnum, key_position)
+    WHERE i.indrelid = membership_oid
+      AND i.indisunique
+      AND i.indpred IS NULL
+      AND key_attribute.key_position <= i.indnkeyatts
+      AND key_attribute.attnum IN (auth_user_id_attnum, user_id_attnum)
+  ) THEN
+    RAISE EXCEPTION 'Existing non-partial unique index keyed by auth_user_id or user_id is incompatible; it prevents the revoked-history rebind lifecycle';
   END IF;
 END $$;
 
@@ -185,28 +212,6 @@ BEGIN
     RAISE EXCEPTION 'Existing auth_tenant_memberships defaults are incompatible; expected id gen_random_uuid(), status active, created_at now(), and activated_at now()';
   END IF;
 
-  -- The old candidate used this full-history uniqueness rule. Reject a unique
-  -- constraint or standalone unique index by shape, whatever its name, because it
-  -- prevents revoke then rebind of the same tuple. INCLUDE columns are not key
-  -- attributes, so compare only the three key attributes and permit indnatts > 3.
-  IF EXISTS (
-    SELECT 1
-    FROM pg_index i
-    WHERE i.indrelid = membership_oid
-      AND i.indisunique
-      AND i.indpred IS NULL
-      AND i.indnkeyatts = 3
-      -- pg_index.indkey is an int2vector. Its cast array is zero-based, while
-      -- ARRAY[...] literals are one-based; slice from its catalog bounds to
-      -- normalize both bounds and preserve the required key order.
-      AND (i.indkey::smallint[])[0:2] = ARRAY[
-        (SELECT attnum FROM pg_attribute WHERE attrelid = membership_oid AND attname = 'auth_user_id'),
-        (SELECT attnum FROM pg_attribute WHERE attrelid = membership_oid AND attname = 'user_id'),
-        (SELECT attnum FROM pg_attribute WHERE attrelid = membership_oid AND attname = 'tenant_id')
-      ]::smallint[]
-  ) THEN
-    RAISE EXCEPTION 'Legacy full-history unique index on (auth_user_id, user_id, tenant_id) is incompatible; do not apply this script over it';
-  END IF;
 
   IF (SELECT count(*) FROM pg_constraint WHERE conrelid = membership_oid) <> 6
      OR NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid = membership_oid AND conname = 'auth_tenant_memberships_pkey' AND contype = 'p' AND conkey = ARRAY[(SELECT attnum FROM pg_attribute WHERE attrelid = membership_oid AND attname = 'id')]::smallint[])
