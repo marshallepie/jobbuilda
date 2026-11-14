@@ -187,14 +187,60 @@ mapping produces coordinator `403`.
 
 ## Revoke access
 
+In a new **Supabase Dashboard SQL Editor** query, replace both `NULL` values
+below with the exact independently reviewed values, keeping the explicit casts.
+Use a single-quoted UUID literal for `auth_user_id` and a single-quoted,
+non-empty reason literal for `revoked_reason`; escape any apostrophe in the
+reason by doubling it. Do not run the statement until both replacements have
+been reviewed. The `NULL` defaults intentionally update no rows if either value
+is left unreplaced.
+
 ```sql
-UPDATE public.auth_tenant_memberships
-SET status = 'revoked', revoked_at = now(), revoked_reason = :'approved_reason'
-WHERE auth_user_id = :'supabase_auth_user_id'
-  AND status = 'active' AND revoked_at IS NULL;
+WITH reviewed_input AS (
+  SELECT
+    NULL::uuid AS auth_user_id,
+    NULL::text AS revoked_reason
+),
+validated_input AS (
+  SELECT auth_user_id, revoked_reason
+  FROM reviewed_input
+  WHERE auth_user_id IS NOT NULL
+    AND revoked_reason IS NOT NULL
+    AND btrim(revoked_reason) <> ''
+),
+matched_active_memberships AS MATERIALIZED (
+  SELECT membership.id
+  FROM public.auth_tenant_memberships AS membership
+  CROSS JOIN validated_input AS input
+  WHERE membership.auth_user_id = input.auth_user_id
+    AND membership.status = 'active'
+    AND membership.revoked_at IS NULL
+),
+single_active_membership AS (
+  SELECT id
+  FROM matched_active_memberships
+  WHERE (SELECT count(*) FROM matched_active_memberships) = 1
+)
+UPDATE public.auth_tenant_memberships AS membership
+SET status = 'revoked',
+    revoked_at = now(),
+    revoked_reason = input.revoked_reason
+FROM validated_input AS input
+CROSS JOIN single_active_membership AS candidate
+WHERE membership.id = candidate.id
+  AND membership.auth_user_id = input.auth_user_id
+  AND membership.status = 'active'
+  AND membership.revoked_at IS NULL
+RETURNING membership.auth_user_id, membership.user_id, membership.tenant_id,
+          membership.status, membership.revoked_at, membership.revoked_reason;
 ```
 
-Read the row back. Revocation must produce coordinator `403`; do not delete
-history or alter application user/tenant records. A later separately approved
-rebind uses a new row with the same reviewed UUID tuple; the schema allows that
-only after revocation while retaining exactly one active identity and principal.
+This is Dashboard SQL Editor SQL, not `psql`: do not use `:name`, `:'name'`,
+or any client-side substitution syntax. It must return **exactly one** reviewed
+row. Zero rows or more than one row is a stop condition: do not retry with
+different values, delete history, or alter application user/tenant records;
+record the result and escalate under the approved change record. Confirm the
+returned UUIDs match the approval, then use the returned row as the readback.
+Revocation must produce coordinator `403`. A later separately approved rebind
+uses a new row with the same reviewed UUID tuple; the schema allows that only
+after revocation while retaining exactly one active identity and principal.

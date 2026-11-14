@@ -117,6 +117,39 @@ test('membership migration is provider-only and has required safety controls', (
   assert.match(guide, /canonical defaults are required exactly/);
   assert.match(guide, /SELECT count\(\*\) AS policy_count\s+FROM pg_policies/);
   assert.match(guide, /policy_count.*must be `0`/);
+
+  const revocationSection = guide.slice(guide.indexOf('## Revoke access'));
+  const revocationSql = revocationSection.match(/```sql\n([\s\S]*?)```/)?.[1];
+  assert.ok(revocationSql, 'revocation SQL example must exist');
+  assert.match(revocationSql, /WITH reviewed_input AS/);
+  assert.match(revocationSql, /NULL::uuid AS auth_user_id/);
+  assert.match(revocationSql, /NULL::text AS revoked_reason/);
+  assert.match(
+    revocationSql,
+    /WHERE auth_user_id IS NOT NULL\s+AND revoked_reason IS NOT NULL\s+AND btrim\(revoked_reason\) <> ''/,
+    'revocation input must fail closed for NULL or blank reasons',
+  );
+  assert.match(
+    revocationSql,
+    /matched_active_memberships AS MATERIALIZED \(\s+SELECT membership\.id\s+FROM public\.auth_tenant_memberships AS membership\s+CROSS JOIN validated_input AS input\s+WHERE membership\.auth_user_id = input\.auth_user_id\s+AND membership\.status = 'active'\s+AND membership\.revoked_at IS NULL/s,
+    'only active, unrevoked memberships may be candidates',
+  );
+  assert.match(
+    revocationSql,
+    /single_active_membership AS \(\s+SELECT id\s+FROM matched_active_memberships\s+WHERE \(SELECT count\(\*\) FROM matched_active_memberships\) = 1/s,
+    'the update must be gated on exactly one active, unrevoked candidate',
+  );
+  assert.match(revocationSql, /FROM validated_input AS input\s+CROSS JOIN single_active_membership AS candidate/);
+  assert.match(revocationSql, /WHERE membership\.id = candidate\.id\s+AND membership\.auth_user_id = input\.auth_user_id\s+AND membership\.status = 'active'\s+AND membership\.revoked_at IS NULL/s);
+  assert.match(revocationSql, /RETURNING membership\.auth_user_id/);
+  assert.doesNotMatch(
+    revocationSql,
+    /(^|[^:]):(?:'[A-Za-z_][A-Za-z0-9_]*'|[A-Za-z_][A-Za-z0-9_]*)/m,
+    'Dashboard SQL must not contain psql-style variables',
+  );
+  assert.match(revocationSection, /`NULL` defaults intentionally update no rows if either value\s+is left unreplaced/);
+  assert.match(revocationSection, /must return \*\*exactly one\*\* reviewed\s+row/);
+  assert.match(revocationSection, /Zero rows or more than one row is a stop condition/);
 });
 
 test('canonical activated_at default assertion rejects an altered expectation', () => {
