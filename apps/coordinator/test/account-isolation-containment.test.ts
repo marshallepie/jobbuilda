@@ -5,6 +5,7 @@ import { registerAccountIsolationContainment } from '../src/lib/account-isolatio
 import { subscriptionRoutes } from '../src/routes/subscription.js';
 import { clientsRoutes } from '../src/routes/clients.js';
 import { jobsRoutes } from '../src/routes/jobs.js';
+import { shareRoutes } from '../src/routes/share.js';
 import { stripe } from '../src/lib/stripe.js';
 import { registerServerAuth, ServerAuthDependencies } from '../src/lib/auth.js';
 
@@ -133,4 +134,19 @@ test('registration pause creates no Supabase user, Stripe customer, or checkout'
   await app.close();
   (stripe.customers as any).create = originalCustomerCreate;
   (stripe.checkout.sessions as any).create = originalCheckoutCreate;
+});
+
+test('retired share invoice-details route is not publicly reachable', async () => {
+  const app = Fastify();
+  registerServerAuth(app, serverAuthDependencies);
+  await shareRoutes(app);
+  await app.ready();
+
+  const response = await app.inject({
+    method: 'GET',
+    url: '/api/share/invoice/11111111-1111-4111-8111-111111111111/details',
+  });
+
+  assert.equal(response.statusCode, 404);
+  await app.close();
 });
