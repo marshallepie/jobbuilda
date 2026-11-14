@@ -4,6 +4,32 @@
 
 BEGIN;
 
+-- A populated mapping table is never an idempotent reapply: it may contain
+-- manually approved bindings. Stop before any DDL rather than risk changing its
+-- schema, ACLs, or RLS policy under existing authorization records.
+DO $$
+DECLARE
+  membership_oid oid := to_regclass('public.auth_tenant_memberships');
+  membership_has_rows boolean;
+BEGIN
+  IF membership_oid IS NULL THEN
+    RETURN;
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_class WHERE oid = membership_oid AND relkind = 'r'
+  ) THEN
+    RAISE EXCEPTION 'Existing public.auth_tenant_memberships must be an ordinary table';
+  END IF;
+
+  EXECUTE 'LOCK TABLE public.auth_tenant_memberships IN ACCESS EXCLUSIVE MODE';
+  EXECUTE 'SELECT EXISTS (SELECT 1 FROM public.auth_tenant_memberships)'
+    INTO membership_has_rows;
+  IF membership_has_rows THEN
+    RAISE EXCEPTION 'Existing public.auth_tenant_memberships contains rows; stop before DDL and use the approved mapping lifecycle';
+  END IF;
+END $$;
+
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
 -- Reject an unknown existing shape before changing it. Object names alone are not

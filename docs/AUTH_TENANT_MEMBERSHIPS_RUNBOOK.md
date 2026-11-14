@@ -67,14 +67,16 @@ ORDER BY grantee, privilege_type;
 ```
 
 Expected pre-apply state is either: (a) no membership relation, or (b) the exact
-canonical relation created by this script, with the documented six constraints,
-the three named canonical indexes, RLS enabled, the one canonical runtime SELECT
-policy, and no browser-role grants. `public.users` and `public.tenants` must be ordinary tables with NOT NULL
-UUID keys. A same-named canonical constraint or index with different keys,
-uniqueness, included columns, or partial predicate is incompatible—not a compatible
-pre-existing object. The script does not reject unrelated supplemental indexes;
-review those separately rather than treating them as evidence that a named
-canonical index is compatible.
+canonical relation created by this script **with zero rows**, the documented six
+constraints, the three named canonical indexes, RLS enabled, the one canonical
+runtime SELECT policy, and no browser-role grants. Any existing membership row is
+a stop condition: the script fails before DDL and the reviewed mapping lifecycle,
+not this schema script, is the only authorized path for that record. `public.users`
+and `public.tenants` must be ordinary tables with NOT NULL UUID keys. A same-named
+canonical constraint or index with different keys, uniqueness, included columns,
+or partial predicate is incompatible—not a compatible pre-existing object. The
+script does not reject unrelated supplemental indexes; review those separately
+rather than treating them as evidence that a named canonical index is compatible.
 
 ### Coordinator `DATABASE_URL` runtime-role preflight — required, no write
 

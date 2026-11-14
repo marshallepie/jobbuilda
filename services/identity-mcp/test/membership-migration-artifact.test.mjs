@@ -65,6 +65,35 @@ function assertCoordinatorRuntimeRolePreflight(block) {
   );
 }
 
+function assertPopulatedMembershipGuard(artifact) {
+  const guard = artifact.slice(
+    artifact.indexOf('-- A populated mapping table is never an idempotent reapply:'),
+    artifact.indexOf('CREATE EXTENSION IF NOT EXISTS pgcrypto;'),
+  );
+  assert.match(
+    guard,
+    /EXECUTE 'LOCK TABLE public\.auth_tenant_memberships IN ACCESS EXCLUSIVE MODE';\s+EXECUTE 'SELECT EXISTS \(SELECT 1 FROM public\.auth_tenant_memberships\)'\s+INTO membership_has_rows;/,
+    'the pre-DDL guard must lock and query the existing membership table before deciding it is empty',
+  );
+  assert.match(
+    guard,
+    /IF membership_has_rows THEN\s+RAISE EXCEPTION 'Existing public\.auth_tenant_memberships contains rows; stop before DDL and use the approved mapping lifecycle';/s,
+    'a populated membership table must fail closed before DDL',
+  );
+
+  const guardOffset = artifact.indexOf('-- A populated mapping table is never an idempotent reapply:');
+  assert.notEqual(guardOffset, -1, 'the populated-membership guard must exist');
+  for (const ddl of [
+    'CREATE EXTENSION IF NOT EXISTS pgcrypto;',
+    'ALTER TABLE public.users ADD CONSTRAINT users_id_tenant_id_key UNIQUE (id, tenant_id);',
+    'CREATE TABLE IF NOT EXISTS public.auth_tenant_memberships',
+  ]) {
+    const ddlOffset = artifact.indexOf(ddl);
+    assert.notEqual(ddlOffset, -1, `migration must include ${ddl}`);
+    assert.ok(guardOffset < ddlOffset, `populated-membership guard must occur before ${ddl}`);
+  }
+}
+
 function assertRuntimeLookupPolicy(artifact) {
   assert.match(
     artifact,
@@ -120,6 +149,10 @@ test('membership migration is provider-only and has required safety controls', (
     'USING (current_user = session_user)',
     'never reads email or auth metadata',
   ]) assert.match(sql, new RegExp(required.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+
+  assertPopulatedMembershipGuard(sql);
+  assert.match(guide, /canonical relation created by this script \*\*with zero rows\*\*/);
+  assert.match(guide, /Any existing membership row is\s+a stop condition: the script fails before DDL/);
 
   for (const [column, expression] of [
     ['id', 'gen_random_uuid()'],
@@ -281,6 +314,22 @@ test('coordinator runtime-role preflight assertions reject weakened controls', (
     assert.notEqual(altered, coordinatorPreflightSql, `${name} mutation must alter the preflight block`);
     assert.throws(() => assertCoordinatorRuntimeRolePreflight(altered), `${name} assertion must reject a weakened preflight`);
   }
+});
+
+test('populated membership guard assertions reject omission or DDL reordering', () => {
+  const noRowCheck = sql.replace(
+    "EXECUTE 'SELECT EXISTS (SELECT 1 FROM public.auth_tenant_memberships)'",
+    "EXECUTE 'SELECT false'",
+  );
+  assert.notEqual(noRowCheck, sql, 'test mutation must remove the row-existence query');
+  assert.throws(() => assertPopulatedMembershipGuard(noRowCheck));
+
+  const ddlBeforeGuard = sql.replace(
+    'BEGIN;\n\n-- A populated mapping table is never an idempotent reapply:',
+    'BEGIN;\n\nCREATE EXTENSION IF NOT EXISTS pgcrypto;\n\n-- A populated mapping table is never an idempotent reapply:',
+  );
+  assert.notEqual(ddlBeforeGuard, sql, 'test mutation must move DDL before the guard');
+  assert.throws(() => assertPopulatedMembershipGuard(ddlBeforeGuard));
 });
 
 test('canonical activated_at default assertion rejects an altered expectation', () => {
