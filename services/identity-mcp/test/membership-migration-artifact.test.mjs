@@ -10,11 +10,13 @@ const providerScript = resolve(repoDir, 'docs/provider-sql/20261107_add_auth_ten
 const runbook = resolve(repoDir, 'docs/AUTH_TENANT_MEMBERSHIPS_RUNBOOK.md');
 const workflow = resolve(repoDir, '.github/workflows/membership-migration-artifact.yml');
 const coordinatorDb = resolve(repoDir, 'apps/coordinator/src/lib/db.ts');
+const probeScript = resolve(serviceDir, 'scripts/probe-membership-rehearsal-runtime.mjs');
 const migrationsDir = resolve(serviceDir, 'migrations');
 const sql = readFileSync(providerScript, 'utf8');
 const guide = readFileSync(runbook, 'utf8');
 const workflowSource = readFileSync(workflow, 'utf8');
 const coordinatorDbSource = readFileSync(coordinatorDb, 'utf8');
+const probeSource = readFileSync(probeScript, 'utf8');
 
 const regexEscape = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
@@ -274,6 +276,59 @@ function assertDirectRuntimeEvidenceBoundary(markdown) {
   ]) assert.match(markdown, new RegExp(regexEscape(required)));
 }
 
+function assertRestrictedDirectRuntimeProbe(artifact) {
+  for (const required of [
+    "const APPROVED_TARGET_REF = 'afygozgefepayoenwccl';",
+    "const APPROVED_PARENT_REF = 'jnwxueomquywrqcgbgfd';",
+    'const APPROVED_DIRECT_HOST = `db.${APPROVED_TARGET_REF}.supabase.co`;',
+    "const APPROVED_DIRECT_PORT = '5432';",
+    "const APPROVED_DATABASE_NAME = 'postgres';",
+    "'MEMBERSHIP_REHEARSAL_DATABASE_URL'",
+    "if (process.env.DATABASE_URL?.trim())",
+    "throw new Error('DATABASE_URL fallback is forbidden')",
+    'new URL(values.MEMBERSHIP_REHEARSAL_DATABASE_URL)',
+    'url.hostname.toLowerCase() !== APPROVED_DIRECT_HOST',
+    'url.port !== APPROVED_DIRECT_PORT',
+    'decodeURIComponent(url.pathname.slice(1)) !== APPROVED_DATABASE_NAME',
+    'decodeURIComponent(url.username) !== values.MEMBERSHIP_REHEARSAL_RUNTIME_ROLE',
+    "['service_role', 'postgres', 'supabase_admin']",
+    "new Client({ connectionString, application_name: 'jobbuilda-membership-rehearsal-probe' })",
+    'await client.connect()',
+    'await client.query({',
+    'text: QUERY',
+    'MEMBERSHIP_REHEARSAL_AUTH_USER_ID',
+    'MEMBERSHIP_REHEARSAL_USER_ID',
+    'MEMBERSHIP_REHEARSAL_TENANT_ID',
+    'current_user = session_user AS direct_login_identity',
+    'current_user = $4::name AS configured_runtime_role_identity',
+    'active_membership_count',
+    'rowMode: \'array\'',
+    'directLogin !== true || configuredRole !== true || Number(activeCount) !== 1',
+    "await client.end().catch(() => {})",
+  ]) assert.match(artifact, new RegExp(regexEscape(required)));
+
+  assert.doesNotMatch(artifact, /process\.env\.DATABASE_URL(?!\?\.trim)/, 'probe must never use DATABASE_URL as a connection fallback');
+  assert.doesNotMatch(artifact, /process\.argv|dotenv|\.env(?:[/'"]|$)|\bPool\(/, 'probe must not accept CLI credentials, load credential files, or create a pool');
+  assert.doesNotMatch(artifact, /INSERT\s+INTO|UPDATE\s+public|DELETE\s+FROM|SET ROLE|BEGIN;|COMMIT;/i, 'probe must issue no mutation, role switch, or transaction control');
+}
+
+function assertSyntheticFixtureLifecycle(markdown) {
+  for (const required of [
+    'Synthetic fixture lifecycle and reset isolation',
+    'fixture register outside this migration',
+    'newly generated UUIDs',
+    'public.users.tenant_id` equals the\nfixture tenant',
+    'freshly reset disposable branch state',
+    'Never reuse a reset that contains a malformed table',
+    'read back the named malformed object and confirm that it remains unchanged after\nthe provider-script rollback',
+    'exactly two historical\nrows, exactly one active/unrevoked row',
+    'After the positive probe, revoke the active synthetic row',
+    'zero active/unrevoked rows and two retained revoked rows',
+    'failed cleanup/readback is a\nstop condition',
+    'Do not delete history, truncate the membership table, or use a\nproduction or parent project to clean up',
+  ]) assert.match(markdown, new RegExp(regexEscape(required)));
+}
+
 function assertPostApplyAndPostGrantAclReadback(markdown) {
   const postApply = sectionAfterHeading(markdown, postApplySchemaReadbackHeading);
   const postGrant = sectionAfterHeading(markdown, postGrantCoordinatorVerificationHeading);
@@ -300,6 +355,7 @@ test('membership migration is provider-only and has required safety controls', (
   assert.equal(existsSync(providerScript), true, 'provider script must exist');
   assert.equal(existsSync(runbook), true, 'operator runbook must exist');
   assert.equal(existsSync(workflow), true, 'artifact workflow must exist');
+  assert.equal(existsSync(probeScript), true, 'restricted direct-runtime probe must exist');
   assert.equal(
     readdirSync(migrationsDir).some((name) => name.includes('auth_tenant_memberships')),
     false,
@@ -420,6 +476,9 @@ test('membership migration is provider-only and has required safety controls', (
   const coordinatorPreflightSql = firstSqlBlockAfterHeading(guide, coordinatorPreflightHeading);
   assertCoordinatorRuntimeRolePreflight(coordinatorPreflightSql);
   assertDirectRuntimeEvidenceBoundary(guide);
+  assertRestrictedDirectRuntimeProbe(probeSource);
+  assertSyntheticFixtureLifecycle(guide);
+  assert.match(guide, /node services\/identity-mcp\/scripts\/probe-membership-rehearsal-runtime\.mjs/);
   assertPostApplyAndPostGrantAclReadback(guide);
   assert.match(guide, /cannot own or ALTER\/DDL public\.auth_tenant_memberships/);
   assert.match(guide, /Authorize the verified coordinator runtime lookup — separate approved operation/);
@@ -702,5 +761,32 @@ test('direct runtime evidence boundary rejects SQL Editor substitution or target
     const altered = guide.replace(expected, replacement);
     assert.notEqual(altered, guide, `${name} mutation must alter the runbook`);
     assert.throws(() => assertDirectRuntimeEvidenceBoundary(altered), `${name} assertion must reject a weakened direct-probe boundary`);
+  }
+});
+
+test('restricted direct-runtime probe and synthetic fixture lifecycle reject weakened controls', () => {
+  for (const [name, expected, replacement] of [
+    ['hard-coded target', "const APPROVED_TARGET_REF = 'afygozgefepayoenwccl';", "const APPROVED_TARGET_REF = process.env.MEMBERSHIP_REHEARSAL_TARGET_REF;"],
+    ['hard-coded parent', "const APPROVED_PARENT_REF = 'jnwxueomquywrqcgbgfd';", "const APPROVED_PARENT_REF = process.env.MEMBERSHIP_REHEARSAL_PARENT_REF;"],
+    ['DATABASE_URL fallback rejection', "throw new Error('DATABASE_URL fallback is forbidden')", "// fallback allowed"],
+    ['direct host equality', 'url.hostname.toLowerCase() !== APPROVED_DIRECT_HOST', 'false'],
+    ['service-role rejection', "['service_role', 'postgres', 'supabase_admin']", "['postgres', 'supabase_admin']"],
+    ['parameterized query', 'text: QUERY', "text: 'SELECT true'"],
+    ['direct login acceptance', 'directLogin !== true || configuredRole !== true || Number(activeCount) !== 1', 'false'],
+  ]) {
+    const altered = probeSource.replace(expected, replacement);
+    assert.notEqual(altered, probeSource, `${name} mutation must alter the probe`);
+    assert.throws(() => assertRestrictedDirectRuntimeProbe(altered), `${name} assertion must reject a weakened probe`);
+  }
+
+  for (const [name, expected, replacement] of [
+    ['reset isolation', 'freshly reset disposable branch state', 'shared reusable state'],
+    ['malformed-object rollback readback', 'read back the named malformed object and confirm that it remains unchanged after\nthe provider-script rollback', 'continue without readback'],
+    ['pre-probe active-row readback', 'exactly two historical\nrows, exactly one active/unrevoked row', 'any history is acceptable'],
+    ['cleanup readback', 'zero active/unrevoked rows and two retained revoked rows', 'cleanup is optional'],
+  ]) {
+    const altered = guide.replace(expected, replacement);
+    assert.notEqual(altered, guide, `${name} mutation must alter the runbook`);
+    assert.throws(() => assertSyntheticFixtureLifecycle(altered), `${name} assertion must reject a weakened fixture lifecycle`);
   }
 });

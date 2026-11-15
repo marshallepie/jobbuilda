@@ -420,6 +420,42 @@ catalog, lifecycle, and RLS-negative rehearsal. Its `SET ROLE` probes necessaril
 make `current_user <> session_user`, so they cannot prove the canonical policy's
 positive direct-login path or the coordinator's real runtime lookup.
 
+### Synthetic fixture lifecycle and reset isolation
+
+Before any lifecycle case, the approved operator must establish a disposable-only
+fixture register outside this migration: three newly generated UUIDs for one
+synthetic `auth.users` principal, one existing disposable `public.users` principal,
+and that principal's existing disposable tenant. Verify the base `users` and
+`tenants` records exist and that the selected `public.users.tenant_id` equals the
+fixture tenant before inserting a membership. Do not use a staff, production, or
+previous-rehearsal identity; do not derive any fixture identifier from email or
+metadata. Record a redacted fixture label and UUID tuple only where the approved
+change record permits it.
+
+Run each malformed-object case in its own **freshly reset disposable branch state**
+with a new fixture register. Never reuse a reset that contains a malformed table,
+constraint, index, canonical-index-name collision, failed fixture insert, or
+prior lifecycle row as the fresh/repeat-run case. After each expected failure,
+read back the named malformed object and confirm that it remains unchanged after
+the provider-script rollback; then reset the disposable branch before the next
+case. Do not repair, drop, rename, or hand-edit malformed objects in place.
+
+For the successful lifecycle sequence, use exactly one synthetic tuple: create
+one active mapping, prove both duplicate-active failures, revoke that same row,
+and rebind the identical immutable tuple once. Immediately before the direct
+positive probe, read back by all three UUIDs and require exactly two historical
+rows, exactly one active/unrevoked row, and no other active row for the fixture
+`auth_user_id` or `user_id`. The direct probe uses that active row only.
+
+After the positive probe, revoke the active synthetic row with the approved
+Dashboard SQL Editor revocation procedure, then read back by all three UUIDs and
+require zero active/unrevoked rows and two retained revoked rows. Read back the
+fixture `auth_user_id` and `user_id` separately to confirm neither has an active
+binding. The fixture register, readbacks, expected errors, reset identifiers, and
+cleanup result are mandatory rehearsal evidence; a failed cleanup/readback is a
+stop condition. Do not delete history, truncate the membership table, or use a
+production or parent project to clean up.
+
 1. **Fresh schema:** run the complete script once and run the readback below.
 2. **Exact repeat-run:** run the unchanged complete script again. It must commit
    without schema drift and still show zero mappings.
@@ -478,10 +514,24 @@ their retention.
 Before connecting, the restricted probe must reject unless the target ref and
 parent ref exactly equal the literals above, every host/port/database/role value
 equals the pre-approved tuple for that branch, and the role equals the reviewed
-coordinator role. It must reject a missing value, a production parent/ref, any
-proxy/pooler/foreign host, or any fallback connection string. There is **no
+coordinator role. The checked direct endpoint is exactly
+`db.afygozgefepayoenwccl.supabase.co:5432/postgres`; a supplied host, port, or
+database value that differs is rejected before a socket is opened. It must reject
+a missing value, a production parent/ref, any proxy/pooler/foreign host, or any
+fallback connection string. There is **no
 provider fallback and no production fallback**: a target-binding or connection
 failure is a stop condition, not permission to retry elsewhere.
+
+Run the committed Node-only probe from the repository root; do not use `dotenv`,
+a shell `.env` loader, a CLI URL flag, or any credential file. It reads only the
+named `MEMBERSHIP_REHEARSAL_*` environment values, rejects an inherited
+`DATABASE_URL`, validates the URL username/host/port/database/SSL mode against
+the reviewed tuple before creating a `pg` client, connects once with no role
+switch, and has no alternate URL or host path:
+
+```sh
+node services/identity-mcp/scripts/probe-membership-rehearsal-runtime.mjs
+```
 
 Connect once with the approved direct runtime credential and no role switch. The
 probe must issue a parameterized/read-only lookup equivalent to this query. Bind
