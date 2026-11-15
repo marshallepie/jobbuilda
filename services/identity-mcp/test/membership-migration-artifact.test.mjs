@@ -37,6 +37,7 @@ function assertCanonicalDefault(artifact, column, expression) {
 }
 
 const coordinatorPreflightHeading = '### Coordinator `DATABASE_URL` runtime-role preflight — required, no write';
+const staffAuthorizationHeading = '## Authorize one existing staff principal — separate approved operation';
 const postApplySchemaReadbackHeading = '## Post-apply schema readback — required before coordinator grant, mapping, or application release';
 const postGrantCoordinatorVerificationHeading = '## Post-grant coordinator-role verification — required before mapping or application release';
 
@@ -55,6 +56,73 @@ function firstSqlBlockAfterHeading(markdown, heading) {
   const match = afterHeading.match(/^```sql\n([\s\S]*?)^```/m);
   assert.ok(match, `${heading} must be followed by a SQL code block`);
   return match[1];
+}
+
+function assertStaffAuthorizationSqlBlock(block) {
+  assert.equal(
+    (block.match(/NULL::uuid/g) ?? []).length,
+    3,
+    'staff authorization must expose exactly three UUID placeholders',
+  );
+  for (const required of [
+    'BEGIN TRANSACTION ISOLATION LEVEL SERIALIZABLE;',
+    'reviewed_auth_user_id uuid := NULL::uuid',
+    'reviewed_user_id uuid := NULL::uuid',
+    'reviewed_tenant_id uuid := NULL::uuid',
+    'FROM public.users AS app_user',
+    'app_user.id = reviewed_user_id',
+    'app_user.tenant_id = reviewed_tenant_id',
+    'IF exact_app_user_count = 0 THEN',
+    'ELSIF exact_app_user_count > 1 THEN',
+    'membership.auth_user_id = reviewed_auth_user_id',
+    'membership.user_id = reviewed_user_id',
+    "membership.status = 'active'",
+    'membership.revoked_at IS NULL',
+    'IF active_auth_binding_count > 0 THEN',
+    'IF active_app_binding_count > 0 THEN',
+    'INSERT INTO public.auth_tenant_memberships (auth_user_id, user_id, tenant_id)',
+    'RETURNING id INTO inserted_membership_id;',
+    "set_config('app.reviewed_auth_user_id', reviewed_auth_user_id::text, true)",
+    "set_config('app.reviewed_user_id', reviewed_user_id::text, true)",
+    "set_config('app.reviewed_tenant_id', reviewed_tenant_id::text, true)",
+    'INTO final_active_tuple_count',
+    'membership.auth_user_id = reviewed_auth_user_id',
+    'membership.user_id = reviewed_user_id',
+    'membership.tenant_id = reviewed_tenant_id',
+    'IF final_active_tuple_count <> 1 THEN',
+    "auth_user_id = current_setting('app.reviewed_auth_user_id', true)::uuid",
+    "user_id = current_setting('app.reviewed_user_id', true)::uuid",
+    "tenant_id = current_setting('app.reviewed_tenant_id', true)::uuid",
+    'COMMIT;',
+  ]) assert.match(block, new RegExp(regexEscape(required)));
+
+  assert.equal(
+    (block.match(/INSERT\s+INTO\s+public\.auth_tenant_memberships\b/gi) ?? []).length,
+    1,
+    'staff authorization must contain exactly one membership INSERT',
+  );
+  assert.doesNotMatch(block, /\bauth\.users\b|\bemail\b|\bmetadata\b/i,
+    'staff authorization must not look up auth.users, email, or metadata');
+  assert.ok(
+    block.indexOf('FROM public.users AS app_user')
+      < block.indexOf('INSERT INTO public.auth_tenant_memberships'),
+    'exact public.users validation must precede the membership insert',
+  );
+  assert.ok(
+    block.indexOf('IF active_auth_binding_count > 0 THEN')
+      < block.indexOf('INSERT INTO public.auth_tenant_memberships'),
+    'active auth-user conflict check must precede the membership insert',
+  );
+  assert.ok(
+    block.indexOf('IF active_app_binding_count > 0 THEN')
+      < block.indexOf('INSERT INTO public.auth_tenant_memberships'),
+    'active app-user conflict check must precede the membership insert',
+  );
+  assert.ok(
+    block.indexOf("auth_user_id = current_setting('app.reviewed_auth_user_id', true)::uuid")
+      > block.indexOf('INSERT INTO public.auth_tenant_memberships'),
+    'final readback must follow the membership insert and use the reviewed auth-user tuple value',
+  );
 }
 
 function assertCoordinatorRuntimeRolePreflight(block) {
@@ -547,6 +615,8 @@ test('membership migration is provider-only and has required safety controls', (
   assert.match(guide, /no concrete role name is prescribed by R01a/);
   const coordinatorPreflightSql = firstSqlBlockAfterHeading(guide, coordinatorPreflightHeading);
   assertCoordinatorRuntimeRolePreflight(coordinatorPreflightSql);
+  const staffAuthorizationSql = firstSqlBlockAfterHeading(guide, staffAuthorizationHeading);
+  assertStaffAuthorizationSqlBlock(staffAuthorizationSql);
   assertDirectRuntimeEvidenceBoundary(guide);
   assertRestrictedDirectRuntimeProbe(probeSource);
   assertSyntheticFixtureLifecycle(guide);
@@ -613,6 +683,40 @@ test('membership migration is provider-only and has required safety controls', (
   assert.match(revocationSection, /`NULL` defaults intentionally update no rows if either value\s+is left unreplaced/);
   assert.match(revocationSection, /must return \*\*exactly one\*\* reviewed\s+row/);
   assert.match(revocationSection, /Zero rows or more than one row is a stop condition/);
+});
+
+test('staff authorization SQL assertions reject weakened validation, conflict, insert, or readback controls', () => {
+  const staffAuthorizationSql = firstSqlBlockAfterHeading(guide, staffAuthorizationHeading);
+  for (const [name, expected, replacement] of [
+    ['serializable transaction', 'BEGIN TRANSACTION ISOLATION LEVEL SERIALIZABLE;', 'BEGIN;'],
+    ['exact tenant validation', 'app_user.tenant_id = reviewed_tenant_id', 'app_user.tenant_id = reviewed_user_id'],
+    ['zero app-user stop', 'IF exact_app_user_count = 0 THEN', 'IF FALSE THEN'],
+    ['multiple app-user stop', 'ELSIF exact_app_user_count > 1 THEN', 'ELSIF FALSE THEN'],
+    ['auth-user active conflict check', 'IF active_auth_binding_count > 0 THEN', 'IF FALSE THEN'],
+    ['app-user active conflict check', 'IF active_app_binding_count > 0 THEN', 'IF FALSE THEN'],
+    ['insert returning', 'RETURNING id INTO inserted_membership_id;', 'RETURNING id;'],
+    ['auth-user readback value', "auth_user_id = current_setting('app.reviewed_auth_user_id', true)::uuid", 'auth_user_id IS NOT NULL'],
+    ['app-user readback value', "user_id = current_setting('app.reviewed_user_id', true)::uuid", 'user_id IS NOT NULL'],
+    ['tenant readback value', "tenant_id = current_setting('app.reviewed_tenant_id', true)::uuid", 'tenant_id IS NOT NULL'],
+    ['final readback cardinality', 'IF final_active_tuple_count <> 1 THEN', 'IF TRUE THEN'],
+    ['commit', 'COMMIT;', '-- no commit'],
+  ]) {
+    const altered = staffAuthorizationSql.replace(expected, replacement);
+    assert.notEqual(altered, staffAuthorizationSql, `${name} mutation must alter the staff authorization SQL`);
+    assert.throws(() => assertStaffAuthorizationSqlBlock(altered), `${name} assertion must reject a weakened staff authorization control`);
+  }
+
+  for (const [name, appended] of [
+    ['extra UUID placeholder', '\\nSELECT NULL::uuid;'],
+    ['auth.users lookup', '\\nSELECT id FROM auth.users;'],
+    ['email lookup', '\\nSELECT email FROM public.users;'],
+    ['metadata lookup', '\\nSELECT metadata FROM public.users;'],
+  ]) {
+    assert.throws(
+      () => assertStaffAuthorizationSqlBlock(`${staffAuthorizationSql}${appended}`),
+      `${name} assertion must reject a prohibited staff authorization variant`,
+    );
+  }
 });
 
 test('coordinator runtime-role preflight assertions reject weakened controls', () => {

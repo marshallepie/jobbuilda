@@ -721,14 +721,115 @@ approved access-control process followed by the complete applicable readback.
 ## Authorize one existing staff principal — separate approved operation
 
 Only after schema readback and a successful non-production coordinator rehearsal,
-an approved operator may add one mapping. Obtain `auth.users.id`, existing
-`public.users.id`, and that user's existing `tenant_id` from independent approved
-records; never derive values from email or metadata. Confirm the intended user and
-tenant match, confirm neither identity nor principal has an active binding, then
-in a new SQL Editor query insert only the exact reviewed UUID tuple. Read it back
-by all three UUIDs. Verify with a server-verified non-production session that the
-authorized admin route works, forged tenant/user/scope headers fail, and a revoked
-mapping produces coordinator `403`.
+an approved operator may add one mapping. Use only a **new Supabase Dashboard SQL
+Editor query** under the approved change record. Replace each of the three
+`NULL::uuid` placeholders below with the independently reviewed UUID literal for
+that field, retaining the casts. Do not derive any value from email, metadata, or
+an `auth.users` lookup. The serializable transaction validates the exact existing
+`public.users (id, tenant_id)` pair, refuses any active auth-user or app-user
+binding, creates exactly one membership, and reads the result back by the reviewed
+three-value tuple. Any missing/replaced-wrong input, zero or multiple matching
+application users, active-binding conflict, insert failure, or readback failure
+aborts the transaction, so it makes no application state change.
+
+```sql
+BEGIN TRANSACTION ISOLATION LEVEL SERIALIZABLE;
+
+DO $$
+DECLARE
+  reviewed_auth_user_id uuid := NULL::uuid; -- Replace only with the reviewed auth_user_id UUID.
+  reviewed_user_id uuid := NULL::uuid; -- Replace only with the reviewed public.users.id UUID.
+  reviewed_tenant_id uuid := NULL::uuid; -- Replace only with the reviewed public.users.tenant_id UUID.
+  exact_app_user_count integer;
+  active_auth_binding_count integer;
+  active_app_binding_count integer;
+  final_active_tuple_count integer;
+  inserted_membership_id uuid;
+BEGIN
+  IF reviewed_auth_user_id IS NULL OR reviewed_user_id IS NULL OR reviewed_tenant_id IS NULL THEN
+    RAISE EXCEPTION 'STOP: auth_user_id, user_id, and tenant_id must all be independently reviewed UUIDs';
+  END IF;
+
+  SELECT count(*)
+  INTO exact_app_user_count
+  FROM public.users AS app_user
+  WHERE app_user.id = reviewed_user_id
+    AND app_user.tenant_id = reviewed_tenant_id;
+
+  IF exact_app_user_count = 0 THEN
+    RAISE EXCEPTION 'STOP: no public.users row matches the reviewed user_id and tenant_id';
+  ELSIF exact_app_user_count > 1 THEN
+    RAISE EXCEPTION 'STOP: multiple public.users rows match the reviewed user_id and tenant_id';
+  END IF;
+
+  SELECT count(*)
+  INTO active_auth_binding_count
+  FROM public.auth_tenant_memberships AS membership
+  WHERE membership.auth_user_id = reviewed_auth_user_id
+    AND membership.status = 'active'
+    AND membership.revoked_at IS NULL;
+
+  IF active_auth_binding_count > 0 THEN
+    RAISE EXCEPTION 'STOP: reviewed auth_user_id already has an active membership binding';
+  END IF;
+
+  SELECT count(*)
+  INTO active_app_binding_count
+  FROM public.auth_tenant_memberships AS membership
+  WHERE membership.user_id = reviewed_user_id
+    AND membership.status = 'active'
+    AND membership.revoked_at IS NULL;
+
+  IF active_app_binding_count > 0 THEN
+    RAISE EXCEPTION 'STOP: reviewed user_id already has an active membership binding';
+  END IF;
+
+  INSERT INTO public.auth_tenant_memberships (auth_user_id, user_id, tenant_id)
+  VALUES (reviewed_auth_user_id, reviewed_user_id, reviewed_tenant_id)
+  RETURNING id INTO inserted_membership_id;
+
+  IF inserted_membership_id IS NULL THEN
+    RAISE EXCEPTION 'STOP: membership insert did not return an id';
+  END IF;
+
+  PERFORM set_config('app.reviewed_auth_user_id', reviewed_auth_user_id::text, true);
+  PERFORM set_config('app.reviewed_user_id', reviewed_user_id::text, true);
+  PERFORM set_config('app.reviewed_tenant_id', reviewed_tenant_id::text, true);
+
+  SELECT count(*)
+  INTO final_active_tuple_count
+  FROM public.auth_tenant_memberships AS membership
+  WHERE membership.auth_user_id = reviewed_auth_user_id
+    AND membership.user_id = reviewed_user_id
+    AND membership.tenant_id = reviewed_tenant_id
+    AND membership.status = 'active'
+    AND membership.revoked_at IS NULL;
+
+  IF final_active_tuple_count <> 1 THEN
+    RAISE EXCEPTION 'STOP: final reviewed UUID tuple readback did not return exactly one active membership';
+  END IF;
+END $$;
+
+SELECT id, auth_user_id, user_id, tenant_id, status, created_at, activated_at
+FROM public.auth_tenant_memberships
+WHERE auth_user_id = current_setting('app.reviewed_auth_user_id', true)::uuid
+  AND user_id = current_setting('app.reviewed_user_id', true)::uuid
+  AND tenant_id = current_setting('app.reviewed_tenant_id', true)::uuid
+  AND status = 'active'
+  AND revoked_at IS NULL
+ORDER BY created_at, id;
+
+COMMIT;
+```
+
+The final readback must contain the newly inserted row with the exact reviewed
+UUID tuple and `status = 'active'`. If the query returns zero rows, multiple
+unexpected rows, or any error, treat it as a stop condition: do not retry with
+different values, alter `public.users` or `public.tenants`, or bypass the checks.
+Record the error/result and escalate under the approved change record. Then verify
+with a server-verified non-production session that the authorized admin route
+works, forged tenant/user/scope headers fail, and a revoked mapping produces
+coordinator `403`.
 
 ## Revoke access
 
