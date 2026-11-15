@@ -722,15 +722,41 @@ approved access-control process followed by the complete applicable readback.
 
 Only after schema readback and a successful non-production coordinator rehearsal,
 an approved operator may add one mapping. Use only a **new Supabase Dashboard SQL
-Editor query** under the approved change record. Replace each of the three
-`NULL::uuid` placeholders below with the independently reviewed UUID literal for
-that field, retaining the casts. Do not derive any value from email, metadata, or
-an `auth.users` lookup. The serializable transaction validates the exact existing
-`public.users (id, tenant_id)` pair, refuses any active auth-user or app-user
-binding, creates exactly one membership, and reads the result back by the reviewed
-three-value tuple. Any missing/replaced-wrong input, zero or multiple matching
-application users, active-binding conflict, insert failure, or readback failure
-aborts the transaction, so it makes no application state change.
+Editor query** under the approved change record.
+
+### Mandatory mapping-manifest gate — before the membership INSERT
+
+Before replacing any SQL placeholder or running the transaction, attach a
+reviewable mapping manifest to the approved change record. It must list this
+single proposed link verbatim, with all of the following fields:
+
+| Required manifest field | Required value/evidence |
+| --- | --- |
+| Exact Auth UUID | The exact `auth_user_id` UUID proposed for the link. |
+| Exact application user UUID | The exact existing `public.users.id` UUID proposed for the link. |
+| Exact tenant UUID | The exact existing `public.users.tenant_id` UUID proposed for the link. |
+| Business label | The reviewed staff/business identity label for this proposed link. |
+| Source and ownership evidence | Reviewable source records and ownership evidence supporting **each** Auth-to-app-user, app-user-to-tenant, and Auth-to-tenant relational edge. |
+
+This manifest—not email, Auth confirmation, login activity, `auth.users` lookup,
+or metadata—is the authority for proposing the mapping. Preserve the reviewed
+three-UUID tuple verbatim from the manifest when replacing the SQL placeholders;
+do not transpose, derive, normalize, or substitute any value. Revalidate the
+verbatim tuple against the manifest immediately before execution and against the
+final SQL query before approval. If the application principal is absent, the
+tenant is absent, or any required relational edge lacks source/ownership evidence,
+record **NO MAPPING PROPOSED** for that case. Do not run the INSERT, infer a link,
+or use a different identifier to fill the gap; escalate under the approved change
+record instead.
+
+Replace each of the three `NULL::uuid` placeholders below only with the reviewed
+manifest UUID literal for that field, retaining the casts. The serializable
+transaction validates the exact existing `public.users (id, tenant_id)` pair,
+refuses any active auth-user or app-user binding, creates exactly one membership,
+and reads the result back by the reviewed three-value tuple. Any missing/replaced-
+wrong input, zero or multiple matching application users, active-binding conflict,
+insert failure, or readback failure aborts the transaction, so it makes no
+application state change.
 
 ```sql
 BEGIN TRANSACTION ISOLATION LEVEL SERIALIZABLE;

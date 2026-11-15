@@ -125,6 +125,43 @@ function assertStaffAuthorizationSqlBlock(block) {
   );
 }
 
+function assertStaffMappingManifestGate(section) {
+  const heading = '### Mandatory mapping-manifest gate — before the membership INSERT';
+  const headingOffset = section.indexOf(heading);
+  const sqlOffset = section.indexOf('```sql');
+  assert.notEqual(headingOffset, -1, 'staff authorization must require a mapping-manifest gate');
+  assert.notEqual(sqlOffset, -1, 'staff authorization section must contain its SQL block');
+  assert.ok(headingOffset < sqlOffset, 'mapping-manifest gate must precede the membership SQL');
+
+  for (const required of [
+    '| Exact Auth UUID |',
+    '| Exact application user UUID |',
+    '| Exact tenant UUID |',
+    '| Business label |',
+    '| Source and ownership evidence |',
+    'Auth-to-app-user, app-user-to-tenant, and Auth-to-tenant relational edge',
+    'three-UUID tuple verbatim',
+    'Revalidate the\nverbatim tuple against the manifest immediately before execution and against the\nfinal SQL query before approval',
+    '**NO MAPPING PROPOSED**',
+  ]) assert.match(section, new RegExp(regexEscape(required)));
+
+  assert.match(
+    section,
+    /This manifest—not email, Auth confirmation, login activity, `auth\.users` lookup,\s+or metadata—is the authority for proposing the mapping\./,
+    'email, auth confirmation, login activity, auth lookup, and metadata must not authorize a mapping',
+  );
+  assert.match(
+    section,
+    /If the application principal is absent, the\s+tenant is absent, or any required relational edge lacks source\/ownership evidence,\s+record \*\*NO MAPPING PROPOSED\*\*/,
+    'missing application principal, tenant, or relational evidence must fail closed as NO MAPPING PROPOSED',
+  );
+  assert.match(
+    section,
+    /Do not run the INSERT, infer a link,\s+or use a different identifier to fill the gap/,
+    'a missing mapping edge must prohibit the insert and identifier substitution',
+  );
+}
+
 function assertCoordinatorRuntimeRolePreflight(block) {
   for (const required of [
     "configured_role name := NULL::name",
@@ -615,6 +652,8 @@ test('membership migration is provider-only and has required safety controls', (
   assert.match(guide, /no concrete role name is prescribed by R01a/);
   const coordinatorPreflightSql = firstSqlBlockAfterHeading(guide, coordinatorPreflightHeading);
   assertCoordinatorRuntimeRolePreflight(coordinatorPreflightSql);
+  const staffAuthorizationSection = sectionAfterHeading(guide, staffAuthorizationHeading);
+  assertStaffMappingManifestGate(staffAuthorizationSection);
   const staffAuthorizationSql = firstSqlBlockAfterHeading(guide, staffAuthorizationHeading);
   assertStaffAuthorizationSqlBlock(staffAuthorizationSql);
   assertDirectRuntimeEvidenceBoundary(guide);
