@@ -136,18 +136,22 @@ test('registration pause creates no Supabase user, Stripe customer, or checkout'
   (stripe.checkout.sessions as any).create = originalCheckoutCreate;
 });
 
-test('retired share invoice-details route requires authentication before retirement handling', async () => {
+test('retired share invoice-details route authenticates before returning retirement 404', async () => {
   const app = Fastify();
   registerServerAuth(app, serverAuthDependencies);
   await shareRoutes(app);
   await app.ready();
 
-  const response = await app.inject({
-    method: 'GET',
-    url: '/api/share/invoice/11111111-1111-4111-8111-111111111111/details',
-  });
+  const url = '/api/share/invoice/11111111-1111-4111-8111-111111111111/details';
+  const unauthenticated = await app.inject({ method: 'GET', url });
+  assert.equal(unauthenticated.statusCode, 401);
+  assert.deepEqual(unauthenticated.json(), { error: 'A Supabase access token is required' });
 
-  assert.equal(response.statusCode, 401);
-  assert.deepEqual(response.json(), { error: 'A Supabase access token is required' });
+  const authenticated = await app.inject({
+    method: 'GET',
+    url,
+    headers: { authorization: 'Bearer valid' },
+  });
+  assert.equal(authenticated.statusCode, 404);
   await app.close();
 });
