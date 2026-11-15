@@ -522,12 +522,15 @@ fallback connection string. There is **no
 provider fallback and no production fallback**: a target-binding or connection
 failure is a stop condition, not permission to retry elsewhere.
 
-Run the committed Node-only probe from the repository root; do not use `dotenv`,
+Run the committed Node-only probe from the repository root with **Node.js 20.11 or
+newer**; do not use `dotenv`,
 a shell `.env` loader, a CLI URL flag, or any credential file. It reads only the
 named `MEMBERSHIP_REHEARSAL_*` environment values, rejects an inherited
 `DATABASE_URL`, validates the URL username/host/port/database/SSL mode against
 the reviewed tuple before creating a `pg` client, connects once with no role
-switch, and has no alternate URL or host path. Its finite timeout policy is
+switch, and has no alternate URL or host path. Direct execution of the documented
+command invokes the probe; importing the module does not invoke it. Its finite
+timeout policy is
 exactly **5,000 ms** for the `pg` `connectionTimeoutMillis`, `query_timeout`,
 and server `statement_timeout` options. A connection or statement that exceeds
 that bound fails the probe nonzero with the fixed redacted failure message; it

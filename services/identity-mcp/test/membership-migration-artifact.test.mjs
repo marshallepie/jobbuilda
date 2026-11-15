@@ -1,8 +1,9 @@
 import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
 import test from 'node:test';
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import {
   DIRECT_RUNTIME_CONNECT_TIMEOUT_MS,
   DIRECT_RUNTIME_STATEMENT_TIMEOUT_MS,
@@ -276,6 +277,7 @@ function assertDirectRuntimeEvidenceBoundary(markdown) {
     'MEMBERSHIP_REHEARSAL_DB_NAME',
     'MEMBERSHIP_REHEARSAL_DATABASE_URL',
     'There is **no\nprovider fallback and no production fallback**',
+    'Node.js 20.11 or\nnewer',
     'exactly **5,000 ms** for the `pg` `connectionTimeoutMillis`, `query_timeout`,\nand server `statement_timeout` options',
     'fails the probe nonzero with the fixed redacted failure message',
     'current_user = session_user AS direct_login_identity',
@@ -322,10 +324,17 @@ function assertRestrictedDirectRuntimeProbe(artifact) {
     'rowMode: \'array\'',
     'directLogin !== true || configuredRole !== true || Number(activeCount) !== 1',
     "await client.end().catch(() => {})",
+    'function isDirectCliEntrypoint()',
+    'const entrypoint = process.argv[1];',
+    "typeof entrypoint === 'string'",
+    'resolve(entrypoint) === fileURLToPath(import.meta.url)',
+    'if (isDirectCliEntrypoint()) {',
+    'process.exitCode = await runProbe();',
   ]) assert.match(artifact, new RegExp(regexEscape(required)));
 
   assert.doesNotMatch(artifact, /process\.env\.DATABASE_URL(?!\?\.trim)/, 'probe must never use DATABASE_URL as a connection fallback');
-  assert.doesNotMatch(artifact, /process\.argv|dotenv|\.env(?:[/'"]|$)|\bPool\(/, 'probe must not accept CLI credentials, load credential files, or create a pool');
+  assert.doesNotMatch(artifact, /process\.argv(?!\[1\])|dotenv|\.env(?:[/'"]|$)|\bPool\(/, 'probe must not accept CLI credentials, load credential files, or create a pool');
+  assert.doesNotMatch(artifact, /import\.meta\.main/, 'probe CLI entrypoint must support Node.js 20.11');
   assert.doesNotMatch(artifact, /INSERT\s+INTO|UPDATE\s+public|DELETE\s+FROM|SET ROLE|BEGIN;|COMMIT;/i, 'probe must issue no mutation, role switch, or transaction control');
 }
 
@@ -870,4 +879,52 @@ test('direct-runtime timeout rejection is nonzero and cannot instantiate a forei
   });
   assert.equal(foreignExitCode, 1, 'a foreign target rejection must set the direct executable nonzero');
   assert.equal(foreignClientConstructed, false, 'a foreign target must be rejected before a client can attempt a socket');
+});
+
+test('direct-runtime CLI guard runs the documented command but never auto-runs on import', () => {
+  const documentedInvocation = spawnSync(process.execPath, [probeScript], {
+    encoding: 'utf8',
+    env: { PATH: process.env.PATH },
+  });
+  assert.equal(documentedInvocation.status, 1, 'the documented direct invocation must execute and reject missing required environment');
+  assert.equal(documentedInvocation.stdout, '');
+  assert.equal(
+    documentedInvocation.stderr,
+    'membership rehearsal probe refused: required rehearsal environment is incomplete\n',
+    'the CLI rejection must remain redacted',
+  );
+
+  const validEnvironment = {
+    MEMBERSHIP_REHEARSAL_TARGET_REF: 'afygozgefepayoenwccl',
+    MEMBERSHIP_REHEARSAL_PARENT_REF: 'jnwxueomquywrqcgbgfd',
+    MEMBERSHIP_REHEARSAL_RUNTIME_ROLE: 'reviewed_runtime_role',
+    MEMBERSHIP_REHEARSAL_DB_HOST: 'db.afygozgefepayoenwccl.supabase.co',
+    MEMBERSHIP_REHEARSAL_DB_PORT: '5432',
+    MEMBERSHIP_REHEARSAL_DB_NAME: 'postgres',
+    MEMBERSHIP_REHEARSAL_DATABASE_URL: 'postgresql://reviewed_runtime_role:***@db.afygozgefepayoenwccl.supabase.co:5432/postgres?sslmode=require',
+    MEMBERSHIP_REHEARSAL_AUTH_USER_ID: '11111111-1111-4111-8111-111111111111',
+    MEMBERSHIP_REHEARSAL_USER_ID: '22222222-2222-4222-8222-222222222222',
+    MEMBERSHIP_REHEARSAL_TENANT_ID: '33333333-3333-4333-8333-433333333333',
+  };
+  const importOnly = spawnSync(process.execPath, [
+    '--input-type=module',
+    '--eval',
+    `import net from 'node:net';
+let connectionAttempts = 0;
+net.Socket.prototype.connect = function blockedProbeNetworkConnection() {
+  connectionAttempts += 1;
+  throw new Error('unexpected probe network connection');
+};
+await import(${JSON.stringify(pathToFileURL(probeScript).href)});
+if (connectionAttempts !== 0) {
+  process.stderr.write('unexpected probe network connection\\n');
+  process.exitCode = 1;
+}`,
+  ], {
+    encoding: 'utf8',
+    env: validEnvironment,
+  });
+  assert.equal(importOnly.status, 0, 'importing the probe must not invoke the CLI');
+  assert.equal(importOnly.stdout, '', 'importing the probe must not write stdout');
+  assert.equal(importOnly.stderr, '', 'importing the probe must not write stderr or attempt a network connection');
 });

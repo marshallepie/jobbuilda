@@ -1,4 +1,6 @@
 import { Client } from 'pg';
+import { resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 const APPROVED_TARGET_REF = 'afygozgefepayoenwccl';
 const APPROVED_PARENT_REF = 'jnwxueomquywrqcgbgfd';
@@ -138,6 +140,12 @@ export async function runProbe({
   }
 }
 
-if (import.meta.main) {
+function isDirectCliEntrypoint() {
+  const entrypoint = process.argv[1];
+  return typeof entrypoint === 'string'
+    && resolve(entrypoint) === fileURLToPath(import.meta.url);
+}
+
+if (isDirectCliEntrypoint()) {
   process.exitCode = await runProbe();
 }
