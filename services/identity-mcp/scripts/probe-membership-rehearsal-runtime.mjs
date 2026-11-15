@@ -5,6 +5,8 @@ const APPROVED_PARENT_REF = 'jnwxueomquywrqcgbgfd';
 const APPROVED_DIRECT_HOST = `db.${APPROVED_TARGET_REF}.supabase.co`;
 const APPROVED_DIRECT_PORT = '5432';
 const APPROVED_DATABASE_NAME = 'postgres';
+export const DIRECT_RUNTIME_CONNECT_TIMEOUT_MS = 5_000;
+export const DIRECT_RUNTIME_STATEMENT_TIMEOUT_MS = 5_000;
 const REQUIRED_ENVIRONMENT = [
   'MEMBERSHIP_REHEARSAL_TARGET_REF',
   'MEMBERSHIP_REHEARSAL_PARENT_REF',
@@ -29,21 +31,20 @@ WHERE auth_user_id = $1::uuid
   AND status = 'active'
   AND revoked_at IS NULL;`;
 
-function fail(message) {
-  process.stderr.write(`membership rehearsal probe refused: ${message}\n`);
-  process.exitCode = 1;
+function fail(writeStderr, message) {
+  writeStderr(`membership rehearsal probe refused: ${message}\n`);
 }
 
-function requiredEnvironment() {
-  const missing = REQUIRED_ENVIRONMENT.filter((name) => !process.env[name]?.trim());
+function requiredEnvironment(environment) {
+  const missing = REQUIRED_ENVIRONMENT.filter((name) => !environment[name]?.trim());
   if (missing.length > 0) throw new Error('required rehearsal environment is incomplete');
 
-  const values = Object.fromEntries(REQUIRED_ENVIRONMENT.map((name) => [name, process.env[name].trim()]));
+  const values = Object.fromEntries(REQUIRED_ENVIRONMENT.map((name) => [name, environment[name].trim()]));
   if (values.MEMBERSHIP_REHEARSAL_TARGET_REF !== APPROVED_TARGET_REF
     || values.MEMBERSHIP_REHEARSAL_PARENT_REF !== APPROVED_PARENT_REF) {
     throw new Error('target binding is not the approved disposable branch');
   }
-  if (process.env.DATABASE_URL?.trim()) {
+  if (environment.DATABASE_URL?.trim()) {
     throw new Error('DATABASE_URL fallback is forbidden');
   }
   if (values.MEMBERSHIP_REHEARSAL_DB_HOST.toLowerCase() !== APPROVED_DIRECT_HOST
@@ -83,18 +84,29 @@ function assertUrlMatchesApprovedTuple(values) {
   return url.toString();
 }
 
-async function main() {
+export async function runProbe({
+  environment = process.env,
+  ClientConstructor = Client,
+  writeStdout = (message) => process.stdout.write(message),
+  writeStderr = (message) => process.stderr.write(message),
+} = {}) {
   let values;
   let connectionString;
   try {
-    values = requiredEnvironment();
+    values = requiredEnvironment(environment);
     connectionString = assertUrlMatchesApprovedTuple(values);
   } catch (error) {
-    fail(error.message);
-    return;
+    fail(writeStderr, error.message);
+    return 1;
   }
 
-  const client = new Client({ connectionString, application_name: 'jobbuilda-membership-rehearsal-probe' });
+  const client = new ClientConstructor({
+    connectionString,
+    application_name: 'jobbuilda-membership-rehearsal-probe',
+    connectionTimeoutMillis: DIRECT_RUNTIME_CONNECT_TIMEOUT_MS,
+    query_timeout: DIRECT_RUNTIME_STATEMENT_TIMEOUT_MS,
+    statement_timeout: DIRECT_RUNTIME_STATEMENT_TIMEOUT_MS,
+  });
   try {
     await client.connect();
     const result = await client.query({
@@ -109,19 +121,23 @@ async function main() {
     });
     const [directLogin, configuredRole, activeCount] = result.rows[0] ?? [];
     if (directLogin !== true || configuredRole !== true || Number(activeCount) !== 1) {
-      fail('positive lookup acceptance criteria were not met');
-      return;
+      fail(writeStderr, 'positive lookup acceptance criteria were not met');
+      return 1;
     }
-    process.stdout.write(JSON.stringify({
+    writeStdout(JSON.stringify({
       result: 'pass',
       target_ref: APPROVED_TARGET_REF,
       probe: 'direct-runtime-positive-lookup',
     }) + '\n');
+    return 0;
   } catch {
-    fail('direct runtime probe failed; stop and do not retry against another target');
+    fail(writeStderr, 'direct runtime probe failed; stop and do not retry against another target');
+    return 1;
   } finally {
     await client.end().catch(() => {});
   }
 }
 
-await main();
+if (import.meta.main) {
+  process.exitCode = await runProbe();
+}

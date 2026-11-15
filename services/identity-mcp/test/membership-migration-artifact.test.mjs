@@ -3,6 +3,11 @@ import test from 'node:test';
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import {
+  DIRECT_RUNTIME_CONNECT_TIMEOUT_MS,
+  DIRECT_RUNTIME_STATEMENT_TIMEOUT_MS,
+  runProbe,
+} from '../scripts/probe-membership-rehearsal-runtime.mjs';
 
 const serviceDir = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const repoDir = resolve(serviceDir, '..', '..');
@@ -271,6 +276,8 @@ function assertDirectRuntimeEvidenceBoundary(markdown) {
     'MEMBERSHIP_REHEARSAL_DB_NAME',
     'MEMBERSHIP_REHEARSAL_DATABASE_URL',
     'There is **no\nprovider fallback and no production fallback**',
+    'exactly **5,000 ms** for the `pg` `connectionTimeoutMillis`, `query_timeout`,\nand server `statement_timeout` options',
+    'fails the probe nonzero with the fixed redacted failure message',
     'current_user = session_user AS direct_login_identity',
     'Bind\n`$4` to the exact reviewed non-secret `MEMBERSHIP_REHEARSAL_RUNTIME_ROLE`',
     'server-side exact configured-role identity comparison',
@@ -288,8 +295,10 @@ function assertRestrictedDirectRuntimeProbe(artifact) {
     'const APPROVED_DIRECT_HOST = `db.${APPROVED_TARGET_REF}.supabase.co`;',
     "const APPROVED_DIRECT_PORT = '5432';",
     "const APPROVED_DATABASE_NAME = 'postgres';",
+    'export const DIRECT_RUNTIME_CONNECT_TIMEOUT_MS = 5_000;',
+    'export const DIRECT_RUNTIME_STATEMENT_TIMEOUT_MS = 5_000;',
     "'MEMBERSHIP_REHEARSAL_DATABASE_URL'",
-    "if (process.env.DATABASE_URL?.trim())",
+    'if (environment.DATABASE_URL?.trim())',
     "throw new Error('DATABASE_URL fallback is forbidden')",
     'new URL(values.MEMBERSHIP_REHEARSAL_DATABASE_URL)',
     'url.hostname.toLowerCase() !== APPROVED_DIRECT_HOST',
@@ -297,7 +306,10 @@ function assertRestrictedDirectRuntimeProbe(artifact) {
     'decodeURIComponent(url.pathname.slice(1)) !== APPROVED_DATABASE_NAME',
     'decodeURIComponent(url.username) !== values.MEMBERSHIP_REHEARSAL_RUNTIME_ROLE',
     "['service_role', 'postgres', 'supabase_admin']",
-    "new Client({ connectionString, application_name: 'jobbuilda-membership-rehearsal-probe' })",
+    'new ClientConstructor({',
+    'connectionTimeoutMillis: DIRECT_RUNTIME_CONNECT_TIMEOUT_MS',
+    'query_timeout: DIRECT_RUNTIME_STATEMENT_TIMEOUT_MS',
+    'statement_timeout: DIRECT_RUNTIME_STATEMENT_TIMEOUT_MS',
     'await client.connect()',
     'await client.query({',
     'text: QUERY',
@@ -761,6 +773,7 @@ test('direct runtime evidence boundary rejects SQL Editor substitution or target
     ['SQL Editor negative boundary', 'current_user <> session_user', 'current_user = session_user'],
     ['disposable target binding', 'MEMBERSHIP_REHEARSAL_TARGET_REF=afygozgefepayoenwccl', 'MEMBERSHIP_REHEARSAL_TARGET_REF=foreign'],
     ['no production fallback', 'provider fallback and no production fallback', 'provider fallback is allowed'],
+    ['finite timeout policy', 'exactly **5,000 ms** for the `pg` `connectionTimeoutMillis`, `query_timeout`,\nand server `statement_timeout` options', 'use provider defaults'],
     ['login identity check', 'current_user = session_user AS direct_login_identity', 'true AS direct_login_identity'],
     ['reviewed-role parameter binding', 'Bind\n`$4` to the exact reviewed non-secret `MEMBERSHIP_REHEARSAL_RUNTIME_ROLE`', 'read the role label from the client'],
     ['server-side configured-role comparison', 'current_user = $4::name AS configured_runtime_role_identity', 'true AS configured_runtime_role_identity'],
@@ -781,6 +794,11 @@ test('restricted direct-runtime probe and synthetic fixture lifecycle reject wea
     ['DATABASE_URL fallback rejection', "throw new Error('DATABASE_URL fallback is forbidden')", "// fallback allowed"],
     ['direct host equality', 'url.hostname.toLowerCase() !== APPROVED_DIRECT_HOST', 'false'],
     ['service-role rejection', "['service_role', 'postgres', 'supabase_admin']", "['postgres', 'supabase_admin']"],
+    ['finite connection timeout constant', 'export const DIRECT_RUNTIME_CONNECT_TIMEOUT_MS = 5_000;', 'export const DIRECT_RUNTIME_CONNECT_TIMEOUT_MS = 0;'],
+    ['finite statement timeout constant', 'export const DIRECT_RUNTIME_STATEMENT_TIMEOUT_MS = 5_000;', 'export const DIRECT_RUNTIME_STATEMENT_TIMEOUT_MS = 0;'],
+    ['connection timeout', 'connectionTimeoutMillis: DIRECT_RUNTIME_CONNECT_TIMEOUT_MS', 'connectionTimeoutMillis: 0'],
+    ['client query timeout', 'query_timeout: DIRECT_RUNTIME_STATEMENT_TIMEOUT_MS', 'query_timeout: 0'],
+    ['server statement timeout', 'statement_timeout: DIRECT_RUNTIME_STATEMENT_TIMEOUT_MS', 'statement_timeout: 0'],
     ['parameterized query', 'text: QUERY', "text: 'SELECT true'"],
     ['direct login acceptance', 'directLogin !== true || configuredRole !== true || Number(activeCount) !== 1', 'false'],
   ]) {
@@ -799,4 +817,57 @@ test('restricted direct-runtime probe and synthetic fixture lifecycle reject wea
     assert.notEqual(altered, guide, `${name} mutation must alter the runbook`);
     assert.throws(() => assertSyntheticFixtureLifecycle(altered), `${name} assertion must reject a weakened fixture lifecycle`);
   }
+});
+
+test('direct-runtime timeout rejection is nonzero and cannot instantiate a foreign target client', async () => {
+  const validEnvironment = {
+    MEMBERSHIP_REHEARSAL_TARGET_REF: 'afygozgefepayoenwccl',
+    MEMBERSHIP_REHEARSAL_PARENT_REF: 'jnwxueomquywrqcgbgfd',
+    MEMBERSHIP_REHEARSAL_RUNTIME_ROLE: 'reviewed_runtime_role',
+    MEMBERSHIP_REHEARSAL_DB_HOST: 'db.afygozgefepayoenwccl.supabase.co',
+    MEMBERSHIP_REHEARSAL_DB_PORT: '5432',
+    MEMBERSHIP_REHEARSAL_DB_NAME: 'postgres',
+    MEMBERSHIP_REHEARSAL_DATABASE_URL: 'postgresql://reviewed_runtime_role:password@db.afygozgefepayoenwccl.supabase.co:5432/postgres?sslmode=require',
+    MEMBERSHIP_REHEARSAL_AUTH_USER_ID: '11111111-1111-4111-8111-111111111111',
+    MEMBERSHIP_REHEARSAL_USER_ID: '22222222-2222-4222-8222-222222222222',
+    MEMBERSHIP_REHEARSAL_TENANT_ID: '33333333-3333-4333-8333-333333333333',
+  };
+  const timeoutClient = [];
+  class RejectingClient {
+    constructor(options) {
+      timeoutClient.push(options);
+    }
+    async connect() {
+      throw new Error('simulated connection timeout');
+    }
+    async end() {}
+  }
+  const stderr = [];
+  const timeoutExitCode = await runProbe({
+    environment: validEnvironment,
+    ClientConstructor: RejectingClient,
+    writeStdout: () => {},
+    writeStderr: (message) => stderr.push(message),
+  });
+  assert.equal(timeoutExitCode, 1, 'a bounded connection rejection must set the direct executable nonzero');
+  assert.equal(timeoutClient.length, 1, 'the approved target creates exactly one client');
+  assert.equal(timeoutClient[0].connectionTimeoutMillis, DIRECT_RUNTIME_CONNECT_TIMEOUT_MS);
+  assert.equal(timeoutClient[0].query_timeout, DIRECT_RUNTIME_STATEMENT_TIMEOUT_MS);
+  assert.equal(timeoutClient[0].statement_timeout, DIRECT_RUNTIME_STATEMENT_TIMEOUT_MS);
+  assert.deepEqual(stderr, ['membership rehearsal probe refused: direct runtime probe failed; stop and do not retry against another target\n']);
+
+  let foreignClientConstructed = false;
+  class ForeignClient {
+    constructor() {
+      foreignClientConstructed = true;
+    }
+  }
+  const foreignExitCode = await runProbe({
+    environment: { ...validEnvironment, MEMBERSHIP_REHEARSAL_DB_HOST: 'db.foreign.supabase.co' },
+    ClientConstructor: ForeignClient,
+    writeStdout: () => {},
+    writeStderr: () => {},
+  });
+  assert.equal(foreignExitCode, 1, 'a foreign target rejection must set the direct executable nonzero');
+  assert.equal(foreignClientConstructed, false, 'a foreign target must be rejected before a client can attempt a socket');
 });

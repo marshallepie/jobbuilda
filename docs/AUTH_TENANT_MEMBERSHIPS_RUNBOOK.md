@@ -527,7 +527,12 @@ a shell `.env` loader, a CLI URL flag, or any credential file. It reads only the
 named `MEMBERSHIP_REHEARSAL_*` environment values, rejects an inherited
 `DATABASE_URL`, validates the URL username/host/port/database/SSL mode against
 the reviewed tuple before creating a `pg` client, connects once with no role
-switch, and has no alternate URL or host path:
+switch, and has no alternate URL or host path. Its finite timeout policy is
+exactly **5,000 ms** for the `pg` `connectionTimeoutMillis`, `query_timeout`,
+and server `statement_timeout` options. A connection or statement that exceeds
+that bound fails the probe nonzero with the fixed redacted failure message; it
+does not print the driver/server error and must not be retried against another
+target:
 
 ```sh
 node services/identity-mcp/scripts/probe-membership-rehearsal-runtime.mjs
