@@ -136,7 +136,7 @@ test('registration pause creates no Supabase user, Stripe customer, or checkout'
   (stripe.checkout.sessions as any).create = originalCheckoutCreate;
 });
 
-test('retired share invoice-details route is not publicly reachable', async () => {
+test('retired share invoice-details route requires authentication before retirement handling', async () => {
   const app = Fastify();
   registerServerAuth(app, serverAuthDependencies);
   await shareRoutes(app);
@@ -147,6 +147,7 @@ test('retired share invoice-details route is not publicly reachable', async () =
     url: '/api/share/invoice/11111111-1111-4111-8111-111111111111/details',
   });
 
-  assert.equal(response.statusCode, 404);
+  assert.equal(response.statusCode, 401);
+  assert.deepEqual(response.json(), { error: 'A Supabase access token is required' });
   await app.close();
 });
