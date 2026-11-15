@@ -142,11 +142,16 @@ function assertWorkflowSelfTrigger(artifact) {
       'm',
     ))?.[1];
     assert.ok(triggerPaths, `${trigger} must declare a paths filter`);
-    assert.match(
-      triggerPaths,
-      /^      - \.github\/workflows\/membership-migration-artifact\.yml$/m,
-      `${trigger} paths must include this workflow so workflow-only edits validate it`,
-    );
+    for (const [path, purpose] of [
+      ['.github/workflows/membership-migration-artifact.yml', 'workflow-only edits validate it'],
+      ['services/identity-mcp/scripts/probe-membership-rehearsal-runtime.mjs', 'direct-runtime probe edits validate it'],
+    ]) {
+      assert.match(
+        triggerPaths,
+        new RegExp(`^      - ${regexEscape(path)}$`, 'm'),
+        `${trigger} paths must include ${path} so ${purpose}`,
+      );
+    }
   }
 }
 
@@ -633,12 +638,17 @@ test('workflow self-trigger assertions reject omitted push or pull-request paths
       /^  [^\n]+:\n(?:    [^\n]*\n|      [^\n]*\n)*/,
     )?.[0];
     assert.ok(triggerBlock, `${trigger} trigger block must be readable`);
-    const altered = workflowSource.replace(
-      triggerBlock,
-      triggerBlock.replace('      - .github/workflows/membership-migration-artifact.yml\n', ''),
-    );
-    assert.notEqual(altered, workflowSource, `${trigger} mutation must remove the workflow path`);
-    assert.throws(() => assertWorkflowSelfTrigger(altered), `${trigger} assertion must reject a missing workflow self-trigger path`);
+    for (const [path, label] of [
+      ['.github/workflows/membership-migration-artifact.yml', 'workflow self-trigger'],
+      ['services/identity-mcp/scripts/probe-membership-rehearsal-runtime.mjs', 'direct-runtime probe path'],
+    ]) {
+      const altered = workflowSource.replace(
+        triggerBlock,
+        triggerBlock.replace(`      - ${path}\n`, ''),
+      );
+      assert.notEqual(altered, workflowSource, `${trigger} mutation must remove the ${label}`);
+      assert.throws(() => assertWorkflowSelfTrigger(altered), `${trigger} assertion must reject a missing ${label}`);
+    }
   }
 });
 
