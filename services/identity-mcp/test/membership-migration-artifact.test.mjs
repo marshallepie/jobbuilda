@@ -216,6 +216,47 @@ function assertServiceRoleRemediationAndPostDdlAclAssertions(artifact) {
   );
 }
 
+function assertLifecycleGuardFunctionOwnership(artifact, markdown) {
+  const ownershipGuard = artifact.slice(
+    artifact.indexOf('-- This function is provider-owned only when it is absent or already belongs'),
+    artifact.indexOf('CREATE OR REPLACE FUNCTION public.auth_tenant_memberships_lifecycle_guard()'),
+  );
+  assert.match(ownershipGuard, /lifecycle_guard_oid oid := to_regprocedure\('public\.auth_tenant_memberships_lifecycle_guard\(\)'\)/);
+  assert.match(ownershipGuard, /FROM pg_trigger trigger\s+WHERE trigger\.tgfoid = lifecycle_guard_oid\) <> 2/s,
+    'an existing lifecycle guard must have exactly two trigger references');
+  for (const [name, type] of [
+    ['auth_tenant_memberships_lifecycle_guard', '31'],
+    ['auth_tenant_memberships_no_truncate', '34'],
+  ]) {
+    assert.match(
+      ownershipGuard,
+      new RegExp(String.raw`trigger\.tgfoid = lifecycle_guard_oid[\s\S]*?trigger\.tgrelid = 'public\.auth_tenant_memberships'::regclass[\s\S]*?trigger\.tgname = '${name}'[\s\S]*?NOT trigger\.tgisinternal[\s\S]*?trigger\.tgenabled = 'O'[\s\S]*?trigger\.tgtype = ${type}`),
+      `the existing lifecycle guard may be referenced only by canonical ${name}`,
+    );
+  }
+  assert.match(ownershipGuard, /stop before replacing the function or changing its ACL/);
+  assert.ok(ownershipGuard.length > 0, 'function ownership guard must precede CREATE OR REPLACE');
+  assert.ok(
+    artifact.indexOf('END $$;', artifact.indexOf('-- This function is provider-owned only when it is absent or already belongs'))
+      < artifact.indexOf('REVOKE ALL ON FUNCTION public.auth_tenant_memberships_lifecycle_guard() FROM PUBLIC;'),
+    'function ownership guard must precede the function ACL revoke',
+  );
+
+  const preflight = firstSqlBlockAfterHeading(markdown, '## Required provider preflight — no write');
+  for (const required of [
+    "to_regprocedure('public.auth_tenant_memberships_lifecycle_guard()') AS oid",
+    'LEFT JOIN pg_trigger AS trigger ON trigger.tgfoid = lifecycle_guard.oid',
+    'trigger.tgrelid::regclass AS trigger_relation',
+    'pg_get_triggerdef(trigger.oid) AS trigger_definition',
+  ]) assert.match(preflight, new RegExp(regexEscape(required)));
+  assert.match(markdown, new RegExp(regexEscape(
+    'safe to replace only when absent or referenced by\n-- exactly these two canonical triggers on this relation',
+  )));
+  assert.match(markdown, new RegExp(regexEscape(
+    'Any other result is a\n-- stop condition; do not apply the script or repair the dependency by hand',
+  )));
+}
+
 function assertMembershipLifecycleGuard(artifact) {
   for (const required of [
     'CREATE OR REPLACE FUNCTION public.auth_tenant_memberships_lifecycle_guard()',
@@ -247,10 +288,14 @@ function assertMembershipLifecycleGuard(artifact) {
     2,
     'the relation must define exactly the two canonical triggers, with no supplemental trigger definition',
   );
+  const triggerPostcondition = artifact.slice(
+    artifact.indexOf('-- CREATE TRIGGER has no IF NOT EXISTS.'),
+    artifact.indexOf('ALTER TABLE public.auth_tenant_memberships ENABLE ROW LEVEL SECURITY;'),
+  );
   assert.equal(
-    (artifact.match(/trigger\.tgenabled = 'O'/g) ?? []).length,
+    (triggerPostcondition.match(/trigger\.tgenabled = 'O'/g) ?? []).length,
     2,
-    'both canonical triggers must be enabled',
+    'both recreated canonical triggers must be enabled',
   );
   assert.equal(
     (artifact.match(/trigger\.tgfoid = 'public\.auth_tenant_memberships_lifecycle_guard\(\)'::regprocedure/g) ?? []).length,
@@ -423,6 +468,7 @@ test('membership migration is provider-only and has required safety controls', (
 
   assertPopulatedMembershipGuard(sql);
   assertLifecycleUniqueIndexPreflight(sql);
+  assertLifecycleGuardFunctionOwnership(sql, guide);
   assertMembershipLifecycleGuard(sql);
   assertExistingRelationAclPreflight(sql);
   assertServiceRoleRemediationAndPostDdlAclAssertions(sql);

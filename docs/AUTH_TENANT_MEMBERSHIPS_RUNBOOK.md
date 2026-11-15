@@ -59,6 +59,22 @@ SELECT policyname, roles, cmd, qual, with_check
 FROM pg_policies
 WHERE schemaname = 'public' AND tablename = 'auth_tenant_memberships';
 
+-- The lifecycle function is safe to replace only when absent or referenced by
+-- exactly these two canonical triggers on this relation. Any other result is a
+-- stop condition; do not apply the script or repair the dependency by hand.
+WITH lifecycle_guard AS (
+  SELECT to_regprocedure('public.auth_tenant_memberships_lifecycle_guard()') AS oid
+)
+SELECT lifecycle_guard.oid::regprocedure AS function_identity,
+       trigger.tgrelid::regclass AS trigger_relation,
+       trigger.tgname,
+       trigger.tgenabled,
+       trigger.tgisinternal,
+       pg_get_triggerdef(trigger.oid) AS trigger_definition
+FROM lifecycle_guard
+LEFT JOIN pg_trigger AS trigger ON trigger.tgfoid = lifecycle_guard.oid
+ORDER BY trigger_relation::text NULLS FIRST, trigger.tgname NULLS FIRST;
+
 SELECT COALESCE(role.rolname, 'PUBLIC') AS grantee, acl.privilege_type
 FROM pg_class relation
 CROSS JOIN LATERAL aclexplode(coalesce(relation.relacl, acldefault('r', relation.relowner))) acl

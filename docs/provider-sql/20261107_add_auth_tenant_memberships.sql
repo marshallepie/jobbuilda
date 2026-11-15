@@ -395,6 +395,42 @@ BEGIN
   END IF;
 END $$;
 
+-- This function is provider-owned only when it is absent or already belongs
+-- exclusively to the two canonical membership triggers. Never replace its body or
+-- change its ACL if another relation's trigger depends on it.
+DO $$
+DECLARE
+  lifecycle_guard_oid oid := to_regprocedure('public.auth_tenant_memberships_lifecycle_guard()');
+BEGIN
+  IF lifecycle_guard_oid IS NOT NULL AND (
+    (SELECT count(*)
+     FROM pg_trigger trigger
+     WHERE trigger.tgfoid = lifecycle_guard_oid) <> 2
+    OR NOT EXISTS (
+      SELECT 1
+      FROM pg_trigger trigger
+      WHERE trigger.tgfoid = lifecycle_guard_oid
+        AND trigger.tgrelid = 'public.auth_tenant_memberships'::regclass
+        AND trigger.tgname = 'auth_tenant_memberships_lifecycle_guard'
+        AND NOT trigger.tgisinternal
+        AND trigger.tgenabled = 'O'
+        AND trigger.tgtype = 31
+    )
+    OR NOT EXISTS (
+      SELECT 1
+      FROM pg_trigger trigger
+      WHERE trigger.tgfoid = lifecycle_guard_oid
+        AND trigger.tgrelid = 'public.auth_tenant_memberships'::regclass
+        AND trigger.tgname = 'auth_tenant_memberships_no_truncate'
+        AND NOT trigger.tgisinternal
+        AND trigger.tgenabled = 'O'
+        AND trigger.tgtype = 34
+    )
+  ) THEN
+    RAISE EXCEPTION 'Existing public.auth_tenant_memberships_lifecycle_guard() is not exclusively referenced by the two canonical public.auth_tenant_memberships triggers; stop before replacing the function or changing its ACL';
+  END IF;
+END $$;
+
 -- Membership rows are historical authorization records. RLS and table ACLs do
 -- not constrain an owner, service role, or other privileged direct-DML path, so
 -- enforce the lifecycle in a table trigger as well. An approved rebind is a new
