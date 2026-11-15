@@ -254,16 +254,28 @@ BEGIN
     RAISE EXCEPTION 'Existing auth_tenant_memberships RLS policy is incompatible; expected only the canonical runtime SELECT policy';
   END IF;
 
+  -- A legacy zero-row relation may retain only the provider's service_role table
+  -- ACLs. They are removed after CREATE TABLE IF NOT EXISTS below; every other
+  -- non-owner relation ACL remains incompatible before any lifecycle DDL.
   IF EXISTS (
     SELECT 1
     FROM pg_class c
     CROSS JOIN LATERAL aclexplode(coalesce(c.relacl, acldefault('r', c.relowner))) acl
     LEFT JOIN pg_roles r ON r.oid = acl.grantee
     WHERE c.oid = membership_oid
-      AND (acl.grantee = 0 OR r.rolname IN ('anon', 'authenticated'))
-      AND acl.privilege_type IN ('SELECT', 'INSERT', 'UPDATE', 'DELETE', 'TRUNCATE', 'REFERENCES', 'TRIGGER')
+      AND acl.grantee <> c.relowner
+      AND r.rolname IS DISTINCT FROM 'service_role'
+  ) OR EXISTS (
+    SELECT 1
+    FROM pg_class c
+    JOIN pg_attribute a ON a.attrelid = c.oid
+    CROSS JOIN LATERAL aclexplode(coalesce(a.attacl, acldefault('c', c.relowner))) acl
+    WHERE c.oid = membership_oid
+      AND a.attnum > 0
+      AND NOT a.attisdropped
+      AND acl.grantee <> c.relowner
   ) OR NOT (SELECT relrowsecurity FROM pg_class WHERE oid = membership_oid) THEN
-    RAISE EXCEPTION 'Existing auth_tenant_memberships RLS or grants are incompatible; expected RLS enabled without browser-role access';
+    RAISE EXCEPTION 'Existing auth_tenant_memberships RLS or ACLs are incompatible; expected RLS enabled, only legacy service_role relation ACLs, and no non-owner column ACLs';
   END IF;
 
   IF EXISTS (
@@ -323,6 +335,12 @@ CREATE TABLE IF NOT EXISTS public.auth_tenant_memberships (
     (status = 'revoked' AND revoked_at IS NOT NULL)
   )
 );
+
+-- The legacy provider-created zero-row relation may have only service_role ACLs.
+-- Remove those ACLs on this table only; do not alter default privileges, roles,
+-- or ACLs on any other relation. The exact coordinator SELECT grant is a later,
+-- separately approved operation in the runbook.
+REVOKE ALL PRIVILEGES ON TABLE public.auth_tenant_memberships FROM service_role;
 
 CREATE UNIQUE INDEX IF NOT EXISTS auth_tenant_memberships_one_active_auth_user
   ON public.auth_tenant_memberships (auth_user_id)
@@ -487,6 +505,35 @@ BEGIN
       FOR SELECT
       TO PUBLIC
       USING (current_user = session_user);
+  END IF;
+END $$;
+
+-- Assert the table-local service_role remediation and fail closed for every
+-- remaining non-owner relation or column ACL. Do not alter default privileges,
+-- roles, or any other relation to make this pass.
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1
+    FROM pg_class c
+    CROSS JOIN LATERAL aclexplode(coalesce(c.relacl, acldefault('r', c.relowner))) acl
+    WHERE c.oid = 'public.auth_tenant_memberships'::regclass
+      AND acl.grantee <> c.relowner
+  ) THEN
+    RAISE EXCEPTION 'auth_tenant_memberships has non-owner direct table ACLs after DDL; remediate the grant source and rerun the complete script';
+  END IF;
+
+  IF EXISTS (
+    SELECT 1
+    FROM pg_class c
+    JOIN pg_attribute a ON a.attrelid = c.oid
+    CROSS JOIN LATERAL aclexplode(coalesce(a.attacl, acldefault('c', c.relowner))) acl
+    WHERE c.oid = 'public.auth_tenant_memberships'::regclass
+      AND a.attnum > 0
+      AND NOT a.attisdropped
+      AND acl.grantee <> c.relowner
+  ) THEN
+    RAISE EXCEPTION 'auth_tenant_memberships has non-owner column ACLs after DDL; remediate the grant source and rerun the complete script';
   END IF;
 END $$;
 COMMENT ON TABLE public.auth_tenant_memberships IS

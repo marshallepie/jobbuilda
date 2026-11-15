@@ -29,6 +29,16 @@ function assertCanonicalDefault(artifact, column, expression) {
 }
 
 const coordinatorPreflightHeading = '### Coordinator `DATABASE_URL` runtime-role preflight — required, no write';
+const postApplySchemaReadbackHeading = '## Post-apply schema readback — required before coordinator grant, mapping, or application release';
+const postGrantCoordinatorVerificationHeading = '## Post-grant coordinator-role verification — required before mapping or application release';
+
+function sectionAfterHeading(markdown, heading) {
+  const headingOffset = markdown.indexOf(heading);
+  assert.notEqual(headingOffset, -1, `runbook must contain ${heading}`);
+  const afterHeading = markdown.slice(headingOffset + heading.length);
+  const nextSectionOffset = afterHeading.indexOf('\n## ');
+  return nextSectionOffset === -1 ? afterHeading : afterHeading.slice(0, nextSectionOffset);
+}
 
 function firstSqlBlockAfterHeading(markdown, heading) {
   const headingOffset = markdown.indexOf(heading);
@@ -152,6 +162,47 @@ function assertRuntimeLookupPolicy(artifact) {
   assert.doesNotMatch(artifact, /CREATE POLICY[\s\S]*?FOR ALL/s, 'runtime policy must not authorize mutations');
 }
 
+function assertExistingRelationAclPreflight(artifact) {
+  assert.match(
+    artifact,
+    /FROM pg_class c\s+CROSS JOIN LATERAL aclexplode\(coalesce\(c\.relacl, acldefault\('r', c\.relowner\)\)\) acl\s+LEFT JOIN pg_roles r ON r\.oid = acl\.grantee\s+WHERE c\.oid = membership_oid\s+AND acl\.grantee <> c\.relowner\s+AND r\.rolname IS DISTINCT FROM 'service_role'/s,
+    'a pre-existing membership relation may tolerate only service_role relation ACLs',
+  );
+  assert.match(
+    artifact,
+    /JOIN pg_attribute a ON a\.attrelid = c\.oid\s+CROSS JOIN LATERAL aclexplode\(coalesce\(a\.attacl, acldefault\('c', c\.relowner\)\)\) acl\s+WHERE c\.oid = membership_oid\s+AND a\.attnum > 0\s+AND NOT a\.attisdropped\s+AND acl\.grantee <> c\.relowner/s,
+    'a pre-existing membership relation must reject every non-owner column ACL',
+  );
+  assert.match(
+    artifact,
+    /Existing auth_tenant_memberships RLS or ACLs are incompatible; expected RLS enabled, only legacy service_role relation ACLs, and no non-owner column ACLs/,
+  );
+}
+
+function assertServiceRoleRemediationAndPostDdlAclAssertions(artifact) {
+  const createTableOffset = artifact.indexOf('CREATE TABLE IF NOT EXISTS public.auth_tenant_memberships');
+  const revoke = 'REVOKE ALL PRIVILEGES ON TABLE public.auth_tenant_memberships FROM service_role;';
+  const revokeOffset = artifact.indexOf(revoke);
+  assert.notEqual(createTableOffset, -1, 'membership table creation must exist');
+  assert.ok(revokeOffset > createTableOffset, 'service_role revoke must occur after CREATE TABLE IF NOT EXISTS');
+  assert.ok(
+    revokeOffset < artifact.indexOf('CREATE UNIQUE INDEX IF NOT EXISTS auth_tenant_memberships_one_active_auth_user'),
+    'service_role revoke must precede subsequent membership DDL',
+  );
+
+  const postPolicy = artifact.slice(artifact.indexOf('CREATE POLICY auth_tenant_memberships_runtime_select'));
+  assert.match(
+    postPolicy,
+    /remaining non-owner relation or column ACL[\s\S]*?FROM pg_class c\s+CROSS JOIN LATERAL aclexplode\(coalesce\(c\.relacl, acldefault\('r', c\.relowner\)\)\) acl\s+WHERE c\.oid = 'public\.auth_tenant_memberships'::regclass\s+AND acl\.grantee <> c\.relowner[\s\S]*?non-owner direct table ACLs after DDL/s,
+    'post-DDL assertion must reject every remaining non-owner relation ACL',
+  );
+  assert.match(
+    postPolicy,
+    /JOIN pg_attribute a ON a\.attrelid = c\.oid\s+CROSS JOIN LATERAL aclexplode\(coalesce\(a\.attacl, acldefault\('c', c\.relowner\)\)\) acl\s+WHERE c\.oid = 'public\.auth_tenant_memberships'::regclass\s+AND a\.attnum > 0\s+AND NOT a\.attisdropped\s+AND acl\.grantee <> c\.relowner[\s\S]*?non-owner column ACLs after DDL/s,
+    'post-DDL assertion must reject every non-owner column ACL',
+  );
+}
+
 function assertMembershipLifecycleGuard(artifact) {
   for (const required of [
     'CREATE OR REPLACE FUNCTION public.auth_tenant_memberships_lifecycle_guard()',
@@ -223,6 +274,28 @@ function assertDirectRuntimeEvidenceBoundary(markdown) {
   ]) assert.match(markdown, new RegExp(regexEscape(required)));
 }
 
+function assertPostApplyAndPostGrantAclReadback(markdown) {
+  const postApply = sectionAfterHeading(markdown, postApplySchemaReadbackHeading);
+  const postGrant = sectionAfterHeading(markdown, postGrantCoordinatorVerificationHeading);
+
+  for (const required of [
+    'Before the separate coordinator authorization',
+    'Do **not** rerun the Coordinator `DATABASE_URL` runtime-role preflight\nat this stage',
+    'that preflight requires the separately approved direct coordinator\n`SELECT` grant',
+    'both the relation-ACL and column-ACL inventories\nreturn **zero rows**',
+  ]) assert.match(postApply, new RegExp(regexEscape(required)));
+
+  for (const required of [
+    'Only after the preceding post-apply schema readback has recorded zero non-owner\nrelation and column ACL rows',
+    'perform **Authorize the verified coordinator runtime\nlookup — separate approved operation** above. Then rerun the exact **Coordinator\n`DATABASE_URL` runtime-role preflight** block',
+    "WHERE relation.oid = 'public.auth_tenant_memberships'::regclass\n  AND acl.grantee <> relation.relowner",
+    'AND a.attnum > 0\n  AND NOT a.attisdropped\n  AND acl.grantee <> relation.relowner',
+    'relation inventory returns **exactly one**\nnon-owner row—the reviewed coordinator runtime role with `SELECT`',
+    'ACL inventory returns **zero rows**',
+    'this is a direct grant, no other non-owner `SELECT` grantee exists',
+  ]) assert.match(postGrant, new RegExp(regexEscape(required)));
+}
+
 test('membership migration is provider-only and has required safety controls', () => {
   assert.equal(existsSync(providerScript), true, 'provider script must exist');
   assert.equal(existsSync(runbook), true, 'operator runbook must exist');
@@ -269,9 +342,16 @@ test('membership migration is provider-only and has required safety controls', (
   assertPopulatedMembershipGuard(sql);
   assertLifecycleUniqueIndexPreflight(sql);
   assertMembershipLifecycleGuard(sql);
+  assertExistingRelationAclPreflight(sql);
+  assertServiceRoleRemediationAndPostDdlAclAssertions(sql);
   assertWorkflowSelfTrigger(workflowSource);
   assert.match(guide, /canonical relation created by this script \*\*with zero rows\*\*/);
-  assert.match(guide, /Any existing membership row is\s+a stop condition: the script fails before DDL/);
+  assert.match(guide, /no non-owner column ACLs/);
+  assert.match(guide, /relation\*\* ACLs for `service_role` only/);
+  assert.match(guide, /this script revokes\s+those ACLs from this table only after `CREATE TABLE IF NOT EXISTS`/);
+  assert.match(guide, /script does not identify or grant the coordinator runtime role/);
+  assert.match(guide, /separately\s+approved exact-role `SELECT` grant later in this runbook/);
+  assert.match(guide, /Any existing membership row is a stop\s+condition: the script fails before DDL/);
   assert.match(guide, /Existing-membership lock policy and retry/);
   assert.match(guide, /transaction-local `lock_timeout` of \*\*5 seconds\*\* before requesting its\s+`ACCESS EXCLUSIVE` lock/);
   assert.match(guide, /Could not acquire\s+ACCESS EXCLUSIVE lock \.\.\. within 5 seconds/);
@@ -340,21 +420,22 @@ test('membership migration is provider-only and has required safety controls', (
   const coordinatorPreflightSql = firstSqlBlockAfterHeading(guide, coordinatorPreflightHeading);
   assertCoordinatorRuntimeRolePreflight(coordinatorPreflightSql);
   assertDirectRuntimeEvidenceBoundary(guide);
+  assertPostApplyAndPostGrantAclReadback(guide);
   assert.match(guide, /cannot own or ALTER\/DDL public\.auth_tenant_memberships/);
   assert.match(guide, /Authorize the verified coordinator runtime lookup — separate approved operation/);
   assert.match(guide, /direct `SELECT` grant to the reviewed deployment role/);
   assert.match(guide, /EXECUTE format\('GRANT SELECT ON TABLE public\.auth_tenant_memberships TO %I', configured_role\)/);
   assert.match(guide, /only the configured coordinator runtime role may hold non-owner SELECT/);
-  assert.match(guide, /rerun the exact \*\*Coordinator `DATABASE_URL` runtime-role preflight\*\* block/);
-  assert.match(guide, /changed\/unknown\s+role is a stop condition/);
+  assert.match(guide, /Then rerun the exact \*\*Coordinator\s+`DATABASE_URL` runtime-role preflight\*\* block/);
+  assert.match(guide, /A changed\/unknown role, a failed preflight/);
   assert.match(
     coordinatorDbSource,
     /new Pool\(\{\s+connectionString: process\.env\.DATABASE_URL,/s,
     'coordinator Pool must use DATABASE_URL for its connection identity',
   );
-  assert.doesNotMatch(sql, /\bGRANT\b/i, 'provider script must not grant a guessed coordinator role');
-  assert.doesNotMatch(sql, /\b(postgres|service_role)\b/i, 'provider script must not guess a provider role');
-  assert.match(guide, /Readback — required before mapping or application release/);
+  assert.doesNotMatch(sql, /^\s*GRANT\b/im, 'provider script must not grant a guessed coordinator role');
+  assert.doesNotMatch(sql, /\bpostgres\b/i, 'provider script must not guess a provider superuser role');
+  assert.match(guide, /Post-apply schema readback — required before coordinator grant, mapping, or application release/);
   assert.match(guide, /fails closed for every unique index or constraint except the\s+exact canonical `id` primary key/);
   assert.match(guide, /expression-key indexes\s+\(`indkey` attribute `0`\) and semantically all-row predicates such as `WHERE TRUE`/);
   assert.match(guide, /does not reject\s+unrelated supplemental \*\*non-unique\*\* indexes/);
@@ -364,6 +445,10 @@ test('membership migration is provider-only and has required safety controls', (
   assert.match(guide, /canonical defaults are required exactly/);
   assert.match(guide, /SELECT count\(\*\) AS policy_count\s+FROM pg_policies/);
   assert.match(guide, /policy_count.*must be `1`/);
+  assert.match(guide, /both the relation-ACL and column-ACL inventories\s+return \*\*zero rows\*\*/);
+  assert.match(guide, /REVOKE ALL PRIVILEGES ON TABLE public\.auth_tenant_memberships FROM service_role/);
+  assert.match(guide, /table-local and does not change default privileges, roles, or any other\s+table/);
+  assert.match(guide, /exact coordinator `SELECT` grant remains the later separately approved\s+operation/);
 
   const revocationSection = guide.slice(guide.indexOf('## Revoke access'));
   const revocationSql = revocationSection.match(/```sql\n([\s\S]*?)```/)?.[1];
@@ -520,6 +605,30 @@ test('runtime lookup policy assertions reject browser-readable or role-switch va
   }
 });
 
+test('existing relation ACL preflight permits only legacy service_role relation ACLs and rejects column ACLs', () => {
+  for (const [name, expected, replacement] of [
+    ['non-service role tolerance', "r.rolname IS DISTINCT FROM 'service_role'", "r.rolname NOT IN ('service_role', 'other_role')"],
+    ['service-role-only condition', "r.rolname IS DISTINCT FROM 'service_role'", 'FALSE'],
+    ['column ACL condition', 'AND a.attnum > 0\n      AND NOT a.attisdropped\n      AND acl.grantee <> c.relowner', 'AND a.attnum > 0\n      AND NOT a.attisdropped\n      AND acl.grantee = c.relowner'],
+  ]) {
+    const altered = sql.replace(expected, replacement);
+    assert.notEqual(altered, sql, `${name} mutation must alter the provider script`);
+    assert.throws(() => assertExistingRelationAclPreflight(altered), `${name} assertion must reject a weakened existing-relation ACL preflight`);
+  }
+});
+
+test('service_role remediation and post-DDL ACL assertions reject omission or bypasses', () => {
+  for (const [name, expected, replacement] of [
+    ['service_role revoke', 'REVOKE ALL PRIVILEGES ON TABLE public.auth_tenant_memberships FROM service_role;', '-- missing service_role remediation'],
+    ['post-DDL relation ACL condition', "WHERE c.oid = 'public.auth_tenant_memberships'::regclass\n      AND acl.grantee <> c.relowner\n  ) THEN\n    RAISE EXCEPTION 'auth_tenant_memberships has non-owner direct table ACLs after DDL", "WHERE c.oid = 'public.auth_tenant_memberships'::regclass\n      AND acl.grantee = c.relowner\n  ) THEN\n    RAISE EXCEPTION 'auth_tenant_memberships has non-owner direct table ACLs after DDL"],
+    ['post-DDL column ACL assertion', "RAISE EXCEPTION 'auth_tenant_memberships has non-owner column ACLs after DDL; remediate the grant source and rerun the complete script';", '-- missing column ACL assertion'],
+  ]) {
+    const altered = sql.replace(expected, replacement);
+    assert.notEqual(altered, sql, `${name} mutation must alter the provider script`);
+    assert.throws(() => assertServiceRoleRemediationAndPostDdlAclAssertions(altered), `${name} assertion must reject a weakened post-DDL ACL control`);
+  }
+});
+
 test('lifecycle trigger assertions reject deletion, reactivation, tuple mutation, or active-rebind weakening', () => {
   for (const [name, expected, replacement] of [
     ['DELETE guard', "IF TG_OP = 'DELETE' OR TG_OP = 'TRUNCATE' THEN", "IF TG_OP = 'TRUNCATE' THEN"],
@@ -561,6 +670,21 @@ test('lifecycle trigger assertions reject supplemental trigger definitions and c
     () => assertMembershipLifecycleGuard(namedOnlyCatalogCount),
     'a named-only trigger count must be rejected because it permits supplemental triggers',
   );
+});
+
+test('post-apply and post-grant ACL readback assertions reject reordered or weakened acceptance criteria', () => {
+  for (const [name, expected, replacement] of [
+    ['post-apply coordinator-preflight deferral', 'Do **not** rerun the Coordinator `DATABASE_URL` runtime-role preflight\nat this stage', 'Rerun the Coordinator `DATABASE_URL` runtime-role preflight at this stage'],
+    ['post-apply zero relation-and-column ACL result', 'both the relation-ACL and column-ACL inventories\nreturn **zero rows**', 'both ACL inventories may contain the coordinator grant'],
+    ['post-grant ordering', 'Only after the preceding post-apply schema readback has recorded zero non-owner\nrelation and column ACL rows', 'Before the post-apply schema readback'],
+    ['post-grant runtime-role preflight', 'Then rerun the exact **Coordinator\n`DATABASE_URL` runtime-role preflight** block', 'Then optionally inspect the runtime role'],
+    ['post-grant exactly-one relation ACL', 'relation inventory returns **exactly one**\nnon-owner row—the reviewed coordinator runtime role with `SELECT`', 'relation inventory returns any reviewed row'],
+    ['post-grant zero column ACLs', 'ACL inventory returns **zero rows**', 'ACL inventory may return reviewed column grants'],
+  ]) {
+    const altered = guide.replace(expected, replacement);
+    assert.notEqual(altered, guide, `${name} mutation must alter the runbook`);
+    assert.throws(() => assertPostApplyAndPostGrantAclReadback(altered), `${name} assertion must reject a weakened ACL readback sequence`);
+  }
 });
 
 test('direct runtime evidence boundary rejects SQL Editor substitution or target fallback', () => {

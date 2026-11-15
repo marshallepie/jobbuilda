@@ -59,19 +59,41 @@ SELECT policyname, roles, cmd, qual, with_check
 FROM pg_policies
 WHERE schemaname = 'public' AND tablename = 'auth_tenant_memberships';
 
-SELECT grantee, privilege_type
-FROM information_schema.role_table_grants
-WHERE table_schema = 'public' AND table_name = 'auth_tenant_memberships'
-  AND grantee IN ('PUBLIC', 'anon', 'authenticated')
-ORDER BY grantee, privilege_type;
+SELECT COALESCE(role.rolname, 'PUBLIC') AS grantee, acl.privilege_type
+FROM pg_class relation
+CROSS JOIN LATERAL aclexplode(coalesce(relation.relacl, acldefault('r', relation.relowner))) acl
+LEFT JOIN pg_roles role ON role.oid = acl.grantee
+WHERE relation.oid = to_regclass('public.auth_tenant_memberships')
+  AND acl.grantee <> relation.relowner
+ORDER BY grantee, acl.privilege_type;
+
+SELECT a.attname AS column_name,
+       COALESCE(role.rolname, 'PUBLIC') AS grantee,
+       acl.privilege_type
+FROM pg_class relation
+JOIN pg_attribute a ON a.attrelid = relation.oid
+CROSS JOIN LATERAL aclexplode(coalesce(a.attacl, acldefault('c', relation.relowner))) acl
+LEFT JOIN pg_roles role ON role.oid = acl.grantee
+WHERE relation.oid = to_regclass('public.auth_tenant_memberships')
+  AND a.attnum > 0
+  AND NOT a.attisdropped
+  AND acl.grantee <> relation.relowner
+ORDER BY column_name, grantee, acl.privilege_type;
 ```
 
 Expected pre-apply state is either: (a) no membership relation, or (b) the exact
 canonical relation created by this script **with zero rows**, the documented six
 constraints, the three named canonical indexes, RLS enabled, the one canonical
-runtime SELECT policy, and no browser-role grants. Any existing membership row is
-a stop condition: the script fails before DDL and the reviewed mapping lifecycle,
-not this schema script, is the only authorized path for that record. `public.users`
+runtime SELECT policy, and no non-owner column ACLs. A zero-row legacy relation
+may retain direct **relation** ACLs for `service_role` only; this script revokes
+those ACLs from this table only after `CREATE TABLE IF NOT EXISTS`. Every other
+non-owner relation ACL and every non-owner column ACL is a stop condition. This
+narrow remediation does not change default privileges, roles, or any other table.
+The script does not identify or grant the coordinator runtime role; the separately
+approved exact-role `SELECT` grant later in this runbook remains a separate
+operation after the migration has committed. Any existing membership row is a stop
+condition: the script fails before DDL and the reviewed mapping lifecycle, not
+this schema script, is the only authorized path for that record. `public.users`
 and `public.tenants` must be ordinary tables with NOT NULL UUID keys. A same-named
 
 ### Existing-membership lock policy and retry
@@ -358,8 +380,10 @@ For an existing membership table, the canonical defaults are required exactly:
 `activated_at = now()`. A missing or different default is incompatible; `CREATE
 TABLE IF NOT EXISTS` will not repair it.
 
-**Stop conditions:** any membership rows; unexpected policy/grant; wrong relation
-kind/column type/nullability; malformed same-named constraint/index; any unique
+**Stop conditions:** any membership rows; unexpected policy; any non-owner
+relation ACL other than the legacy `service_role` relation ACLs; or any non-owner
+column ACL; wrong relation kind/column type/nullability; malformed same-named
+constraint/index; any unique
 index or constraint other than the exact canonical `id` primary key or direct,
 active-only `auth_user_id`/`user_id` unique shapes (including expression keys,
 `INCLUDE` columns, and `WHERE TRUE`); any canonical index name attached to another
@@ -499,14 +523,16 @@ positive direct-login result with `SET ROLE`.
 4. Run the readback. Record repository commit, script path, project reference,
    query timestamp, operator, reviewer, and result in the approved change record.
 
-## Readback — required before mapping or application release
+## Post-apply schema readback — required before coordinator grant, mapping, or application release
 
-First rerun the exact **Coordinator `DATABASE_URL` runtime-role preflight** block
-above in the same approved production SQL Editor project, with the same reviewed
-non-secret deployment role name. It is the required role readback: record its
-`PASS` notice with the schema readback below. Any failure or a changed/unknown
-role is a stop condition; keep containment in place and do not use this R01a
-script or the SQL Editor to change grants, ownership, memberships, or roles.
+Before the separate coordinator authorization, run this schema readback in the
+same approved production SQL Editor project. Record its results with the script
+readback. Do **not** rerun the Coordinator `DATABASE_URL` runtime-role preflight
+at this stage: that preflight requires the separately approved direct coordinator
+`SELECT` grant, while this readback proves the script left no non-owner relation
+or column ACLs. Any unexpected result is a stop condition; keep containment in
+place and do not use this R01a script or the SQL Editor to change grants,
+ownership, memberships, or roles.
 
 ```sql
 SELECT c.relname, c.relrowsecurity
@@ -529,11 +555,26 @@ WHERE trigger.tgrelid = 'public.auth_tenant_memberships'::regclass
   AND NOT trigger.tgisinternal
 ORDER BY trigger.tgname;
 
-SELECT grantee, privilege_type
-FROM information_schema.role_table_grants
-WHERE table_schema = 'public' AND table_name = 'auth_tenant_memberships'
-  AND grantee IN ('PUBLIC', 'anon', 'authenticated')
-ORDER BY grantee, privilege_type;
+SELECT COALESCE(role.rolname, 'PUBLIC') AS grantee, acl.privilege_type
+FROM pg_class relation
+CROSS JOIN LATERAL aclexplode(coalesce(relation.relacl, acldefault('r', relation.relowner))) acl
+LEFT JOIN pg_roles role ON role.oid = acl.grantee
+WHERE relation.oid = 'public.auth_tenant_memberships'::regclass
+  AND acl.grantee <> relation.relowner
+ORDER BY grantee, acl.privilege_type;
+
+SELECT a.attname AS column_name,
+       COALESCE(role.rolname, 'PUBLIC') AS grantee,
+       acl.privilege_type
+FROM pg_class relation
+JOIN pg_attribute a ON a.attrelid = relation.oid
+CROSS JOIN LATERAL aclexplode(coalesce(a.attacl, acldefault('c', relation.relowner))) acl
+LEFT JOIN pg_roles role ON role.oid = acl.grantee
+WHERE relation.oid = 'public.auth_tenant_memberships'::regclass
+  AND a.attnum > 0
+  AND NOT a.attisdropped
+  AND acl.grantee <> relation.relowner
+ORDER BY column_name, grantee, acl.privilege_type;
 
 SELECT count(*) AS policy_count
 FROM pg_policies
@@ -542,7 +583,12 @@ WHERE schemaname = 'public' AND tablename = 'auth_tenant_memberships';
 SELECT count(*) AS mapping_count FROM public.auth_tenant_memberships;
 ```
 
-Required results: RLS enabled; no direct browser-role grants; composite
+Required results: RLS enabled; both the relation-ACL and column-ACL inventories
+return **zero rows**. The migration's only ACL remediation is
+`REVOKE ALL PRIVILEGES ON TABLE public.auth_tenant_memberships FROM service_role`,
+which is table-local and does not change default privileges, roles, or any other
+table. The exact coordinator `SELECT` grant remains the later separately approved
+operation in this runbook; composite
 `(user_id, tenant_id)` foreign key; two partial one-active unique indexes; exactly
 two enabled non-internal triggers—the row-level lifecycle trigger and
 statement-level no-truncate trigger—both attached to the canonical guard function;
@@ -551,7 +597,52 @@ no full-history tuple unique constraint; and
 trigger is a stop condition. The
 `policy_count` readback must be `1`, for the canonical
 `auth_tenant_memberships_runtime_select` SELECT policy only; it does not grant
-table privileges to browser roles.
+table privileges to browser roles. Do not add, revoke, or otherwise repair any
+ACL beyond the migration's table-local `service_role` revoke in this schema script:
+remediate any other grant source under the approved access-control process, then
+rerun the complete script.
+
+## Post-grant coordinator-role verification — required before mapping or application release
+
+Only after the preceding post-apply schema readback has recorded zero non-owner
+relation and column ACL rows, perform **Authorize the verified coordinator runtime
+lookup — separate approved operation** above. Then rerun the exact **Coordinator
+`DATABASE_URL` runtime-role preflight** block in the same approved production SQL
+Editor project with the same reviewed non-secret deployment role name. Record its
+`PASS` notice and the following ACL inventories in the approved change record.
+A changed/unknown role, a failed preflight, or any result outside the acceptance
+criteria below is a stop condition; keep containment in place.
+
+```sql
+SELECT COALESCE(role.rolname, 'PUBLIC') AS grantee, acl.privilege_type
+FROM pg_class relation
+CROSS JOIN LATERAL aclexplode(coalesce(relation.relacl, acldefault('r', relation.relowner))) acl
+LEFT JOIN pg_roles role ON role.oid = acl.grantee
+WHERE relation.oid = 'public.auth_tenant_memberships'::regclass
+  AND acl.grantee <> relation.relowner
+ORDER BY grantee, acl.privilege_type;
+
+SELECT a.attname AS column_name,
+       COALESCE(role.rolname, 'PUBLIC') AS grantee,
+       acl.privilege_type
+FROM pg_class relation
+JOIN pg_attribute a ON a.attrelid = relation.oid
+CROSS JOIN LATERAL aclexplode(coalesce(a.attacl, acldefault('c', relation.relowner))) acl
+LEFT JOIN pg_roles role ON role.oid = acl.grantee
+WHERE relation.oid = 'public.auth_tenant_memberships'::regclass
+  AND a.attnum > 0
+  AND NOT a.attisdropped
+  AND acl.grantee <> relation.relowner
+ORDER BY column_name, grantee, acl.privilege_type;
+```
+
+Required post-grant ACL results: the relation inventory returns **exactly one**
+non-owner row—the reviewed coordinator runtime role with `SELECT`—and the column
+ACL inventory returns **zero rows**. The preflight independently verifies that
+this is a direct grant, no other non-owner `SELECT` grantee exists, and the role
+has no write, ownership, superuser, `BYPASSRLS`, or unsafe reachable-role path.
+Do not add any further ACL; remediation of an unexpected result requires the
+approved access-control process followed by the complete applicable readback.
 
 ## Authorize one existing staff principal — separate approved operation
 
