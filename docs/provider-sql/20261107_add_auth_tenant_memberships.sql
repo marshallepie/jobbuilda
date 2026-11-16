@@ -415,6 +415,12 @@ BEGIN
         AND NOT trigger.tgisinternal
         AND trigger.tgenabled = 'O'
         AND trigger.tgtype = 31
+        AND trigger.tgqual IS NULL
+        AND trigger.tgattr = ''::int2vector
+        AND octet_length(trigger.tgargs) = 0
+        AND trigger.tgconstraint = 0
+        AND NOT trigger.tgdeferrable
+        AND NOT trigger.tginitdeferred
     )
     OR NOT EXISTS (
       SELECT 1
@@ -425,6 +431,12 @@ BEGIN
         AND NOT trigger.tgisinternal
         AND trigger.tgenabled = 'O'
         AND trigger.tgtype = 34
+        AND trigger.tgqual IS NULL
+        AND trigger.tgattr = ''::int2vector
+        AND octet_length(trigger.tgargs) = 0
+        AND trigger.tgconstraint = 0
+        AND NOT trigger.tgdeferrable
+        AND NOT trigger.tginitdeferred
     )
   ) THEN
     RAISE EXCEPTION 'Existing public.auth_tenant_memberships_lifecycle_guard() is not exclusively referenced by the two canonical public.auth_tenant_memberships triggers; stop before replacing the function or changing its ACL';
@@ -484,6 +496,9 @@ REVOKE ALL ON FUNCTION public.auth_tenant_memberships_lifecycle_guard() FROM PUB
 -- DROP TRIGGER IF EXISTS matches by trigger name, not function or trigger shape.
 -- Refuse to delete a same-named or supplemental user trigger unless the relation
 -- has no user triggers or exactly the two canonical enabled lifecycle triggers.
+-- Canonical means no WHEN predicate, UPDATE OF column list, trigger arguments,
+-- or constraint/deferred state; a same-named trigger with any of those fields
+-- must stop rather than be silently dropped and recreated.
 DO $$
 BEGIN
   IF (SELECT count(*)
@@ -503,6 +518,12 @@ BEGIN
            AND NOT trigger.tgisinternal
            AND trigger.tgenabled = 'O'
            AND trigger.tgtype = 31
+           AND trigger.tgqual IS NULL
+           AND trigger.tgattr = ''::int2vector
+           AND octet_length(trigger.tgargs) = 0
+           AND trigger.tgconstraint = 0
+           AND NOT trigger.tgdeferrable
+           AND NOT trigger.tginitdeferred
            AND trigger.tgfoid = 'public.auth_tenant_memberships_lifecycle_guard()'::regprocedure
        ) OR NOT EXISTS (
          SELECT 1
@@ -512,6 +533,12 @@ BEGIN
            AND NOT trigger.tgisinternal
            AND trigger.tgenabled = 'O'
            AND trigger.tgtype = 34
+           AND trigger.tgqual IS NULL
+           AND trigger.tgattr = ''::int2vector
+           AND octet_length(trigger.tgargs) = 0
+           AND trigger.tgconstraint = 0
+           AND NOT trigger.tgdeferrable
+           AND NOT trigger.tginitdeferred
            AND trigger.tgfoid = 'public.auth_tenant_memberships_lifecycle_guard()'::regprocedure
        )
      ) THEN
@@ -546,6 +573,12 @@ BEGIN
          AND NOT trigger.tgisinternal
          AND trigger.tgenabled = 'O'
          AND trigger.tgtype = 31
+         AND trigger.tgqual IS NULL
+         AND trigger.tgattr = ''::int2vector
+         AND octet_length(trigger.tgargs) = 0
+         AND trigger.tgconstraint = 0
+         AND NOT trigger.tgdeferrable
+         AND NOT trigger.tginitdeferred
          AND trigger.tgfoid = 'public.auth_tenant_memberships_lifecycle_guard()'::regprocedure
      ) OR NOT EXISTS (
        SELECT 1
@@ -555,6 +588,12 @@ BEGIN
          AND NOT trigger.tgisinternal
          AND trigger.tgenabled = 'O'
          AND trigger.tgtype = 34
+         AND trigger.tgqual IS NULL
+         AND trigger.tgattr = ''::int2vector
+         AND octet_length(trigger.tgargs) = 0
+         AND trigger.tgconstraint = 0
+         AND NOT trigger.tgdeferrable
+         AND NOT trigger.tginitdeferred
          AND trigger.tgfoid = 'public.auth_tenant_memberships_lifecycle_guard()'::regprocedure
      ) THEN
     RAISE EXCEPTION 'auth_tenant_memberships must have exactly two enabled non-internal canonical lifecycle triggers';

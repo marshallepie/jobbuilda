@@ -26,6 +26,15 @@ const probeSource = readFileSync(probeScript, 'utf8');
 
 const regexEscape = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
+const canonicalTriggerShapeChecks = [
+  'trigger.tgqual IS NULL',
+  "trigger.tgattr = ''::int2vector",
+  'octet_length(trigger.tgargs) = 0',
+  'trigger.tgconstraint = 0',
+  'NOT trigger.tgdeferrable',
+  'NOT trigger.tginitdeferred',
+];
+
 function assertCanonicalDefault(artifact, column, expression) {
   assert.match(
     artifact,
@@ -335,7 +344,7 @@ function assertLifecycleGuardFunctionOwnership(artifact, markdown) {
   ]) {
     assert.match(
       ownershipGuard,
-      new RegExp(String.raw`trigger\.tgfoid = lifecycle_guard_oid[\s\S]*?trigger\.tgrelid = 'public\.auth_tenant_memberships'::regclass[\s\S]*?trigger\.tgname = '${name}'[\s\S]*?NOT trigger\.tgisinternal[\s\S]*?trigger\.tgenabled = 'O'[\s\S]*?trigger\.tgtype = ${type}`),
+      new RegExp(String.raw`trigger\.tgfoid = lifecycle_guard_oid[\s\S]*?trigger\.tgrelid = 'public\.auth_tenant_memberships'::regclass[\s\S]*?trigger\.tgname = '${name}'[\s\S]*?NOT trigger\.tgisinternal[\s\S]*?trigger\.tgenabled = 'O'[\s\S]*?trigger\.tgtype = ${type}[\s\S]*?trigger\.tgqual IS NULL[\s\S]*?trigger\.tgattr = ''::int2vector[\s\S]*?octet_length\(trigger\.tgargs\) = 0[\s\S]*?trigger\.tgconstraint = 0[\s\S]*?NOT trigger\.tgdeferrable[\s\S]*?NOT trigger\.tginitdeferred`),
       `the existing lifecycle guard may be referenced only by canonical ${name}`,
     );
   }
@@ -389,7 +398,7 @@ function assertLifecycleTriggerReplacementPreflight(artifact) {
     const triggerCheck = preflight.slice(triggerStart, triggerCheckEnd + '::regprocedure'.length);
     assert.match(
       triggerCheck,
-      new RegExp(String.raw`trigger\.tgname = '${name}'[\s\S]*?NOT trigger\.tgisinternal[\s\S]*?trigger\.tgenabled = 'O'[\s\S]*?trigger\.tgtype = ${type}[\s\S]*?trigger\.tgfoid = 'public\.auth_tenant_memberships_lifecycle_guard\(\)'::regprocedure`),
+      new RegExp(String.raw`trigger\.tgname = '${name}'[\s\S]*?NOT trigger\.tgisinternal[\s\S]*?trigger\.tgenabled = 'O'[\s\S]*?trigger\.tgtype = ${type}[\s\S]*?trigger\.tgqual IS NULL[\s\S]*?trigger\.tgattr = ''::int2vector[\s\S]*?octet_length\(trigger\.tgargs\) = 0[\s\S]*?trigger\.tgconstraint = 0[\s\S]*?NOT trigger\.tgdeferrable[\s\S]*?NOT trigger\.tginitdeferred[\s\S]*?trigger\.tgfoid = 'public\.auth_tenant_memberships_lifecycle_guard\(\)'::regprocedure`),
       `preflight must require the enabled canonical ${name} trigger and lifecycle function identity`,
     );
   }
@@ -994,6 +1003,31 @@ test('lifecycle trigger replacement preflight statically rejects a same-named fo
     () => assertLifecycleTriggerReplacementPreflight(malformedArtifact),
     'the static assertion must reject a same-named trigger accepted with a foreign function identity',
   );
+});
+
+test('lifecycle trigger replacement preflight rejects non-canonical same-named trigger shapes', () => {
+  const preflightStart = sql.indexOf('-- DROP TRIGGER IF EXISTS matches by trigger name, not function or trigger shape.');
+  const firstDrop = sql.indexOf('DROP TRIGGER IF EXISTS auth_tenant_memberships_lifecycle_guard');
+  assert.notEqual(preflightStart, -1, 'trigger replacement preflight must exist');
+  assert.notEqual(firstDrop, -1, 'lifecycle trigger drop must exist');
+  const preflight = sql.slice(preflightStart, firstDrop);
+
+  for (const [name, expected, replacement] of [
+    ['WHEN predicate', canonicalTriggerShapeChecks[0], 'trigger.tgqual IS NOT NULL'],
+    ['UPDATE OF columns', canonicalTriggerShapeChecks[1], "trigger.tgattr <> ''::int2vector"],
+    ['trigger arguments', canonicalTriggerShapeChecks[2], 'octet_length(trigger.tgargs) >= 0'],
+    ['constraint trigger identity', canonicalTriggerShapeChecks[3], 'trigger.tgconstraint <> 0'],
+    ['deferrable flag', canonicalTriggerShapeChecks[4], 'trigger.tgdeferrable'],
+    ['initially deferred flag', canonicalTriggerShapeChecks[5], 'trigger.tginitdeferred'],
+  ]) {
+    const malformedPreflight = preflight.replace(expected, replacement);
+    assert.notEqual(malformedPreflight, preflight, `${name} mutation must alter the trigger replacement preflight`);
+    const malformedArtifact = `${sql.slice(0, preflightStart)}${malformedPreflight}${sql.slice(firstDrop)}`;
+    assert.throws(
+      () => assertLifecycleTriggerReplacementPreflight(malformedArtifact),
+      `${name} assertion must reject a same-named non-canonical trigger shape`,
+    );
+  }
 });
 
 test('lifecycle trigger assertions reject supplemental trigger definitions and catalog-count bypasses', () => {
