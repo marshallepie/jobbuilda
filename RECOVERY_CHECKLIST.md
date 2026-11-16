@@ -30,7 +30,7 @@ Every item below has the following fixed fields:
 
 - **Scope:** Prepare the server-owned staff membership schema without introducing a competing application migration ledger or a browser-readable identity mapping.
 - **Observable completion criterion:** The one provider script at `docs/provider-sql/20261107_add_auth_tenant_memberships.sql` has passed a disposable Supabase SQL Editor rehearsal and its required readback. Production application remains blocked until a named Supabase SQL Editor preflight, verified backup, one complete raw-script application, and required readback are recorded. The script is not present in `services/identity-mcp/migrations/`, and public registration remains closed.
-- **Implementation evidence / source area:** `docs/provider-sql/20261107_add_auth_tenant_memberships.sql`, `docs/AUTH_TENANT_MEMBERSHIPS_RUNBOOK.md`, `services/identity-mcp/test/membership-migration-artifact.test.mjs`.
+- **Implementation evidence / source area:** `docs/provider-sql/20261107_add_auth_tenant_memberships.sql`, `docs/AUTH_TENANT_MEMBERSHIPS_RUNBOOK.md`, `docs/R01A_SUPABASE_BRANCH_ADDRESSABILITY_DISCOVERY_20261116.md` (read-only provider discovery checkpoint), `services/identity-mcp/test/membership-migration-artifact.test.mjs`.
 - **Validation method:** Run `pnpm --filter @jobbuilda/identity-mcp test:migration-artifact`; in the approved disposable provider project follow the runbook's named SQL Editor preflight, complete-script rehearsal, repeat-run idempotency check, and readback. No database migration is applied from this branch or through node-pg-migrate.
 - **Classification:** **release blocker**.
 
