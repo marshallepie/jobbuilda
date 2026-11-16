@@ -4,7 +4,7 @@
 
 This is the fixed, non-production recovery-release checklist for restoring the established JobBuilda operational flows. It is a verification and release-gating record, not a claim that the flows currently work.
 
-**Current factual baseline:** `apps/coordinator/src/lib/auth.ts` deliberately throws for coordinator account access; `apps/coordinator/test/account-isolation-containment.test.ts` verifies the resulting 503 containment for tenant routes and for paused registration. The client-portal implementation and its focused test remain in the tree. Therefore all authenticated admin workflows below remain **release blockers** until a server-verified identity and durable tenant membership implementation is present and the stated tests pass.
+**Current factual baseline:** `apps/coordinator/src/lib/auth.ts` implements server-verified Supabase bearer-token authentication and an active staff-membership lookup, while rejecting caller-selected tenant, user, and scope headers. The required `public.auth_tenant_memberships` schema has not passed its disposable-provider rehearsal or been applied, so production staff access remains fail-closed until R01/R01a/R03 have recorded the required non-production evidence. `apps/coordinator/test/account-isolation-containment.test.ts` verifies the current containment response for unavailable tenant access and for paused registration. The client-portal implementation and its focused test remain in the tree. Therefore all authenticated admin workflows below remain **release blockers** until the stated tests pass.
 
 ### Required checklist item structure
 
