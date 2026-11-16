@@ -419,13 +419,26 @@ function assertDirectRuntimeEvidenceBoundary(markdown) {
     'SQL Editor evidence is deliberately limited to schema,\ncatalog, lifecycle, and RLS-negative rehearsal.',
     'current_user <> session_user',
     'Mandatory direct coordinator-role positive probe — disposable target only',
-    'MEMBERSHIP_REHEARSAL_TARGET_REF=afygozgefepayoenwccl',
+    'former `afygozgefepayoenwccl`',
+    'retired and forbidden',
+    'fresh approved, addressable disposable\nbranch decision',
+    'provider cost approval',
+    'status `ACTIVE_HEALTHY`; and `with_data=false`',
+    'clean no-membership baseline',
+    'Do not reset,\nreuse, repair, or fall back to another branch, the parent, or production',
+    'MEMBERSHIP_REHEARSAL_TARGET_REF`, immutable',
     'MEMBERSHIP_REHEARSAL_PARENT_REF=jnwxueomquywrqcgbgfd',
     'MEMBERSHIP_REHEARSAL_RUNTIME_ROLE',
     'MEMBERSHIP_REHEARSAL_DB_HOST',
     'MEMBERSHIP_REHEARSAL_DB_PORT',
     'MEMBERSHIP_REHEARSAL_DB_NAME',
     'MEMBERSHIP_REHEARSAL_DATABASE_URL',
+    'distinct correctly formatted Supabase project ref',
+    '**Two independent gates are mandatory.** **(A) Provider discovery and approval**',
+    'plus Dashboard verification establish the selected branch\'s parent, status,\n`with_data`, and addressability.',
+    '**(B) The Node probe** validates only the\nsupplied target-ref format, immutable parent ref, target/parent inequality and\nretired-target denial, direct host/port/database, runtime role, and URL tuple.',
+    'It does not query the provider control plane or Dashboard and cannot prove provider\napproval, branch parent, status, `with_data`, or addressability. If the required\nprovider evidence is absent, do not run the Node probe.',
+    'direct endpoint is exactly `db.<target-ref>.supabase.co:5432/postgres`',
     'There is **no\nprovider fallback and no production fallback**',
     'Node.js 20.11 or\nnewer',
     'exactly **5,000 ms** for the `pg` `connectionTimeoutMillis`, `query_timeout`,\nand server `statement_timeout` options',
@@ -442,9 +455,9 @@ function assertDirectRuntimeEvidenceBoundary(markdown) {
 
 function assertRestrictedDirectRuntimeProbe(artifact) {
   for (const required of [
-    "const APPROVED_TARGET_REF = 'afygozgefepayoenwccl';",
-    "const APPROVED_PARENT_REF = 'jnwxueomquywrqcgbgfd';",
-    'const APPROVED_DIRECT_HOST = `db.${APPROVED_TARGET_REF}.supabase.co`;',
+    "const EXPECTED_PARENT_REF = 'jnwxueomquywrqcgbgfd';",
+    "const RETIRED_TARGET_REF = 'afygozgefepayoenwccl';",
+    'const SUPABASE_PROJECT_REF = /^[a-z]{20}$/;',
     "const APPROVED_DIRECT_PORT = '5432';",
     "const APPROVED_DATABASE_NAME = 'postgres';",
     'export const DIRECT_RUNTIME_CONNECT_TIMEOUT_MS = 5_000;',
@@ -453,11 +466,13 @@ function assertRestrictedDirectRuntimeProbe(artifact) {
     'if (environment.DATABASE_URL?.trim())',
     "throw new Error('DATABASE_URL fallback is forbidden')",
     'new URL(values.MEMBERSHIP_REHEARSAL_DATABASE_URL)',
-    'url.hostname.toLowerCase() !== APPROVED_DIRECT_HOST',
+    'values.MEMBERSHIP_REHEARSAL_TARGET_REF === EXPECTED_PARENT_REF',
+    'values.MEMBERSHIP_REHEARSAL_TARGET_REF === RETIRED_TARGET_REF',
+    'url.hostname.toLowerCase() !== `db.${values.MEMBERSHIP_REHEARSAL_TARGET_REF}.supabase.co`',
     'url.port !== APPROVED_DIRECT_PORT',
     'decodeURIComponent(url.pathname.slice(1)) !== APPROVED_DATABASE_NAME',
     'decodeURIComponent(url.username) !== values.MEMBERSHIP_REHEARSAL_RUNTIME_ROLE',
-    "['service_role', 'postgres', 'supabase_admin']",
+    "runtimeRole === 'service_role' || runtimeRole === 'postgres' || runtimeRole.startsWith('supabase_')",
     'new ClientConstructor({',
     'connectionTimeoutMillis: DIRECT_RUNTIME_CONNECT_TIMEOUT_MS',
     'query_timeout: DIRECT_RUNTIME_STATEMENT_TIMEOUT_MS',
@@ -483,6 +498,8 @@ function assertRestrictedDirectRuntimeProbe(artifact) {
   ]) assert.match(artifact, new RegExp(regexEscape(required)));
 
   assert.doesNotMatch(artifact, /process\.env\.DATABASE_URL(?!\?\.trim)/, 'probe must never use DATABASE_URL as a connection fallback');
+  assert.doesNotMatch(artifact, /\bfetch\(|https?:\/\/|ACTIVE_HEALTHY|with_data\b/i,
+    'probe must not perform or claim provider discovery, approval, or branch-status validation');
   assert.doesNotMatch(artifact, /process\.argv(?!\[1\])|dotenv|\.env(?:[/'"]|$)|\bPool\(/, 'probe must not accept CLI credentials, load credential files, or create a pool');
   assert.doesNotMatch(artifact, /import\.meta\.main/, 'probe CLI entrypoint must support Node.js 20.11');
   assert.doesNotMatch(artifact, /INSERT\s+INTO|UPDATE\s+public|DELETE\s+FROM|SET ROLE|BEGIN;|COMMIT;/i, 'probe must issue no mutation, role switch, or transaction control');
@@ -494,9 +511,9 @@ function assertSyntheticFixtureLifecycle(markdown) {
     'fixture register outside this migration',
     'newly generated UUIDs',
     'public.users.tenant_id` equals the\nfixture tenant',
-    'freshly reset disposable branch state',
-    'Never reuse a reset that contains a malformed table',
-    'read back the named malformed object and confirm that it remains unchanged after\nthe provider-script rollback',
+    'newly approved, addressable\ndisposable branch',
+    'Never reuse a branch that contains a malformed table',
+    'read back the named\nmalformed object and confirm that it remains unchanged after the provider-script\nrollback',
     'exactly two historical\nrows, exactly one active/unrevoked row',
     'After the positive probe, revoke the active synthetic row',
     'zero active/unrevoked rows and two retained revoked rows',
@@ -969,7 +986,7 @@ test('post-apply and post-grant ACL readback assertions reject reordered or weak
 test('direct runtime evidence boundary rejects SQL Editor substitution or target fallback', () => {
   for (const [name, expected, replacement] of [
     ['SQL Editor negative boundary', 'current_user <> session_user', 'current_user = session_user'],
-    ['disposable target binding', 'MEMBERSHIP_REHEARSAL_TARGET_REF=afygozgefepayoenwccl', 'MEMBERSHIP_REHEARSAL_TARGET_REF=foreign'],
+    ['disposable target binding', 'distinct correctly formatted Supabase project ref', 'unrestricted target ref'],
     ['no production fallback', 'provider fallback and no production fallback', 'provider fallback is allowed'],
     ['finite timeout policy', 'exactly **5,000 ms** for the `pg` `connectionTimeoutMillis`, `query_timeout`,\nand server `statement_timeout` options', 'use provider defaults'],
     ['login identity check', 'current_user = session_user AS direct_login_identity', 'true AS direct_login_identity'],
@@ -987,11 +1004,13 @@ test('direct runtime evidence boundary rejects SQL Editor substitution or target
 
 test('restricted direct-runtime probe and synthetic fixture lifecycle reject weakened controls', () => {
   for (const [name, expected, replacement] of [
-    ['hard-coded target', "const APPROVED_TARGET_REF = 'afygozgefepayoenwccl';", "const APPROVED_TARGET_REF = process.env.MEMBERSHIP_REHEARSAL_TARGET_REF;"],
-    ['hard-coded parent', "const APPROVED_PARENT_REF = 'jnwxueomquywrqcgbgfd';", "const APPROVED_PARENT_REF = process.env.MEMBERSHIP_REHEARSAL_PARENT_REF;"],
+    ['target format validation', 'const SUPABASE_PROJECT_REF = /^[a-z]{20}$/;', 'const SUPABASE_PROJECT_REF = /.*/;'],
+    ['immutable parent', "const EXPECTED_PARENT_REF = 'jnwxueomquywrqcgbgfd';", 'const EXPECTED_PARENT_REF = process.env.MEMBERSHIP_REHEARSAL_PARENT_REF;'],
+    ['target-parent distinction', 'values.MEMBERSHIP_REHEARSAL_TARGET_REF === EXPECTED_PARENT_REF', 'false'],
+    ['retired target rejection', 'values.MEMBERSHIP_REHEARSAL_TARGET_REF === RETIRED_TARGET_REF', 'false'],
     ['DATABASE_URL fallback rejection', "throw new Error('DATABASE_URL fallback is forbidden')", "// fallback allowed"],
-    ['direct host equality', 'url.hostname.toLowerCase() !== APPROVED_DIRECT_HOST', 'false'],
-    ['service-role rejection', "['service_role', 'postgres', 'supabase_admin']", "['postgres', 'supabase_admin']"],
+    ['direct host equality', 'url.hostname.toLowerCase() !== `db.${values.MEMBERSHIP_REHEARSAL_TARGET_REF}.supabase.co`', 'false'],
+    ['managed role rejection', "runtimeRole === 'service_role' || runtimeRole === 'postgres' || runtimeRole.startsWith('supabase_')", 'false'],
     ['finite connection timeout constant', 'export const DIRECT_RUNTIME_CONNECT_TIMEOUT_MS = 5_000;', 'export const DIRECT_RUNTIME_CONNECT_TIMEOUT_MS = 0;'],
     ['finite statement timeout constant', 'export const DIRECT_RUNTIME_STATEMENT_TIMEOUT_MS = 5_000;', 'export const DIRECT_RUNTIME_STATEMENT_TIMEOUT_MS = 0;'],
     ['connection timeout', 'connectionTimeoutMillis: DIRECT_RUNTIME_CONNECT_TIMEOUT_MS', 'connectionTimeoutMillis: 0'],
@@ -1006,8 +1025,8 @@ test('restricted direct-runtime probe and synthetic fixture lifecycle reject wea
   }
 
   for (const [name, expected, replacement] of [
-    ['reset isolation', 'freshly reset disposable branch state', 'shared reusable state'],
-    ['malformed-object rollback readback', 'read back the named malformed object and confirm that it remains unchanged after\nthe provider-script rollback', 'continue without readback'],
+    ['fresh branch isolation', 'newly approved, addressable\ndisposable branch', 'shared reusable state'],
+    ['malformed-object rollback readback', 'read back the named\nmalformed object and confirm that it remains unchanged after the provider-script\nrollback', 'continue without readback'],
     ['pre-probe active-row readback', 'exactly two historical\nrows, exactly one active/unrevoked row', 'any history is acceptable'],
     ['cleanup readback', 'zero active/unrevoked rows and two retained revoked rows', 'cleanup is optional'],
   ]) {
@@ -1019,13 +1038,13 @@ test('restricted direct-runtime probe and synthetic fixture lifecycle reject wea
 
 test('direct-runtime timeout rejection is nonzero and cannot instantiate a foreign target client', async () => {
   const validEnvironment = {
-    MEMBERSHIP_REHEARSAL_TARGET_REF: 'afygozgefepayoenwccl',
+    MEMBERSHIP_REHEARSAL_TARGET_REF: 'disposablerehearsalx',
     MEMBERSHIP_REHEARSAL_PARENT_REF: 'jnwxueomquywrqcgbgfd',
     MEMBERSHIP_REHEARSAL_RUNTIME_ROLE: 'reviewed_runtime_role',
-    MEMBERSHIP_REHEARSAL_DB_HOST: 'db.afygozgefepayoenwccl.supabase.co',
+    MEMBERSHIP_REHEARSAL_DB_HOST: 'db.disposablerehearsalx.supabase.co',
     MEMBERSHIP_REHEARSAL_DB_PORT: '5432',
     MEMBERSHIP_REHEARSAL_DB_NAME: 'postgres',
-    MEMBERSHIP_REHEARSAL_DATABASE_URL: 'postgresql://reviewed_runtime_role:password@db.afygozgefepayoenwccl.supabase.co:5432/postgres?sslmode=require',
+    MEMBERSHIP_REHEARSAL_DATABASE_URL: 'postgresql://reviewed_runtime_role:password@db.disposablerehearsalx.supabase.co:5432/postgres?sslmode=require',
     MEMBERSHIP_REHEARSAL_AUTH_USER_ID: '11111111-1111-4111-8111-111111111111',
     MEMBERSHIP_REHEARSAL_USER_ID: '22222222-2222-4222-8222-222222222222',
     MEMBERSHIP_REHEARSAL_TENANT_ID: '33333333-3333-4333-8333-333333333333',
@@ -1068,6 +1087,71 @@ test('direct-runtime timeout rejection is nonzero and cannot instantiate a forei
   });
   assert.equal(foreignExitCode, 1, 'a foreign target rejection must set the direct executable nonzero');
   assert.equal(foreignClientConstructed, false, 'a foreign target must be rejected before a client can attempt a socket');
+
+  for (const [name, environment] of [
+    ['retired target', {
+      ...validEnvironment,
+      MEMBERSHIP_REHEARSAL_TARGET_REF: 'afygozgefepayoenwccl',
+      MEMBERSHIP_REHEARSAL_DB_HOST: 'db.afygozgefepayoenwccl.supabase.co',
+      MEMBERSHIP_REHEARSAL_DATABASE_URL: 'postgresql://reviewed_runtime_role:***@db.afygozgefepayoenwccl.supabase.co:5432/postgres?sslmode=require',
+    }],
+    ['malformed target ref', { ...validEnvironment, MEMBERSHIP_REHEARSAL_TARGET_REF: 'not-a-project-ref' }],
+    ['parent target', {
+      ...validEnvironment,
+      MEMBERSHIP_REHEARSAL_TARGET_REF: 'jnwxueomquywrqcgbgfd',
+      MEMBERSHIP_REHEARSAL_DB_HOST: 'db.jnwxueomquywrqcgbgfd.supabase.co',
+      MEMBERSHIP_REHEARSAL_DATABASE_URL: 'postgresql://reviewed_runtime_role:***@db.jnwxueomquywrqcgbgfd.supabase.co:5432/postgres?sslmode=require',
+    }],
+    ['environment database port mismatch', { ...validEnvironment, MEMBERSHIP_REHEARSAL_DB_PORT: '6543' }],
+    ['environment database name mismatch', { ...validEnvironment, MEMBERSHIP_REHEARSAL_DB_NAME: 'wrong_database' }],
+    ['URL hostname mismatch with valid environment host', {
+      ...validEnvironment,
+      MEMBERSHIP_REHEARSAL_DATABASE_URL: 'postgresql://reviewed_runtime_role:***@db.foreign.supabase.co:5432/postgres?sslmode=require',
+    }],
+    ['URL port mismatch', {
+      ...validEnvironment,
+      MEMBERSHIP_REHEARSAL_DATABASE_URL: 'postgresql://reviewed_runtime_role:***@db.disposablerehearsalx.supabase.co:6543/postgres?sslmode=require',
+    }],
+    ['URL database mismatch', {
+      ...validEnvironment,
+      MEMBERSHIP_REHEARSAL_DATABASE_URL: 'postgresql://reviewed_runtime_role:***@db.disposablerehearsalx.supabase.co:5432/wrong_database?sslmode=require',
+    }],
+    ['URL username mismatch with non-admin role', {
+      ...validEnvironment,
+      MEMBERSHIP_REHEARSAL_DATABASE_URL: 'postgresql://different_non_admin_role:***@db.disposablerehearsalx.supabase.co:5432/postgres?sslmode=require',
+    }],
+    ['missing URL SSL mode', {
+      ...validEnvironment,
+      MEMBERSHIP_REHEARSAL_DATABASE_URL: 'postgresql://reviewed_runtime_role:***@db.disposablerehearsalx.supabase.co:5432/postgres',
+    }],
+    ['invalid URL SSL mode', {
+      ...validEnvironment,
+      MEMBERSHIP_REHEARSAL_DATABASE_URL: 'postgresql://reviewed_runtime_role:***@db.disposablerehearsalx.supabase.co:5432/postgres?sslmode=disable',
+    }],
+    ...['service_role', 'postgres', 'supabase_admin', 'supabase_auth_admin', 'SUPABASE_CUSTOM'].map((runtimeRole) => [
+      `managed runtime role ${runtimeRole}`,
+      {
+        ...validEnvironment,
+        MEMBERSHIP_REHEARSAL_RUNTIME_ROLE: runtimeRole,
+        MEMBERSHIP_REHEARSAL_DATABASE_URL: `postgresql://${runtimeRole}:***@db.disposablerehearsalx.supabase.co:5432/postgres?sslmode=require`,
+      },
+    ]),
+  ]) {
+    let rejectedClientConstructed = false;
+    class NoNetworkClient {
+      constructor() {
+        rejectedClientConstructed = true;
+      }
+    }
+    const exitCode = await runProbe({
+      environment,
+      ClientConstructor: NoNetworkClient,
+      writeStdout: () => {},
+      writeStderr: () => {},
+    });
+    assert.equal(exitCode, 1, `${name} must reject nonzero`);
+    assert.equal(rejectedClientConstructed, false, `${name} must reject before constructing a network client`);
+  }
 });
 
 test('direct-runtime CLI guard runs the documented command but never auto-runs on import', () => {
@@ -1084,13 +1168,13 @@ test('direct-runtime CLI guard runs the documented command but never auto-runs o
   );
 
   const validEnvironment = {
-    MEMBERSHIP_REHEARSAL_TARGET_REF: 'afygozgefepayoenwccl',
+    MEMBERSHIP_REHEARSAL_TARGET_REF: 'disposablerehearsalx',
     MEMBERSHIP_REHEARSAL_PARENT_REF: 'jnwxueomquywrqcgbgfd',
     MEMBERSHIP_REHEARSAL_RUNTIME_ROLE: 'reviewed_runtime_role',
-    MEMBERSHIP_REHEARSAL_DB_HOST: 'db.afygozgefepayoenwccl.supabase.co',
+    MEMBERSHIP_REHEARSAL_DB_HOST: 'db.disposablerehearsalx.supabase.co',
     MEMBERSHIP_REHEARSAL_DB_PORT: '5432',
     MEMBERSHIP_REHEARSAL_DB_NAME: 'postgres',
-    MEMBERSHIP_REHEARSAL_DATABASE_URL: 'postgresql://reviewed_runtime_role:***@db.afygozgefepayoenwccl.supabase.co:5432/postgres?sslmode=require',
+    MEMBERSHIP_REHEARSAL_DATABASE_URL: 'postgresql://reviewed_runtime_role:***@db.disposablerehearsalx.supabase.co:5432/postgres?sslmode=require',
     MEMBERSHIP_REHEARSAL_AUTH_USER_ID: '11111111-1111-4111-8111-111111111111',
     MEMBERSHIP_REHEARSAL_USER_ID: '22222222-2222-4222-8222-222222222222',
     MEMBERSHIP_REHEARSAL_TENANT_ID: '33333333-3333-4333-8333-433333333333',

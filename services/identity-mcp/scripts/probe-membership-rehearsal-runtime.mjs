@@ -2,11 +2,11 @@ import { Client } from 'pg';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const APPROVED_TARGET_REF = 'afygozgefepayoenwccl';
-const APPROVED_PARENT_REF = 'jnwxueomquywrqcgbgfd';
-const APPROVED_DIRECT_HOST = `db.${APPROVED_TARGET_REF}.supabase.co`;
+const EXPECTED_PARENT_REF = 'jnwxueomquywrqcgbgfd';
+const RETIRED_TARGET_REF = 'afygozgefepayoenwccl';
 const APPROVED_DIRECT_PORT = '5432';
 const APPROVED_DATABASE_NAME = 'postgres';
+const SUPABASE_PROJECT_REF = /^[a-z]{20}$/;
 export const DIRECT_RUNTIME_CONNECT_TIMEOUT_MS = 5_000;
 export const DIRECT_RUNTIME_STATEMENT_TIMEOUT_MS = 5_000;
 const REQUIRED_ENVIRONMENT = [
@@ -42,19 +42,22 @@ function requiredEnvironment(environment) {
   if (missing.length > 0) throw new Error('required rehearsal environment is incomplete');
 
   const values = Object.fromEntries(REQUIRED_ENVIRONMENT.map((name) => [name, environment[name].trim()]));
-  if (values.MEMBERSHIP_REHEARSAL_TARGET_REF !== APPROVED_TARGET_REF
-    || values.MEMBERSHIP_REHEARSAL_PARENT_REF !== APPROVED_PARENT_REF) {
-    throw new Error('target binding is not the approved disposable branch');
+  if (values.MEMBERSHIP_REHEARSAL_PARENT_REF !== EXPECTED_PARENT_REF
+    || !SUPABASE_PROJECT_REF.test(values.MEMBERSHIP_REHEARSAL_TARGET_REF)
+    || values.MEMBERSHIP_REHEARSAL_TARGET_REF === EXPECTED_PARENT_REF
+    || values.MEMBERSHIP_REHEARSAL_TARGET_REF === RETIRED_TARGET_REF) {
+    throw new Error('target binding is not a distinct correctly formatted disposable branch');
   }
   if (environment.DATABASE_URL?.trim()) {
     throw new Error('DATABASE_URL fallback is forbidden');
   }
-  if (values.MEMBERSHIP_REHEARSAL_DB_HOST.toLowerCase() !== APPROVED_DIRECT_HOST
+  if (values.MEMBERSHIP_REHEARSAL_DB_HOST.toLowerCase() !== `db.${values.MEMBERSHIP_REHEARSAL_TARGET_REF}.supabase.co`
     || values.MEMBERSHIP_REHEARSAL_DB_PORT !== APPROVED_DIRECT_PORT
     || values.MEMBERSHIP_REHEARSAL_DB_NAME !== APPROVED_DATABASE_NAME) {
     throw new Error('connection tuple is not the approved direct disposable tuple');
   }
-  if (['service_role', 'postgres', 'supabase_admin'].includes(values.MEMBERSHIP_REHEARSAL_RUNTIME_ROLE.toLowerCase())) {
+  const runtimeRole = values.MEMBERSHIP_REHEARSAL_RUNTIME_ROLE.toLowerCase();
+  if (runtimeRole === 'service_role' || runtimeRole === 'postgres' || runtimeRole.startsWith('supabase_')) {
     throw new Error('service or administrative runtime role is forbidden');
   }
   for (const name of [
@@ -75,7 +78,7 @@ function assertUrlMatchesApprovedTuple(values) {
     throw new Error('direct runtime connection URL is invalid');
   }
   if (!['postgres:', 'postgresql:'].includes(url.protocol)
-    || url.hostname.toLowerCase() !== APPROVED_DIRECT_HOST
+    || url.hostname.toLowerCase() !== `db.${values.MEMBERSHIP_REHEARSAL_TARGET_REF}.supabase.co`
     || url.port !== APPROVED_DIRECT_PORT
     || decodeURIComponent(url.pathname.slice(1)) !== APPROVED_DATABASE_NAME
     || decodeURIComponent(url.username) !== values.MEMBERSHIP_REHEARSAL_RUNTIME_ROLE
@@ -128,7 +131,7 @@ export async function runProbe({
     }
     writeStdout(JSON.stringify({
       result: 'pass',
-      target_ref: APPROVED_TARGET_REF,
+      target_ref: values.MEMBERSHIP_REHEARSAL_TARGET_REF,
       probe: 'direct-runtime-positive-lookup',
     }) + '\n');
     return 0;

@@ -411,23 +411,30 @@ must be reviewed under the approved change record.
 
 ## Disposable rehearsal — required before production
 
-**Approved disposable target — bind every rehearsal step to this exact branch:**
-`afygozgefepayoenwccl` (`jobbuilda-membership-rehearsal-20261114`), whose parent
-project reference is `jnwxueomquywrqcgbgfd`. This branch is the only approved
-non-production target for every setup query, script run, negative probe,
-readback, reset, and role test in steps 1–8. Do not create staff mappings in the
-fresh or repeat-run cases.
+**The former `afygozgefepayoenwccl` (`jobbuilda-membership-rehearsal-20261114`)
+branch is retired and forbidden.** It is not an approved target. Do not address,
+reset, reuse, or inspect it for this rehearsal. Never substitute the production
+parent `jnwxueomquywrqcgbgfd` or any other project if a disposable target cannot
+be approved and addressed.
 
-Before **every query that can write**, visually confirm in the Supabase Dashboard
-project/branch selector and SQL Editor header that the selected project reference
-is exactly `afygozgefepayoenwccl` and the branch name is exactly
-`jobbuilda-membership-rehearsal-20261114`; also confirm the Dashboard shows parent
-project reference `jnwxueomquywrqcgbgfd`. The parent is only branch lineage, not a
-write target: the selected project reference must never be
-`jnwxueomquywrqcgbgfd`. Stop immediately and execute no query if any displayed
-branch/project reference differs, if the approved branch name or parent differs,
-or if the production parent project is selected. Re-select and visually confirm
-the approved disposable branch before continuing.
+Before any rehearsal query, obtain a **fresh approved, addressable disposable
+branch decision** with the required provider cost approval. Perform fresh provider
+discovery and preserve evidence that the selected branch has: a distinct,
+correctly formatted project reference; parent project reference exactly
+`jnwxueomquywrqcgbgfd`; status `ACTIVE_HEALTHY`; and `with_data=false`. In the
+Dashboard selector and SQL Editor header, visually verify the same selected branch
+reference and parent immediately before every query that can write. The selected
+target must not equal the parent ref. Stop and execute no query if any discovery
+or header value differs, the branch is not addressable/healthy, the cost approval
+is absent, or the production parent is selected.
+
+Before any rehearsal query, use the selected branch's Dashboard SQL Editor to
+prove a clean no-membership baseline: `public.auth_tenant_memberships` is absent,
+or is the exact canonical zero-row relation permitted by the preflight. Any
+existing membership row or incompatible state is a stop condition. Do not reset,
+reuse, repair, or fall back to another branch, the parent, or production; obtain a
+new approved disposable branch decision instead. Do not create staff mappings in
+the fresh or repeat-run cases.
 
 Use only the Supabase Dashboard SQL Editor for schema application and steps 1–7;
 do not substitute a CLI, `psql`, migration runner, or another execution method for
@@ -448,13 +455,14 @@ previous-rehearsal identity; do not derive any fixture identifier from email or
 metadata. Record a redacted fixture label and UUID tuple only where the approved
 change record permits it.
 
-Run each malformed-object case in its own **freshly reset disposable branch state**
-with a new fixture register. Never reuse a reset that contains a malformed table,
-constraint, index, canonical-index-name collision, failed fixture insert, or
-prior lifecycle row as the fresh/repeat-run case. After each expected failure,
-read back the named malformed object and confirm that it remains unchanged after
-the provider-script rollback; then reset the disposable branch before the next
-case. Do not repair, drop, rename, or hand-edit malformed objects in place.
+Run each malformed-object case only on its own newly approved, addressable
+disposable branch with a new fixture register and the required clean baseline.
+Never reuse a branch that contains a malformed table, constraint, index,
+canonical-index-name collision, failed fixture insert, or prior lifecycle row as
+the fresh/repeat-run case. After each expected failure, read back the named
+malformed object and confirm that it remains unchanged after the provider-script
+rollback; do not reset the branch. Do not repair, drop, rename, or hand-edit
+malformed objects in place.
 
 For the successful lifecycle sequence, use exactly one synthetic tuple: create
 one active mapping, prove both duplicate-active failures, revoke that same row,
@@ -513,10 +521,11 @@ not SQL Editor and never `SET ROLE`. It is mandatory after an active synthetic
 membership tuple has been approved and created on the disposable branch, before
 production application release or mapping.
 
-Use an approved restricted probe environment that supplies these **non-secret**
-values: `MEMBERSHIP_REHEARSAL_TARGET_REF=afygozgefepayoenwccl`,
+Use an approved restricted probe environment only after the fresh branch decision
+above supplies these **non-secret** values: the discovered
+`MEMBERSHIP_REHEARSAL_TARGET_REF`, immutable
 `MEMBERSHIP_REHEARSAL_PARENT_REF=jnwxueomquywrqcgbgfd`, the exact reviewed
-`MEMBERSHIP_REHEARSAL_RUNTIME_ROLE`, and the pre-approved direct connection tuple
+`MEMBERSHIP_REHEARSAL_RUNTIME_ROLE`, and the reviewed direct connection tuple
 `MEMBERSHIP_REHEARSAL_DB_HOST`, `MEMBERSHIP_REHEARSAL_DB_PORT`, and
 `MEMBERSHIP_REHEARSAL_DB_NAME`. It may supply the direct runtime connection
 credential only in `MEMBERSHIP_REHEARSAL_DATABASE_URL`; never print, export to a
@@ -527,14 +536,24 @@ The approved synthetic UUID tuple is supplied separately as
 should be redacted from the change record unless that record explicitly approves
 their retention.
 
-Before connecting, the restricted probe must reject unless the target ref and
-parent ref exactly equal the literals above, every host/port/database/role value
-equals the pre-approved tuple for that branch, and the role equals the reviewed
-coordinator role. The checked direct endpoint is exactly
-`db.afygozgefepayoenwccl.supabase.co:5432/postgres`; a supplied host, port, or
-database value that differs is rejected before a socket is opened. It must reject
-a missing value, a production parent/ref, any proxy/pooler/foreign host, or any
-fallback connection string. There is **no
+**Two independent gates are mandatory.** **(A) Provider discovery and approval**
+plus Dashboard verification establish the selected branch's parent, status,
+`with_data`, and addressability. **(B) The Node probe** validates only the
+supplied target-ref format, immutable parent ref, target/parent inequality and
+retired-target denial, direct host/port/database, runtime role, and URL tuple.
+It does not query the provider control plane or Dashboard and cannot prove provider
+approval, branch parent, status, `with_data`, or addressability. If the required
+provider evidence is absent, do not run the Node probe.
+
+Before connecting, the restricted probe must reject unless the target ref is a
+distinct correctly formatted Supabase project ref, the parent ref exactly equals
+`jnwxueomquywrqcgbgfd`, and target differs from parent. It must reject unless
+every host/port/database/role value equals the reviewed tuple for the freshly
+approved branch and the role equals the reviewed coordinator role. The checked
+direct endpoint is exactly `db.<target-ref>.supabase.co:5432/postgres`; a supplied
+host, port, or database value that differs is rejected before a socket is opened.
+It must reject a missing value, the retired target, a production parent/ref, any
+proxy/pooler/foreign host, or any fallback connection string. There is **no
 provider fallback and no production fallback**: a target-binding or connection
 failure is a stop condition, not permission to retry elsewhere.
 
