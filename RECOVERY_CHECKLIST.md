@@ -110,7 +110,7 @@ Every item below has the following fixed fields:
 
 - **Scope:** Determine, from actual restored workflow execution, whether event delivery is a prerequisite for each release-blocking workflow; do not provision, reconfigure, or require NATS merely because event-bus code exists.
 - **Observable completion criterion:** For each R04–R10 workflow, the release record identifies the concrete synchronous dependency and any emitted/consumed event dependency, with evidence from code and non-production execution. A workflow that does not rely on event consumption to complete may release without NATS; a workflow that does rely on it remains blocked until its existing configured delivery path is verified.
-- **Implementation evidence / source area:** `apps/coordinator/src/server.ts`, `services/*/src/lib/event-bus.ts`, `services/*/src/index.ts`, relevant tools/routes, `infra/docker-compose.dev.yml`, and emitted-event/outbox migrations where present.
+- **Implementation evidence / source area:** `docs/R11_EVENT_DELIVERY_DEPENDENCY_ASSESSMENT.md` (source-only assessment record), `apps/coordinator/src/server.ts`, `services/*/src/lib/event-bus.ts`, `services/*/src/index.ts`, relevant tools/routes, `infra/docker-compose.dev.yml`, and emitted-event/outbox migrations where present.
 - **Validation method:** Trace each workflow from route/UI through tool/service to completion; collect non-production logs/traces and event/outbox evidence only for workflows found to depend on it. Record the result per workflow in the release evidence, not by inference from `README.md`.
 - **Classification:** **release blocker** for assessment and for any workflow proven event-dependent; **deferred** for NATS provisioning itself.
 
