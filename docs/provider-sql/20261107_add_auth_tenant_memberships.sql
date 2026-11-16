@@ -480,6 +480,45 @@ END;
 $$;
 
 REVOKE ALL ON FUNCTION public.auth_tenant_memberships_lifecycle_guard() FROM PUBLIC;
+
+-- DROP TRIGGER IF EXISTS matches by trigger name, not function or trigger shape.
+-- Refuse to delete a same-named or supplemental user trigger unless the relation
+-- has no user triggers or exactly the two canonical enabled lifecycle triggers.
+DO $$
+BEGIN
+  IF (SELECT count(*)
+      FROM pg_trigger trigger
+      WHERE trigger.tgrelid = 'public.auth_tenant_memberships'::regclass
+        AND NOT trigger.tgisinternal) <> 0
+     AND (
+       (SELECT count(*)
+        FROM pg_trigger trigger
+        WHERE trigger.tgrelid = 'public.auth_tenant_memberships'::regclass
+          AND NOT trigger.tgisinternal) <> 2
+       OR NOT EXISTS (
+         SELECT 1
+         FROM pg_trigger trigger
+         WHERE trigger.tgrelid = 'public.auth_tenant_memberships'::regclass
+           AND trigger.tgname = 'auth_tenant_memberships_lifecycle_guard'
+           AND NOT trigger.tgisinternal
+           AND trigger.tgenabled = 'O'
+           AND trigger.tgtype = 31
+           AND trigger.tgfoid = 'public.auth_tenant_memberships_lifecycle_guard()'::regprocedure
+       ) OR NOT EXISTS (
+         SELECT 1
+         FROM pg_trigger trigger
+         WHERE trigger.tgrelid = 'public.auth_tenant_memberships'::regclass
+           AND trigger.tgname = 'auth_tenant_memberships_no_truncate'
+           AND NOT trigger.tgisinternal
+           AND trigger.tgenabled = 'O'
+           AND trigger.tgtype = 34
+           AND trigger.tgfoid = 'public.auth_tenant_memberships_lifecycle_guard()'::regprocedure
+       )
+     ) THEN
+    RAISE EXCEPTION 'Existing public.auth_tenant_memberships user triggers are incompatible; stop before DROP TRIGGER. Expected zero user triggers or exactly the two enabled canonical lifecycle triggers bound to public.auth_tenant_memberships_lifecycle_guard()';
+  END IF;
+END $$;
+
 DROP TRIGGER IF EXISTS auth_tenant_memberships_lifecycle_guard
   ON public.auth_tenant_memberships;
 DROP TRIGGER IF EXISTS auth_tenant_memberships_no_truncate

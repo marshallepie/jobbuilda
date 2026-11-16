@@ -362,6 +362,41 @@ function assertLifecycleGuardFunctionOwnership(artifact, markdown) {
   )));
 }
 
+function assertLifecycleTriggerReplacementPreflight(artifact) {
+  const preflightStart = artifact.indexOf('-- DROP TRIGGER IF EXISTS matches by trigger name, not function or trigger shape.');
+  const firstDrop = artifact.indexOf('DROP TRIGGER IF EXISTS auth_tenant_memberships_lifecycle_guard');
+  const secondDrop = artifact.indexOf('DROP TRIGGER IF EXISTS auth_tenant_memberships_no_truncate');
+  const firstCreate = artifact.indexOf('CREATE TRIGGER auth_tenant_memberships_lifecycle_guard');
+  assert.notEqual(preflightStart, -1, 'trigger replacement preflight must exist');
+  assert.notEqual(firstDrop, -1, 'lifecycle trigger drop must exist');
+  assert.notEqual(secondDrop, -1, 'truncate trigger drop must exist');
+  assert.notEqual(firstCreate, -1, 'lifecycle trigger recreation must exist');
+  assert.ok(preflightStart < firstDrop, 'trigger replacement preflight must precede the lifecycle trigger drop');
+  assert.ok(preflightStart < secondDrop, 'trigger replacement preflight must precede the truncate trigger drop');
+  assert.ok(preflightStart < firstCreate, 'trigger replacement preflight must precede trigger recreation');
+
+  const preflight = artifact.slice(preflightStart, firstDrop);
+  assert.match(preflight, /DO \$\$\s+BEGIN\s+IF \(SELECT count\(\*\)[\s\S]*?AND NOT trigger\.tgisinternal\) <> 0\s+AND \([\s\S]*?AND NOT trigger\.tgisinternal\) <> 2/s,
+    'preflight must permit zero user triggers and otherwise require exactly two');
+  for (const [name, type] of [
+    ['auth_tenant_memberships_lifecycle_guard', '31'],
+    ['auth_tenant_memberships_no_truncate', '34'],
+  ]) {
+    const triggerStart = preflight.indexOf(`trigger.tgname = '${name}'`);
+    assert.notEqual(triggerStart, -1, `preflight must inspect ${name}`);
+    const triggerCheckEnd = preflight.indexOf('::regprocedure', triggerStart);
+    assert.notEqual(triggerCheckEnd, -1, `preflight must bind ${name} to a function identity`);
+    const triggerCheck = preflight.slice(triggerStart, triggerCheckEnd + '::regprocedure'.length);
+    assert.match(
+      triggerCheck,
+      new RegExp(String.raw`trigger\.tgname = '${name}'[\s\S]*?NOT trigger\.tgisinternal[\s\S]*?trigger\.tgenabled = 'O'[\s\S]*?trigger\.tgtype = ${type}[\s\S]*?trigger\.tgfoid = 'public\.auth_tenant_memberships_lifecycle_guard\(\)'::regprocedure`),
+      `preflight must require the enabled canonical ${name} trigger and lifecycle function identity`,
+    );
+  }
+  assert.match(preflight, /stop before DROP TRIGGER\. Expected zero user triggers or exactly the two enabled canonical lifecycle triggers/,
+    'preflight must report a clear fail-closed stop condition');
+}
+
 function assertMembershipLifecycleGuard(artifact) {
   for (const required of [
     'CREATE OR REPLACE FUNCTION public.auth_tenant_memberships_lifecycle_guard()',
@@ -403,9 +438,9 @@ function assertMembershipLifecycleGuard(artifact) {
     'both recreated canonical triggers must be enabled',
   );
   assert.equal(
-    (artifact.match(/trigger\.tgfoid = 'public\.auth_tenant_memberships_lifecycle_guard\(\)'::regprocedure/g) ?? []).length,
+    (triggerPostcondition.match(/trigger\.tgfoid = 'public\.auth_tenant_memberships_lifecycle_guard\(\)'::regprocedure/g) ?? []).length,
     2,
-    'both canonical triggers must resolve to the exact lifecycle guard function identity',
+    'both recreated canonical triggers must resolve to the exact lifecycle guard function identity',
   );
   assert.equal(
     (artifact.match(/WHERE status = 'active' AND revoked_at IS NULL;/g) ?? []).length,
@@ -591,6 +626,7 @@ test('membership migration is provider-only and has required safety controls', (
   assertPopulatedMembershipGuard(sql);
   assertLifecycleUniqueIndexPreflight(sql);
   assertLifecycleGuardFunctionOwnership(sql, guide);
+  assertLifecycleTriggerReplacementPreflight(sql);
   assertMembershipLifecycleGuard(sql);
   assertExistingRelationAclPreflight(sql);
   assertServiceRoleRemediationAndPostDdlAclAssertions(sql);
@@ -940,6 +976,24 @@ test('lifecycle trigger assertions reject deletion, reactivation, tuple mutation
       assertLifecycleUniqueIndexPreflight(altered);
     }, `${name} assertion must reject weakened lifecycle controls`);
   }
+});
+
+test('lifecycle trigger replacement preflight statically rejects a same-named foreign-function variant', () => {
+  const preflightStart = sql.indexOf('-- DROP TRIGGER IF EXISTS matches by trigger name, not function or trigger shape.');
+  const firstDrop = sql.indexOf('DROP TRIGGER IF EXISTS auth_tenant_memberships_lifecycle_guard');
+  assert.notEqual(preflightStart, -1, 'trigger replacement preflight must exist');
+  assert.notEqual(firstDrop, -1, 'lifecycle trigger drop must exist');
+  const preflight = sql.slice(preflightStart, firstDrop);
+  const malformedPreflight = preflight.replace(
+    "trigger.tgfoid = 'public.auth_tenant_memberships_lifecycle_guard()'::regprocedure",
+    "trigger.tgfoid = 'pg_catalog.current_database()'::regprocedure",
+  );
+  assert.notEqual(malformedPreflight, preflight, 'same-named foreign-function mutation must alter the preflight');
+  const malformedArtifact = `${sql.slice(0, preflightStart)}${malformedPreflight}${sql.slice(firstDrop)}`;
+  assert.throws(
+    () => assertLifecycleTriggerReplacementPreflight(malformedArtifact),
+    'the static assertion must reject a same-named trigger accepted with a foreign function identity',
+  );
 });
 
 test('lifecycle trigger assertions reject supplemental trigger definitions and catalog-count bypasses', () => {
