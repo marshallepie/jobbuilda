@@ -35,3 +35,11 @@ Its apparent active lifecycle state must not be interpreted as rehearsal
 eligibility or as authority to incur a new branch charge. R01a therefore remains
 blocked pending a newly approved disposable-branch decision with explicit cost
 approval and the fresh addressability evidence required by the runbook.
+
+## Read-only cost checkpoint — 2026-11-17
+
+A same-day provider `get_cost` check for a branch in organization
+`qhqdwevvwetgukdkcigv` returned an hourly amount of `0.01344`. This read-only
+price discovery does not approve a charge, creation, or any provider action.
+Explicit fresh owner cost approval remains required before creating a new
+`with_data=false` disposable branch.
