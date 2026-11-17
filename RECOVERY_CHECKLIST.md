@@ -152,6 +152,14 @@ Every item below has the following fixed fields:
 6. **Evidence before release:** record the command/test result, environment, fixture identifiers, and reviewer for every R01–R11 release-blocking item. Unknowns remain explicit verification gates and block release rather than being inferred as passing.
 7. **Deployment controls:** use a staged non-production deployment first, verify safe unauthenticated route probes and authorized workflows, and retain a rollback window before production exposure.
 
+## Recovery evidence checkpoint — 2026-11-17
+
+- **Production Supabase read-only status:** Project `jnwxueomquywrqcgbgfd` was active and healthy at the time of this checkpoint. Its read-only Advisor report identified RLS disabled on 25 `public` tables. This is an urgent, independent release/containment gate. The Advisor configuration finding does not prove effective grants, policies, or browser exposure; those require separate ACL and behavioural evidence before any release or containment conclusion.
+- **Membership rehearsal boundary:** The former membership rehearsal branch `afygozgefepayoenwccl` is retired, historical, and unusable for rehearsal; it must not be addressed, reset, reused, or inspected. No production or disposable SQL/Auth test was run in this checkpoint, so it provides no migration-application, Auth lifecycle, or authorization-behaviour evidence.
+- **Railway production evidence:** This run's read-only Railway provider observation reported production source/deployment at `main` commit `0e8ff973` and a rollback-capable deployment. This is not durable in-repository corroborated evidence, no Railway/provider change was made, and it remains deployment/source and rollback evidence only—not workflow or authorization validation.
+- **Vercel boundary:** Vercel access was unavailable in this run. No Vercel project, deployment, production-source, or rollback assertion is recorded.
+- **Local migration artifact test:** Declared command `pnpm --filter @jobbuilda/identity-mcp test:migration-artifact` was attempted locally and could not run because `pnpm` was not installed (`/usr/bin/bash: line 21: pnpm: command not found`, exit status `127`). No artifact-test pass is claimed.
+
 ## Release decision
 
 Release is permitted only when every release-blocking item above has recorded passing non-production evidence and all safeguards have been satisfied. Deferred items are not implicitly approved; they remain outside this branch's recovery scope.
