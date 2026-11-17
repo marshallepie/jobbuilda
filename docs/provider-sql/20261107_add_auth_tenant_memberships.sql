@@ -228,9 +228,8 @@ BEGIN
   END IF;
 
 
-  IF (SELECT count(*) FROM pg_constraint WHERE conrelid = membership_oid) <> 6
+  IF (SELECT count(*) FROM pg_constraint WHERE conrelid = membership_oid) <> 5
      OR NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid = membership_oid AND conname = 'auth_tenant_memberships_pkey' AND contype = 'p' AND conkey = ARRAY[(SELECT attnum FROM pg_attribute WHERE attrelid = membership_oid AND attname = 'id')]::smallint[])
-     OR NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid = membership_oid AND conname = 'auth_tenant_memberships_auth_user_fkey' AND contype = 'f' AND conkey = ARRAY[(SELECT attnum FROM pg_attribute WHERE attrelid = membership_oid AND attname = 'auth_user_id')]::smallint[] AND confrelid = 'auth.users'::regclass AND confdeltype = 'r')
      OR NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid = membership_oid AND conname = 'auth_tenant_memberships_tenant_fkey' AND contype = 'f' AND conkey = ARRAY[(SELECT attnum FROM pg_attribute WHERE attrelid = membership_oid AND attname = 'tenant_id')]::smallint[] AND confrelid = 'public.tenants'::regclass AND confdeltype = 'r')
      OR NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid = membership_oid AND conname = 'auth_tenant_memberships_user_tenant_fkey' AND contype = 'f' AND conkey = ARRAY[(SELECT attnum FROM pg_attribute WHERE attrelid = membership_oid AND attname = 'user_id'), (SELECT attnum FROM pg_attribute WHERE attrelid = membership_oid AND attname = 'tenant_id')]::smallint[] AND confrelid = 'public.users'::regclass AND confkey = ARRAY[(SELECT attnum FROM pg_attribute WHERE attrelid = 'public.users'::regclass AND attname = 'id'), (SELECT attnum FROM pg_attribute WHERE attrelid = 'public.users'::regclass AND attname = 'tenant_id')]::smallint[] AND confdeltype = 'r')
      OR NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid = membership_oid AND conname = 'auth_tenant_memberships_status_check' AND contype = 'c' AND pg_get_constraintdef(oid) = expected_status_constraint)
@@ -326,7 +325,9 @@ CREATE TABLE IF NOT EXISTS public.auth_tenant_memberships (
   activated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   revoked_at TIMESTAMPTZ,
   revoked_reason TEXT,
-  CONSTRAINT auth_tenant_memberships_auth_user_fkey FOREIGN KEY (auth_user_id) REFERENCES auth.users(id) ON DELETE RESTRICT,
+  -- auth_user_id is immutable retained identity history. It deliberately has no
+  -- auth.users foreign key so a supported Auth Admin deletion can remove a
+  -- retired identity only after its mapping is revoked, while retaining the UUID.
   CONSTRAINT auth_tenant_memberships_tenant_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE RESTRICT,
   CONSTRAINT auth_tenant_memberships_user_tenant_fkey FOREIGN KEY (user_id, tenant_id) REFERENCES public.users (id, tenant_id) ON DELETE RESTRICT,
   CONSTRAINT auth_tenant_memberships_status_check CHECK (status IN ('active', 'revoked')),

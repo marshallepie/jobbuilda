@@ -256,6 +256,26 @@ function assertLifecycleUniqueIndexPreflight(artifact) {
   assert.equal((guard.match(/pg_get_expr\(i\.indpred, i\.indrelid\) = '\(\(status = ''active''::text\) AND \(revoked_at IS NULL\)\)'/g) ?? []).length, 2,
     'both active-only canonical identity keys must retain the exact predicate');
 }
+
+function assertRetiredAuthIdentityHistoryShape(artifact) {
+  const existingConstraintGuard = artifact.slice(
+    artifact.indexOf('IF (SELECT count(*) FROM pg_constraint WHERE conrelid = membership_oid)'),
+    artifact.indexOf("IF EXISTS (\n    SELECT 1\n    FROM pg_policy policy", artifact.indexOf('IF (SELECT count(*) FROM pg_constraint WHERE conrelid = membership_oid)')),
+  );
+  assert.match(existingConstraintGuard, /count\(\*\) FROM pg_constraint WHERE conrelid = membership_oid\) <> 5/,
+    'the canonical membership relation must have exactly five constraints');
+  assert.doesNotMatch(existingConstraintGuard, /auth_tenant_memberships_auth_user_fkey|confrelid = 'auth\.users'::regclass/,
+    'existing-shape validation must not expect an auth.users foreign key');
+  assert.match(artifact, /auth_user_id UUID NOT NULL,/,
+    'immutable retained Auth UUID history must remain required');
+  assert.match(artifact, /auth_user_id is immutable retained identity history[\s\S]*?deliberately has no[\s\S]*?auth\.users foreign key[\s\S]*?Auth Admin deletion[\s\S]*?retaining the UUID/s,
+    'the provider artifact must document why auth_user_id has no auth.users foreign key');
+  assert.doesNotMatch(artifact, /FOREIGN KEY \(auth_user_id\) REFERENCES auth\.users/i,
+    'the membership table must not block supported Auth Admin deletion with an auth.users foreign key');
+  assert.doesNotMatch(artifact, /ON DELETE\s+(?:SET NULL|CASCADE)/i,
+    'retired identity history must not be nullified or cascaded away');
+}
+
 function assertWorkflowSelfTrigger(artifact) {
   for (const trigger of ['push', 'pull_request']) {
     const triggerPaths = artifact.match(new RegExp(
@@ -676,13 +696,15 @@ test('membership migration is provider-only and has required safety controls', (
 
   assertPopulatedMembershipGuard(sql);
   assertLifecycleUniqueIndexPreflight(sql);
+  assertRetiredAuthIdentityHistoryShape(sql);
   assertLifecycleGuardFunctionOwnership(sql, guide);
   assertLifecycleTriggerReplacementPreflight(sql);
   assertMembershipLifecycleGuard(sql);
   assertExistingRelationAclPreflight(sql);
   assertServiceRoleRemediationAndPostDdlAclAssertions(sql);
   assertWorkflowSelfTrigger(workflowSource);
-  assert.match(guide, /canonical relation created by this script \*\*with zero rows\*\*/);
+  assert.match(guide, /canonical relation created by this script \*\*with zero rows\*\*, the documented five\s+constraints/);
+  assert.match(guide, /exactly five constraints \(the primary key, tenant and\s+composite `\(user_id, tenant_id\)` foreign keys, and two lifecycle checks\), with no\s+foreign key to `auth\.users`/);
   assert.match(guide, /no non-owner column ACLs/);
   assert.match(guide, /relation\*\* ACLs for `service_role` only/);
   assert.match(guide, /this script revokes\s+those ACLs from this table only after `CREATE TABLE IF NOT EXISTS`/);
@@ -758,6 +780,9 @@ test('membership migration is provider-only and has required safety controls', (
   assertCoordinatorRuntimeRolePreflight(coordinatorPreflightSql);
   const staffAuthorizationSection = sectionAfterHeading(guide, staffAuthorizationHeading);
   assertStaffMappingManifestGate(staffAuthorizationSection);
+  assert.match(staffAuthorizationSection, /Auth Admin source\/ownership verification/);
+  assert.match(staffAuthorizationSection, /establishes the external Auth-identity edge before the INSERT/);
+  assert.match(staffAuthorizationSection, /intentionally has no `auth\.users` foreign key/);
   const staffAuthorizationSql = firstSqlBlockAfterHeading(guide, staffAuthorizationHeading);
   assertStaffAuthorizationSqlBlock(staffAuthorizationSql);
   assertDirectRuntimeEvidenceBoundary(guide);

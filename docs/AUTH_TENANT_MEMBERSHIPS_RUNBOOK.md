@@ -110,7 +110,7 @@ ORDER BY column_name, grantee, acl.privilege_type;
 ```
 
 Expected pre-apply state is either: (a) no membership relation, or (b) the exact
-canonical relation created by this script **with zero rows**, the documented six
+canonical relation created by this script **with zero rows**, the documented five
 constraints, the three named canonical indexes, RLS enabled, the one canonical
 runtime SELECT policy, and no non-owner column ACLs. A zero-row legacy relation
 may retain direct **relation** ACLs for `service_role` only; this script revokes
@@ -720,8 +720,9 @@ return **zero rows**. The migration's only ACL remediation is
 `REVOKE ALL PRIVILEGES ON TABLE public.auth_tenant_memberships FROM service_role`,
 which is table-local and does not change default privileges, roles, or any other
 table. The exact coordinator `SELECT` grant remains the later separately approved
-operation in this runbook; composite
-`(user_id, tenant_id)` foreign key; two partial one-active unique indexes; exactly
+operation in this runbook; exactly five constraints (the primary key, tenant and
+composite `(user_id, tenant_id)` foreign keys, and two lifecycle checks), with no
+foreign key to `auth.users`; two partial one-active unique indexes; exactly
 two enabled non-internal triggers—the row-level lifecycle trigger and
 statement-level no-truncate trigger—both attached to the canonical guard function;
 no full-history tuple unique constraint; and
@@ -794,9 +795,14 @@ single proposed link verbatim, with all of the following fields:
 | Exact application user UUID | The exact existing `public.users.id` UUID proposed for the link. |
 | Exact tenant UUID | The exact existing `public.users.tenant_id` UUID proposed for the link. |
 | Business label | The reviewed staff/business identity label for this proposed link. |
+| Auth Admin source/ownership verification | Reviewable supported Auth Admin evidence that the exact Auth UUID is the approved external identity, plus source/ownership evidence linking that external identity to the proposed application user and tenant. |
 | Source and ownership evidence | Reviewable source records and ownership evidence supporting **each** Auth-to-app-user, app-user-to-tenant, and Auth-to-tenant relational edge. |
 
-This manifest—not email, Auth confirmation, login activity, `auth.users` lookup,
+This approved manual manifest, including its Auth Admin source/ownership
+verification, establishes the external Auth-identity edge before the INSERT;
+the membership table intentionally has no `auth.users` foreign key because its
+immutable `auth_user_id` retains revoked identity history after supported Auth
+Admin deletion. This manifest—not email, Auth confirmation, login activity, `auth.users` lookup,
 or metadata—is the authority for proposing the mapping. Preserve the reviewed
 three-UUID tuple verbatim from the manifest when replacing the SQL placeholders;
 do not transpose, derive, normalize, or substitute any value. Revalidate the
