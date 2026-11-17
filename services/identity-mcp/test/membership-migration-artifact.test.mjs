@@ -49,6 +49,7 @@ const coordinatorPreflightHeading = '### Coordinator `DATABASE_URL` runtime-role
 const staffAuthorizationHeading = '## Authorize one existing staff principal — separate approved operation';
 const postApplySchemaReadbackHeading = '## Post-apply schema readback — required before coordinator grant, mapping, or application release';
 const postGrantCoordinatorVerificationHeading = '## Post-grant coordinator-role verification — required before mapping or application release';
+const syntheticFixtureLifecycleHeading = '### Synthetic fixture lifecycle and reset isolation';
 
 function sectionAfterHeading(markdown, heading) {
   const headingOffset = markdown.indexOf(heading);
@@ -550,6 +551,15 @@ function assertRestrictedDirectRuntimeProbe(artifact) {
 }
 
 function assertSyntheticFixtureLifecycle(markdown) {
+  const lifecycleSection = sectionAfterHeading(markdown, syntheticFixtureLifecycleHeading);
+  const cleanupLifecycle = [
+    'zero active/unrevoked rows and two retained revoked rows',
+    'delete the sole\nAdmin-created synthetic Auth identity',
+    'provider-documented Auth Admin readback for that exact identity',
+    'documented not-found result',
+    'Preserve the two revoked\nmembership-history rows',
+  ];
+
   for (const required of [
     'Auth Admin synthetic-identity preflight — read-only and mandatory',
     'exact\nselected branch project ref',
@@ -577,6 +587,14 @@ function assertSyntheticFixtureLifecycle(markdown) {
     'Preserve the two revoked\nmembership-history rows',
     'Preserve the two revoked\nmembership-history rows: do not delete history, truncate the membership table, or\nuse a production or parent project to clean up',
   ]) assert.match(markdown, new RegExp(regexEscape(required)));
+
+  let previousOffset = -1;
+  for (const required of cleanupLifecycle) {
+    const offset = lifecycleSection.indexOf(required);
+    assert.notEqual(offset, -1, `synthetic fixture lifecycle section must contain ${required}`);
+    assert.ok(offset > previousOffset, `synthetic fixture cleanup lifecycle must retain documented order through ${required}`);
+    previousOffset = offset;
+  }
 }
 
 function assertPublicRegistrationClosureGate(markdown) {
@@ -1147,6 +1165,24 @@ test('restricted direct-runtime probe and synthetic fixture lifecycle reject wea
     assert.notEqual(altered, guide, `${name} mutation must alter the runbook`);
     assert.throws(() => assertSyntheticFixtureLifecycle(altered), `${name} assertion must reject a weakened fixture lifecycle`);
   }
+
+  const cleanupReadback = 'zero active/unrevoked rows and two retained revoked rows';
+  const deletion = 'delete the sole\nAdmin-created synthetic Auth identity';
+  const elsewhereOnly = `${guide.replace(cleanupReadback, 'membership cleanup readback omitted')}
+${cleanupReadback}`;
+  assert.throws(
+    () => assertSyntheticFixtureLifecycle(elsewhereOnly),
+    'cleanup readback text outside the synthetic fixture lifecycle section must not satisfy the assertion',
+  );
+
+  const reordered = guide.replace(
+    cleanupReadback,
+    `${deletion}\n\n${cleanupReadback}`,
+  );
+  assert.throws(
+    () => assertSyntheticFixtureLifecycle(reordered),
+    'a deletion phrase before the membership cleanup readback must not satisfy the ordered lifecycle assertion',
+  );
 });
 
 test('direct-runtime timeout rejection is nonzero and cannot instantiate a foreign target client', async () => {
