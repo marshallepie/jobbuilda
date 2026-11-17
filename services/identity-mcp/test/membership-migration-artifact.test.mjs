@@ -353,10 +353,15 @@ function assertServiceRoleRemediationAndPostDdlAclAssertions(artifact) {
 
 function assertLifecycleGuardFunctionOwnership(artifact, markdown) {
   const ownershipGuard = artifact.slice(
-    artifact.indexOf('-- This function is provider-owned only when it is absent or already belongs'),
+    artifact.indexOf('-- This function is provider-owned only when it is absent or owned by the executing'),
     artifact.indexOf('CREATE OR REPLACE FUNCTION public.auth_tenant_memberships_lifecycle_guard()'),
   );
   assert.match(ownershipGuard, /lifecycle_guard_oid oid := to_regprocedure\('public\.auth_tenant_memberships_lifecycle_guard\(\)'\)/);
+  assert.match(
+    ownershipGuard,
+    /FROM pg_proc lifecycle_guard\s+WHERE lifecycle_guard\.oid = lifecycle_guard_oid\s+AND lifecycle_guard\.proowner = current_user::regrole/s,
+    'an existing lifecycle guard must be owned by the executing provider role',
+  );
   assert.match(ownershipGuard, /FROM pg_trigger trigger\s+WHERE trigger\.tgfoid = lifecycle_guard_oid\) <> 2/s,
     'an existing lifecycle guard must have exactly two trigger references');
   for (const [name, type] of [
@@ -372,7 +377,7 @@ function assertLifecycleGuardFunctionOwnership(artifact, markdown) {
   assert.match(ownershipGuard, /stop before replacing the function or changing its ACL/);
   assert.ok(ownershipGuard.length > 0, 'function ownership guard must precede CREATE OR REPLACE');
   assert.ok(
-    artifact.indexOf('END $$;', artifact.indexOf('-- This function is provider-owned only when it is absent or already belongs'))
+    artifact.indexOf('END $$;', artifact.indexOf('-- This function is provider-owned only when it is absent or owned by the executing'))
       < artifact.indexOf('REVOKE ALL ON FUNCTION public.auth_tenant_memberships_lifecycle_guard() FROM PUBLIC;'),
     'function ownership guard must precede the function ACL revoke',
   );
@@ -380,16 +385,24 @@ function assertLifecycleGuardFunctionOwnership(artifact, markdown) {
   const preflight = firstSqlBlockAfterHeading(markdown, '## Required provider preflight — no write');
   for (const required of [
     "to_regprocedure('public.auth_tenant_memberships_lifecycle_guard()') AS oid",
+    'owner.rolname AS function_owner',
+    'current_user AS executing_provider_role',
+    'LEFT JOIN pg_proc lifecycle_function ON lifecycle_function.oid = lifecycle_guard.oid',
+    'LEFT JOIN pg_roles owner ON owner.oid = lifecycle_function.proowner',
     'LEFT JOIN pg_trigger AS trigger ON trigger.tgfoid = lifecycle_guard.oid',
     'trigger.tgrelid::regclass AS trigger_relation',
     'pg_get_triggerdef(trigger.oid) AS trigger_definition',
   ]) assert.match(preflight, new RegExp(regexEscape(required)));
   assert.match(markdown, new RegExp(regexEscape(
-    'safe to replace only when absent or referenced by\n-- exactly these two canonical triggers on this relation',
+    'safe to replace only when absent or owned by the\n-- current executing provider role and referenced by exactly these two canonical\n-- triggers on this relation',
   )));
   assert.match(markdown, new RegExp(regexEscape(
-    'Any other result is a\n-- stop condition; do not apply the script or repair the dependency by hand',
+    'Any other result is a stop condition; do not apply\n-- the script or repair the ownership or dependency by hand',
   )));
+  assert.match(markdown, /`function_owner` must exactly equal `executing_provider_role` \(the SQL Editor's\s+`current_user`\)/,
+    'runbook must state the exact lifecycle function owner requirement');
+  assert.match(markdown, /A different,\s+unknown, or absent owner, or any other trigger reference, is a stop condition/,
+    'runbook must make lifecycle ownership mismatch a stop condition');
 }
 
 function assertLifecycleTriggerReplacementPreflight(artifact) {
@@ -1070,6 +1083,18 @@ test('lifecycle trigger replacement preflight statically rejects a same-named fo
   assert.throws(
     () => assertLifecycleTriggerReplacementPreflight(malformedArtifact),
     'the static assertion must reject a same-named trigger accepted with a foreign function identity',
+  );
+});
+
+test('lifecycle guard ownership preflight rejects a same-named foreign-owner variant', () => {
+  const altered = sql.replace(
+    'lifecycle_guard.proowner = current_user::regrole',
+    'lifecycle_guard.proowner = 0',
+  );
+  assert.notEqual(altered, sql, 'foreign-owner mutation must alter the provider script');
+  assert.throws(
+    () => assertLifecycleGuardFunctionOwnership(altered, guide),
+    'the static assertion must reject a same-named lifecycle function owned by another role',
   );
 });
 

@@ -396,14 +396,22 @@ BEGIN
   END IF;
 END $$;
 
--- This function is provider-owned only when it is absent or already belongs
--- exclusively to the two canonical membership triggers. Never replace its body or
--- change its ACL if another relation's trigger depends on it.
+-- This function is provider-owned only when it is absent or owned by the executing
+-- provider role and already belongs exclusively to the two canonical membership
+-- triggers. Never replace its body or change its ACL if another role owns it or
+-- another relation's trigger depends on it.
 DO $$
 DECLARE
   lifecycle_guard_oid oid := to_regprocedure('public.auth_tenant_memberships_lifecycle_guard()');
 BEGIN
   IF lifecycle_guard_oid IS NOT NULL AND (
+    NOT EXISTS (
+      SELECT 1
+      FROM pg_proc lifecycle_guard
+      WHERE lifecycle_guard.oid = lifecycle_guard_oid
+        AND lifecycle_guard.proowner = current_user::regrole
+    )
+    OR
     (SELECT count(*)
      FROM pg_trigger trigger
      WHERE trigger.tgfoid = lifecycle_guard_oid) <> 2
@@ -440,7 +448,7 @@ BEGIN
         AND NOT trigger.tginitdeferred
     )
   ) THEN
-    RAISE EXCEPTION 'Existing public.auth_tenant_memberships_lifecycle_guard() is not exclusively referenced by the two canonical public.auth_tenant_memberships triggers; stop before replacing the function or changing its ACL';
+    RAISE EXCEPTION 'Existing public.auth_tenant_memberships_lifecycle_guard() is not owned by current_user or exclusively referenced by the two canonical public.auth_tenant_memberships triggers; stop before replacing the function or changing its ACL';
   END IF;
 END $$;
 

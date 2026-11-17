@@ -71,19 +71,24 @@ SELECT policyname, roles, cmd, qual, with_check
 FROM pg_policies
 WHERE schemaname = 'public' AND tablename = 'auth_tenant_memberships';
 
--- The lifecycle function is safe to replace only when absent or referenced by
--- exactly these two canonical triggers on this relation. Any other result is a
--- stop condition; do not apply the script or repair the dependency by hand.
+-- The lifecycle function is safe to replace only when absent or owned by the
+-- current executing provider role and referenced by exactly these two canonical
+-- triggers on this relation. Any other result is a stop condition; do not apply
+-- the script or repair the ownership or dependency by hand.
 WITH lifecycle_guard AS (
   SELECT to_regprocedure('public.auth_tenant_memberships_lifecycle_guard()') AS oid
 )
 SELECT lifecycle_guard.oid::regprocedure AS function_identity,
+       owner.rolname AS function_owner,
+       current_user AS executing_provider_role,
        trigger.tgrelid::regclass AS trigger_relation,
        trigger.tgname,
        trigger.tgenabled,
        trigger.tgisinternal,
        pg_get_triggerdef(trigger.oid) AS trigger_definition
 FROM lifecycle_guard
+LEFT JOIN pg_proc lifecycle_function ON lifecycle_function.oid = lifecycle_guard.oid
+LEFT JOIN pg_roles owner ON owner.oid = lifecycle_function.proowner
 LEFT JOIN pg_trigger AS trigger ON trigger.tgfoid = lifecycle_guard.oid
 ORDER BY trigger_relation::text NULLS FIRST, trigger.tgname NULLS FIRST;
 
@@ -123,6 +128,14 @@ operation after the migration has committed. Any existing membership row is a st
 condition: the script fails before DDL and the reviewed mapping lifecycle, not
 this schema script, is the only authorized path for that record. `public.users`
 and `public.tenants` must be ordinary tables with NOT NULL UUID keys. A same-named
+lifecycle function is subject to the owner and trigger-reference check below.
+
+For an existing `public.auth_tenant_memberships_lifecycle_guard()`,
+`function_owner` must exactly equal `executing_provider_role` (the SQL Editor's
+`current_user`), and its only trigger references must be the two canonical
+membership triggers shown above. A missing function is acceptable. A different,
+unknown, or absent owner, or any other trigger reference, is a stop condition;
+do not apply the script or repair the ownership/dependency by hand.
 
 ### Existing-membership lock policy and retry
 
