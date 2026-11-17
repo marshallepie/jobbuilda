@@ -43,3 +43,22 @@ A same-day provider `get_cost` check for a branch in organization
 price discovery does not approve a charge, creation, or any provider action.
 Explicit fresh owner cost approval remains required before creating a new
 `with_data=false` disposable branch.
+
+## Current read-only addressability checkpoint — 2026-11-17
+
+The production project `jnwxueomquywrqcgbgfd` is `ACTIVE_HEALTHY`; its only
+recorded migration is `20261101175356 remote_schema`.
+
+`list_branches` reported the non-default, `with_data=false` branch
+`jobbuilda-membership-rehearsal-20261114` (branch ID
+`db2270ab-99e4-4a2c-98e2-2d8a1fd582e0`, ref `afygozgefepayoenwccl`) with preview
+project status `ACTIVE_HEALTHY`. However, `get_project` for that exact ref
+returned `NotFoundException: Project not found`. The branch therefore remains
+unaddressable and must not be used or reused for rehearsal.
+
+A read-only `list_migrations` call against the same ref returned three records:
+`remote_schema`, `corrected_fresh`, and `corrected_idempotent_repeat`. That
+record does not establish project addressability, a supported Auth Admin
+lifecycle, valid target binding, or usable runtime credentials. It does not
+change the block, approval requirement, or prohibition on using the listed
+preview.
