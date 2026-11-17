@@ -570,8 +570,12 @@ function assertSyntheticFixtureLifecycle(markdown) {
     'exactly two historical\nrows, exactly one active/unrevoked row',
     'After the positive probe, revoke the active synthetic row',
     'zero active/unrevoked rows and two retained revoked rows',
-    'failed cleanup/readback is a\nstop condition',
-    'Do not delete history, truncate the membership table, or use a\nproduction or parent project to clean up',
+    'delete the sole\nAdmin-created synthetic Auth identity',
+    'provider-documented Auth Admin readback for that exact identity',
+    'documented not-found result',
+    'Any deletion failure, missing or non-not-found provider\nreadback, or ambiguous result is a stop condition',
+    'Preserve the two revoked\nmembership-history rows',
+    'Preserve the two revoked\nmembership-history rows: do not delete history, truncate the membership table, or\nuse a production or parent project to clean up',
   ]) assert.match(markdown, new RegExp(regexEscape(required)));
 }
 

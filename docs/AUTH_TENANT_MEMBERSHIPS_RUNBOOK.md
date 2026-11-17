@@ -508,10 +508,16 @@ After the positive probe, revoke the active synthetic row with the approved
 Dashboard SQL Editor revocation procedure, then read back by all three UUIDs and
 require zero active/unrevoked rows and two retained revoked rows. Read back the
 fixture `auth_user_id` and `user_id` separately to confirm neither has an active
-binding. The fixture register, readbacks, expected errors, reset identifiers, and
-cleanup result are mandatory rehearsal evidence; a failed cleanup/readback is a
-stop condition. Do not delete history, truncate the membership table, or use a
-production or parent project to clean up.
+binding. Only after that membership revocation readback, delete the sole
+Admin-created synthetic Auth identity through the supported Auth Admin cleanup
+path. Perform the provider-documented Auth Admin readback for that exact identity
+and require its documented not-found result; a successful delete response alone
+is insufficient. Any deletion failure, missing or non-not-found provider
+readback, or ambiguous result is a stop condition. Preserve the two revoked
+membership-history rows: do not delete history, truncate the membership table, or
+use a production or parent project to clean up. The fixture register, membership
+readbacks, Auth deletion and documented not-found readback, expected errors, and
+reset identifiers are mandatory rehearsal evidence.
 
 1. **Fresh schema:** run the complete script once and run the readback below.
 2. **Exact repeat-run:** run the unchanged complete script again. It must commit
