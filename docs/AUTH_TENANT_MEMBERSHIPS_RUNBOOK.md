@@ -13,6 +13,18 @@ The provider-owned migration is intentionally outside `services/identity-mcp/mig
 so the service runner cannot discover it. Public registration, trials, and
 subscription checkout remain closed throughout.
 
+## Public registration closure verification gate — read-only
+
+Before claiming public registration is fully closed, perform a read-only
+provider/Auth configuration verification against the exact reviewed project and
+record whether direct Auth API registration is disabled or otherwise closed. This
+gate does not change provider configuration, registration behavior, or any
+identity. Application containment of signup pages and server routes is separate
+evidence: it does not prove that the provider's direct Auth API registration is
+closed. If this provider/Auth configuration result is absent, unknown, or shows
+direct Auth API registration open, report application containment only; do not
+claim public registration is fully closed.
+
 ## Required provider preflight — no write
 
 In the **Supabase Dashboard SQL Editor**, first confirm the project reference,
@@ -443,17 +455,38 @@ catalog, lifecycle, and RLS-negative rehearsal. Its `SET ROLE` probes necessaril
 make `current_user <> session_user`, so they cannot prove the canonical policy's
 positive direct-login path or the coordinator's real runtime lookup.
 
+### Auth Admin synthetic-identity preflight — read-only and mandatory
+
+Before any isolated branch rehearsal that creates, lists, or deletes a synthetic
+Auth identity, record a read-only preflight for all of the following on the exact
+selected branch project ref:
+
+1. the exact branch project ref, matching the Dashboard selector and SQL Editor
+   header, and distinct from the production parent;
+2. supported Auth Admin create, list, and delete capability for that branch;
+3. a branch-scoped **nonsecret credential-availability indicator** for the
+   supported Auth Admin path; do not record or expose any credential; and
+4. a supported cleanup path that can delete the synthetic Auth identity and has a
+   documented readback/not-found completion result.
+
+This preflight is read-only. If any item is absent, unsupported, unknown, or does
+not bind to the exact branch project ref, **stop the lifecycle phase**: do not
+create a synthetic Auth identity, do not begin fixture creation, and do not
+substitute a SQL-only rehearsal. **Never insert, update, or delete `auth.users`
+through SQL**; SQL writes to `auth.users` are prohibited even when Auth Admin
+capability or cleanup evidence is unavailable.
+
 ### Synthetic fixture lifecycle and reset isolation
 
-Before any lifecycle case, the approved operator must establish a disposable-only
-fixture register outside this migration: three newly generated UUIDs for one
-synthetic `auth.users` principal, one existing disposable `public.users` principal,
-and that principal's existing disposable tenant. Verify the base `users` and
-`tenants` records exist and that the selected `public.users.tenant_id` equals the
-fixture tenant before inserting a membership. Do not use a staff, production, or
-previous-rehearsal identity; do not derive any fixture identifier from email or
-metadata. Record a redacted fixture label and UUID tuple only where the approved
-change record permits it.
+Only after the Auth Admin synthetic-identity preflight passes, the approved
+operator must establish a disposable-only fixture register outside this migration:
+three newly generated UUIDs for one Admin-created synthetic Auth identity, one
+existing disposable `public.users` principal, and that principal's existing
+disposable tenant. Verify the base `users` and `tenants` records exist and that
+the selected `public.users.tenant_id` equals the fixture tenant before inserting a
+membership. Do not use a staff, production, or previous-rehearsal identity; do not
+derive any fixture identifier from email or metadata. Record a redacted fixture
+label and UUID tuple only where the approved change record permits it.
 
 Run each malformed-object case only on its own newly approved, addressable
 disposable branch with a new fixture register and the required clean baseline.

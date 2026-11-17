@@ -551,10 +551,19 @@ function assertRestrictedDirectRuntimeProbe(artifact) {
 
 function assertSyntheticFixtureLifecycle(markdown) {
   for (const required of [
+    'Auth Admin synthetic-identity preflight — read-only and mandatory',
+    'exact\nselected branch project ref',
+    'supported Auth Admin create, list, and delete capability',
+    'branch-scoped **nonsecret credential-availability indicator**',
+    'supported cleanup path that can delete the synthetic Auth identity',
+    '**stop the lifecycle phase**',
+    'Never insert, update, or delete `auth.users`\nthrough SQL',
+    'SQL writes to `auth.users` are prohibited',
     'Synthetic fixture lifecycle and reset isolation',
+    'Only after the Auth Admin synthetic-identity preflight passes',
     'fixture register outside this migration',
     'newly generated UUIDs',
-    'public.users.tenant_id` equals the\nfixture tenant',
+    'selected `public.users.tenant_id` equals the fixture tenant',
     'newly approved, addressable\ndisposable branch',
     'Never reuse a branch that contains a malformed table',
     'read back the named\nmalformed object and confirm that it remains unchanged after the provider-script\nrollback',
@@ -563,6 +572,17 @@ function assertSyntheticFixtureLifecycle(markdown) {
     'zero active/unrevoked rows and two retained revoked rows',
     'failed cleanup/readback is a\nstop condition',
     'Do not delete history, truncate the membership table, or use a\nproduction or parent project to clean up',
+  ]) assert.match(markdown, new RegExp(regexEscape(required)));
+}
+
+function assertPublicRegistrationClosureGate(markdown) {
+  for (const required of [
+    'Public registration closure verification gate — read-only',
+    'read-only\nprovider/Auth configuration verification',
+    'direct Auth API registration is disabled or otherwise closed',
+    'Application containment of signup pages and server routes is separate\nevidence',
+    'does not prove that the provider\'s direct Auth API registration is\nclosed',
+    'do not\nclaim public registration is fully closed',
   ]) assert.match(markdown, new RegExp(regexEscape(required)));
 }
 
@@ -721,6 +741,7 @@ test('membership migration is provider-only and has required safety controls', (
   assertDirectRuntimeEvidenceBoundary(guide);
   assertRestrictedDirectRuntimeProbe(probeSource);
   assertSyntheticFixtureLifecycle(guide);
+  assertPublicRegistrationClosureGate(guide);
   assert.match(guide, /node services\/identity-mcp\/scripts\/probe-membership-rehearsal-runtime\.mjs/);
   assertPostApplyAndPostGrantAclReadback(guide);
   assert.match(guide, /cannot own or ALTER\/DDL public\.auth_tenant_memberships/);
