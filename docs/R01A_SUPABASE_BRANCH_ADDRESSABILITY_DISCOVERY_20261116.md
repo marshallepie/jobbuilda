@@ -48,30 +48,30 @@ price discovery does not approve a charge, creation, or any provider action.
 Explicit fresh owner cost approval remains required before creating a new
 `with_data=false` disposable branch.
 
-## Current read-only addressability checkpoint — 2026-11-17
+## Current read-only provider observations — 2026-11-17
 
-The production project `jnwxueomquywrqcgbgfd` is `ACTIVE_HEALTHY`; its only
-recorded migration is `20261101175356 remote_schema`.
+This cron run read the production project `jnwxueomquywrqcgbgfd` with
+`get_project`, which returned `ACTIVE_HEALTHY`.
 
-`list_branches` reported the non-default, `with_data=false` branch
-`jobbuilda-membership-rehearsal-20261114` (branch ID
-`db2270ab-99e4-4a2c-98e2-2d8a1fd582e0`, ref `afygozgefepayoenwccl`) with preview
-project status `ACTIVE_HEALTHY`.
+`list_branches` still listed retired preview ref `afygozgefepayoenwccl` as
+`with_data=false` and `ACTIVE_HEALTHY`. Despite that listing, `get_project` for
+that ref returned `NotFound`.
 
-### Superseded retired-preview claim — not valid rehearsal evidence
+This run also called `list_migrations` against the retired preview. It returned
+`remote_schema`, `20261114134547 corrected_fresh`, and
+`20261114134622 corrected_idempotent_repeat`. The security advisor reported that
+the `membership` table has RLS enabled with no policies.
 
-An earlier version of this checkpoint recorded a `get_project` lookup returning
-`NotFoundException` and a `list_migrations` read against the retired ref. Those
-historical claims are retained here for audit transparency, but are
-**noncompliant with the later explicit runbook boundary**: the retired branch
-must not be addressed or inspected for rehearsal. They establish neither a
-supported target nor any rehearsal, Auth, SQL, runtime, or authorization result,
-and must not be repeated or relied on as R01a evidence.
+### Noncompliant retired-preview observations — not R01a rehearsal evidence
 
-This checkpoint's current provider work is limited to production-project
-readback and the production branch listing. No new retired-preview lookup,
-branch-specific migration call, SQL Editor, Auth Admin, connection, activation,
-reset, reuse, configuration, deployment, or production operation was performed.
-The only safe path remains a newly cost-approved, `with_data=false`, addressable
-disposable branch that passes the runbook's fresh-target checks before any
-rehearsal action.
+The retired-preview `get_project`, `list_migrations`, and security-advisor calls
+above were contrary to the runbook's retired-preview no-address/no-inspect
+boundary. They do not count as R01a rehearsal evidence, do not authorize any
+reuse, and must not be repeated. They establish neither a supported target nor
+any rehearsal, Auth, SQL, runtime, or authorization result.
+
+No inference about SQL, Auth Admin, a connection, activation, reset, reuse,
+creation, deletion, configuration change, deployment, or production write may be
+drawn from these observations. The only safe path remains a newly cost-approved,
+`with_data=false`, addressable disposable branch that passes the runbook's
+fresh-target checks before any rehearsal action.
