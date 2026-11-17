@@ -60,7 +60,7 @@ that ref returned `NotFound`.
 This run also called `list_migrations` against the retired preview. It returned
 `remote_schema`, `20261114134547 corrected_fresh`, and
 `20261114134622 corrected_idempotent_repeat`. The security advisor reported that
-the `membership` table has RLS enabled with no policies.
+`public.auth_tenant_memberships` has RLS enabled with no policies.
 
 ### Noncompliant retired-preview observations — not R01a rehearsal evidence
 
