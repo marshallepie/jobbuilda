@@ -30,3 +30,13 @@ This independent source-review checkpoint covers commit `87ddcf4b6f625a48b940ea5
 - No provider calls or production writes occurred.
 
 R02 is not complete. Provider/Auth direct registration configuration and deployed-runtime validation remain unverified.
+
+## Provider/Auth configuration checkpoint — 2026-11-17T06:25:08Z
+
+- Read-only management request: `GET https://api.supabase.com/v1/projects/jnwxueomquywrqcgbgfd/config/auth` returned `200`.
+- The returned JSON included `disable_signup: false`.
+- No provider configuration, database, deployment, application code, or script writes occurred.
+
+**Conclusion:** Direct Auth registration is open. R02 cannot claim public acquisition is fully closed while this provider/Auth setting remains enabled.
+
+**Safe next action:** Before a provider configuration change, complete the required production-change preflight: read the current configuration as rollback evidence; verify backup, rollback, and deployment evidence; obtain independent review; and confirm the exact scope. Use standing authority only if those gates pass, PATCH only `disable_signup=true`, and read back the configuration.
