@@ -20,3 +20,13 @@ This is a source-review and focused-test checkpoint at commit `2cb6ade7b53abde3a
 Public registration remains closed. R02 is not marked fully complete by this checkpoint: deployed-runtime validation and disposable-database authorization-flow evidence are outside this record.
 
 No production, database, or provider writes occurred for this source review and focused-test checkpoint.
+
+## Independent source-review checkpoint — 2026-11-17
+
+This independent source-review checkpoint covers commit `87ddcf4b6f625a48b940ea59878e703c959e896b` only. All reviewed public acquisition routes were fail-closed.
+
+- `node --test apps/web/test/public-acquisition-maintenance.test.mjs`: passed **4/4**.
+- From `apps/coordinator`, `STRIPE_SECRET_KEY=sk_test_readonly_review_placeholder node --import tsx --test test/account-isolation-containment.test.ts test/server-auth-tenant-isolation.test.ts`: passed **9/9**.
+- No provider calls or production writes occurred.
+
+R02 is not complete. Provider/Auth direct registration configuration and deployed-runtime validation remain unverified.
